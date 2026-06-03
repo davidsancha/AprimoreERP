@@ -452,7 +452,7 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 {ordemWidgets.map((widgetKey, idx) => {
                   const label = widgetKey === 'saudeObras' 
-                    ? 'Saúde Financeira das Obras' 
+                    ? 'Saúde Financeira dos Projetos' 
                     : widgetKey === 'fluxoCaixa' 
                     ? 'Faturamento Futuro' 
                     : 'Fila de Recebimentos em Atraso';
@@ -505,7 +505,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Grid de Obras e Fluxo de Caixa Fictícios */}
+          {/* Grid de Projetos e Fluxo de Caixa Fictícios */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 bg-card border border-card-border rounded-2xl p-6 space-y-6 animate-pulse">
               <div className="flex justify-between items-center border-b border-card-border pb-4">
@@ -549,10 +549,10 @@ export default function DashboardPage() {
           {/* Bloco 1: KPIs Principais com Sparklines e Microtendências */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             
-            {/* KPI 1: Obras em Andamento */}
+            {/* KPI 1: Projetos em Andamento */}
             <div className="bg-card border border-card-border rounded-2xl p-5 flex flex-col justify-between hover-card shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-sub uppercase tracking-wider">Obras em Andamento</span>
+                <span className="text-xs font-bold text-sub uppercase tracking-wider">Projetos em Andamento</span>
                 <div className="h-8 w-8 rounded-lg bg-brand-blue/10 dark:bg-brand-ocre/10 text-brand-blue dark:text-brand-ocre flex items-center justify-center">
                   <HardHat size={16} />
                 </div>
@@ -561,7 +561,7 @@ export default function DashboardPage() {
                 <div className="flex items-baseline justify-between">
                   <h3 className="text-3xl font-extrabold text-main">{projetosAndamento}</h3>
                   <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-450 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                    +1 obra ativa vs mês ant.
+                    +1 projeto ativo vs mês ant.
                   </span>
                 </div>
                 <p className="text-[10px] text-desc">Monitoramento de canteiros ativos</p>
@@ -702,23 +702,23 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between border-b border-card-border pb-4">
                       <div>
                         <h3 className="text-lg font-bold text-main flex items-center gap-2 font-vomzom">
-                          Saúde Financeira das Obras
+                          Saúde Financeira dos Projetos
                         </h3>
                         <p className="text-xs text-sub mt-1">
                           Comparativo de Custos Efetivos Lançados contra o Orçamento Planejado.
                         </p>
                       </div>
-                      <span className="text-xs text-desc font-semibold">{projetos.length} obras cadastradas</span>
+                      <span className="text-xs text-desc font-semibold">{projetos.length} projetos cadastrados</span>
                     </div>
 
                     {projetos.length === 0 ? (
                       <div className="text-center py-16 border border-dashed border-card-border rounded-2xl">
-                        <p className="text-sm text-desc mb-4">Nenhuma obra cadastrada para avaliação financeira.</p>
+                        <p className="text-sm text-desc mb-4">Nenhum projeto cadastrado para avaliação financeira.</p>
                         <Link 
                           href="/projetos/novo"
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 transition-all shadow-lg"
                         >
-                          Cadastrar Obra e Orçamento
+                          Cadastrar Projeto e Orçamento
                         </Link>
                       </div>
                     ) : (
@@ -787,7 +787,7 @@ export default function DashboardPage() {
                                           type="button"
                                           onClick={() => {
                                             if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
-                                              window.location.href = `/rh/pagamentos-parceiros?projeto_id=${proj.id}`;
+                                              router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
                                             } else {
                                               setQuickCusto({
                                                 projetoId: proj.id!,

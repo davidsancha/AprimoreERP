@@ -38,6 +38,7 @@ export async function salvarProjetoCompleto(
         .from('projetos')
         .update({
           cliente_id: projeto.cliente_id,
+          cliente_final_id: projeto.cliente_final_id,
           nome: projeto.nome,
           os: projeto.os,
           data_prevista_inicio: projeto.data_prevista_inicio,
@@ -65,6 +66,7 @@ export async function salvarProjetoCompleto(
         .insert([
           {
             cliente_id: projeto.cliente_id,
+            cliente_final_id: projeto.cliente_final_id,
             nome: projeto.nome,
             os: projeto.os,
             data_prevista_inicio: projeto.data_prevista_inicio,

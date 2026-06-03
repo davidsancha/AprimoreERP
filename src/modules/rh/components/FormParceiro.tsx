@@ -207,9 +207,9 @@ export default function FormParceiro() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Opcional: Link para voltar */}
-          <Link href="/rh" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-card-border text-sub hover:text-main hover:bg-slate-50 transition-all text-xs font-bold shadow-sm">
-            <ArrowLeft size={14} /> Voltar
+          {/* Botão de Cancelar */}
+          <Link href="/rh/parceiros" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-card-border text-sub hover:text-red-500 hover:border-red-500/30 hover:bg-red-500/5 transition-all text-xs font-bold shadow-sm">
+            <ArrowLeft size={14} /> Cancelar
           </Link>
           <button
             type="submit"

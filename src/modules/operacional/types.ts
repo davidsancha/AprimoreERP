@@ -1,6 +1,7 @@
 export interface Projeto {
   id?: string;
   cliente_id?: string;
+  cliente_final_id?: string;
   nome: string;
   os: string;
   data_prevista_inicio: string;

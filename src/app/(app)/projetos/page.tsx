@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   HardHat, 
   Plus, 
@@ -52,6 +53,7 @@ interface ProjetoComFinanceiro extends Projeto {
 }
 
 export default function ProjetosPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [projetos, setProjetos] = useState<ProjetoComFinanceiro[]>([]);
   const [busca, setBusca] = useState('');
@@ -155,7 +157,7 @@ export default function ProjetosPage() {
         data_custo: new Date().toISOString().split('T')[0]
       });
 
-      showToast(`Custo de ${quickCusto.categoriaLabel} registrado com sucesso para a obra ${quickCusto.projetoNome}!`, 'success');
+      showToast(`Custo de ${quickCusto.categoriaLabel} registrado com sucesso para o projeto ${quickCusto.projetoNome}!`, 'success');
       setQuickCusto(null);
       setQuickValor('');
       carregarProjetos();
@@ -170,11 +172,11 @@ export default function ProjetosPage() {
   const handleExcluir = async (id: string) => {
     try {
       await deletarProjeto(id);
-      showToast('Obra excluída com sucesso.', 'success');
+      showToast('Projeto excluído com sucesso.', 'success');
       carregarProjetos();
     } catch (err) {
-      console.error('Erro ao deletar obra:', err);
-      showToast('Houve um erro ao processar a exclusão da obra.', 'error');
+      console.error('Erro ao deletar projeto:', err);
+      showToast('Houve um erro ao processar a exclusão do projeto.', 'error');
     }
   };
 
@@ -196,10 +198,10 @@ export default function ProjetosPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-card-border pb-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-main flex items-center gap-2 font-vomzom">
-            Gestão de Obras <span className="text-brand-blue dark:text-brand-ocre text-[10px] font-semibold border border-brand-ocre/20 bg-brand-blue/5 dark:bg-brand-ocre/5 px-2 py-0.5 rounded-lg uppercase tracking-wider">VISUALIZADOR COMPLETO</span>
+            Gestão de Projetos <span className="text-brand-blue dark:text-brand-ocre text-[10px] font-semibold border border-brand-ocre/20 bg-brand-blue/5 dark:bg-brand-ocre/5 px-2 py-0.5 rounded-lg uppercase tracking-wider">VISUALIZADOR COMPLETO</span>
           </h2>
           <p className="text-sub text-xs mt-0.5">
-            Pesquisa avançada, análise física/financeira e controle total do ciclo de vida das obras.
+            Pesquisa avançada, análise física/financeira e controle total do ciclo de vida dos projetos.
           </p>
         </div>
         <div>
@@ -207,7 +209,7 @@ export default function ProjetosPage() {
             href="/projetos/novo"
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 transition-all shadow-lg shadow-brand-ocre/10 cursor-pointer"
           >
-            <Plus size={15} /> Cadastrar Nova Obra (OS)
+            <Plus size={15} /> Cadastrar Novo Projeto (OS)
           </Link>
         </div>
       </div>
@@ -235,11 +237,11 @@ export default function ProjetosPage() {
             <Filter size={11} /> Filtrar status:
           </span>
           {[
-            { id: 'todos', label: 'Todas' },
-            { id: 'planejado', label: 'Planejadas' },
+            { id: 'todos', label: 'Todos' },
+            { id: 'planejado', label: 'Planejados' },
             { id: 'em_andamento', label: 'Em Andamento' },
-            { id: 'concluido', label: 'Concluídas' },
-            { id: 'suspenso', label: 'Suspensas' }
+            { id: 'concluido', label: 'Concluídos' },
+            { id: 'suspenso', label: 'Suspensos' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -286,17 +288,17 @@ export default function ProjetosPage() {
 
       </div>
 
-      {/* Listagem de Obras */}
+      {/* Listagem de Projetos */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-40 gap-3 text-desc">
           <Loader2 className="animate-spin text-brand-ocre" size={36} />
-          <span className="text-xs font-bold tracking-wider uppercase">CARREGANDO LISTAGEM DE OBRAS...</span>
+          <span className="text-xs font-bold tracking-wider uppercase">CARREGANDO LISTAGEM DE PROJETOS...</span>
         </div>
       ) : projetosFiltrados.length === 0 ? (
         <div className="text-center py-20 bg-card border border-card-border border-dashed rounded-2xl">
           <HardHat size={40} className="mx-auto text-desc opacity-50 mb-3" />
-          <p className="text-sm font-semibold text-main">Nenhuma obra localizada.</p>
-          <p className="text-xs text-desc mt-1">Tente ajustar o termo da sua pesquisa ou crie um novo projeto.</p>
+          <p className="text-sm font-semibold text-main">Nenhum projeto localizado.</p>
+          <p className="text-xs text-sub mt-1">Tente ajustar seus filtros de busca ou cadastre um novo projeto para começar.</p>
           {busca || filtroStatus !== 'todos' ? (
             <button
               onClick={() => { setBusca(''); setFiltroStatus('todos'); }}
@@ -309,7 +311,7 @@ export default function ProjetosPage() {
               href="/projetos/novo"
               className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 transition-all shadow-lg"
             >
-              Cadastrar Obra
+              Cadastrar Projeto
             </Link>
           )}
         </div>
@@ -354,7 +356,7 @@ export default function ProjetosPage() {
                       <Link
                         href={`/projetos/editar?id=${proj.id}`}
                         className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs cursor-pointer"
-                        title="Editar Obra"
+                        title="Editar Projeto"
                       >
                         <Edit size={13} />
                       </Link>
@@ -371,12 +373,12 @@ export default function ProjetosPage() {
                         icon={Trash2}
                         className="p-2 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors shadow-xs cursor-pointer"
                         confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-2"
-                        title="Excluir Obra"
+                        title="Excluir Projeto"
                       />
                     </div>
                   </div>
 
-                  {/* Nome da Obra e Endereço */}
+                  {/* Nome do Projeto e Endereço */}
                   <div className="space-y-1.5">
                     <Link
                       href={`/projetos/editar?id=${proj.id}`}
@@ -475,7 +477,7 @@ export default function ProjetosPage() {
                             type="button"
                             onClick={() => {
                               if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
-                                window.location.href = `/rh/pagamentos-parceiros?projeto_id=${proj.id}`;
+                                router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
                               } else {
                                 setQuickCusto({
                                   projetoId: proj.id!,
@@ -508,7 +510,7 @@ export default function ProjetosPage() {
               <thead>
                 <tr className="border-b border-card-border bg-slate-50 dark:bg-zinc-900/50 text-xs font-bold text-desc uppercase tracking-wider">
                   <th className="py-3 px-5 w-32">OS</th>
-                  <th className="py-3 px-4 min-w-[400px]">Obra</th>
+                  <th className="py-3 px-4 min-w-[400px]">Projeto</th>
                   <th className="py-3 px-4 w-24">Tipologia</th>
                   <th className="py-3 px-4 w-48">Cidade/UF</th>
                   <th className="py-3 px-4">Status</th>
@@ -558,7 +560,7 @@ export default function ProjetosPage() {
                               ? 'bg-sky-500/10 text-sky-500 border border-sky-500/20'
                               : 'bg-slate-500/10 text-slate-500 border border-slate-500/20'
                           }`}>
-                            {proj.status === 'em_andamento' ? 'Em Andamento' : proj.status === 'concluido' ? 'Concluída' : proj.status === 'planejado' ? 'Planejada' : 'Suspensa'}
+                            {proj.status === 'em_andamento' ? 'Em Andamento' : proj.status === 'concluido' ? 'Concluído' : proj.status === 'planejado' ? 'Planejado' : 'Suspenso'}
                         </span>
                         </td>
                         <td className="py-3 px-4 text-right text-xs">
@@ -572,7 +574,7 @@ export default function ProjetosPage() {
                             <Link
                               href={`/projetos/editar?id=${proj.id}`}
                               className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs"
-                              title="Editar Obra"
+                              title="Editar Projeto"
                             >
                               <Edit size={12} />
                             </Link>
@@ -589,7 +591,7 @@ export default function ProjetosPage() {
                               icon={Trash2}
                               className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors shadow-xs"
                               confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-1.5"
-                              title="Excluir Obra"
+                              title="Excluir Projeto"
                             />
                           </div>
                         </td>
@@ -637,7 +639,7 @@ export default function ProjetosPage() {
                                 {/* ══════════ COLUNA 1: DADOS DA OBRA E ENDEREÇO ══════════ */}
                                 <div className="space-y-4">
                                   <h4 className="text-xs font-black text-brand-ocre uppercase tracking-wider font-vomzom flex items-center gap-1.5 pb-2 border-b border-card-border/50">
-                                    <HardHat size={14} className="text-brand-blue" /> Dados da Obra
+                                    <HardHat size={14} className="text-brand-blue" /> Dados do Projeto
                                   </h4>
                                   <div className="bg-slate-500/5 dark:bg-white/[0.01] border border-card-border/60 rounded-xl p-3 space-y-2.5 text-xs text-main">
                                     <div className="space-y-1 pb-2 border-b border-card-border/50">
@@ -815,12 +817,18 @@ export default function ProjetosPage() {
                                           <button
                                             key={cat}
                                             type="button"
-                                            onClick={() => setQuickCusto({
-                                              projetoId: proj.id!,
-                                              projetoNome: proj.nome,
-                                              categoria: cat as CategoriaCusto,
-                                              categoriaLabel: label
-                                            })}
+                                            onClick={() => {
+                                              if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
+                                                router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
+                                              } else {
+                                                setQuickCusto({
+                                                  projetoId: proj.id!,
+                                                  projetoNome: proj.nome,
+                                                  categoria: cat as CategoriaCusto,
+                                                  categoriaLabel: label
+                                                });
+                                              }
+                                            }}
                                             title={`Lançamento Rápido: ${label}`}
                                             className="flex items-center gap-1 px-2 py-1 rounded-md border border-card-border bg-background hover:bg-brand-blue/5 hover:border-brand-blue/30 dark:hover:bg-brand-ocre/5 dark:hover:border-brand-ocre/30 text-[10px] text-sub hover:text-brand-blue dark:hover:text-brand-ocre transition-all cursor-pointer shadow-2xs font-bold"
                                           >

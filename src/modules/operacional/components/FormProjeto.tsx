@@ -49,6 +49,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [status, setStatus] = useState<'planejado' | 'em_andamento' | 'concluido' | 'suspenso'>('em_andamento');
   const [tipologia, setTipologia] = useState('');
   const [clienteId, setClienteId] = useState('');
+  const [clienteFinalId, setClienteFinalId] = useState('');
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([]);
   
   // Autocomplete e Privilégios
@@ -56,6 +57,9 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const podeCadastrarCliente = profile?.role === 'god' || profile?.role === 'admin';
   const [clienteBusca, setClienteBusca] = useState('');
   const [mostrarDropdownClientes, setMostrarDropdownClientes] = useState(false);
+  
+  const [clienteFinalBusca, setClienteFinalBusca] = useState('');
+  const [mostrarDropdownClienteFinal, setMostrarDropdownClienteFinal] = useState(false);
 
   // Inicializar o campo de busca quando carregar edição
   useEffect(() => {
@@ -67,9 +71,23 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     }
   }, [clienteId, clientesDisponiveis]);
 
+  useEffect(() => {
+    if (clienteFinalId && clientesDisponiveis.length > 0) {
+      const cliente = clientesDisponiveis.find(c => c.id === clienteFinalId);
+      if (cliente && clienteFinalBusca === '') {
+        setClienteFinalBusca(cliente.nome);
+      }
+    }
+  }, [clienteFinalId, clientesDisponiveis]);
+
   const clientesFiltrados = clientesDisponiveis.filter(c => 
     c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || 
     c.documento.includes(clienteBusca)
+  );
+
+  const clientesFinalFiltrados = clientesDisponiveis.filter(c => 
+    c.nome.toLowerCase().includes(clienteFinalBusca.toLowerCase()) || 
+    c.documento.includes(clienteFinalBusca)
   );
 
   // 2. Estados de Endereço Inteligente (Módulo 2)
@@ -117,6 +135,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
         const proj = await fetchProjetoById(projetoId);
         if (proj) {
           setClienteId(proj.cliente_id || '');
+          setClienteFinalId(proj.cliente_final_id || '');
           setNome(proj.nome);
           setOs(proj.os);
           setDataPrevistaInicio(proj.data_prevista_inicio);
@@ -479,7 +498,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     e.preventDefault();
 
     if (!clienteId || !nome || !os || !dataPrevistaInicio || !dataPrevistaTermino || !cep || !logradouro || !bairro || !cidade || !uf || !numero || !tipologia) {
-      alert('Por favor, selecione um cliente e preencha todos os campos obrigatórios da obra e endereço.');
+      alert('Por favor, selecione um cliente e preencha todos os campos obrigatórios do projeto e endereço.');
       return;
     }
 
@@ -493,6 +512,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     const projetoPayload: Projeto = {
       id: projetoId, // Enviando o ID para atualizar se já existir
       cliente_id: clienteId,
+      cliente_final_id: clienteFinalId || undefined,
       nome,
       os,
       data_prevista_inicio: dataPrevistaInicio,
@@ -514,11 +534,11 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     try {
       await salvarProjetoCompleto(projetoPayload, orcamentos, recebimentos);
       
-      alert(projetoId ? 'Obra e cronograma atualizados com sucesso!' : 'Projeto cadastrado e salvo com sucesso! O cronograma financeiro e os orçamentos foram vinculados.');
+      alert(projetoId ? 'Projeto e cronograma atualizados com sucesso!' : 'Projeto cadastrado e salvo com sucesso! O cronograma financeiro e os orçamentos foram vinculados.');
       router.push(projetoId ? '/projetos' : '/');
     } catch (err) {
       console.error('Erro ao salvar projeto:', err);
-      alert('Houve um erro ao processar o cadastro da obra.');
+      alert('Houve um erro ao processar o cadastro do projeto.');
     } finally {
       setLoading(false);
     }
@@ -531,7 +551,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
       <div className="flex items-center justify-between border-b border-card-border pb-3">
         <div>
           <h2 className="text-base font-bold tracking-tight text-main flex items-center gap-1.5 uppercase tracking-wider font-vomzom">
-            <Briefcase className="text-brand-blue dark:text-brand-ocre" size={16} /> {projetoId ? 'Editar Obra / Projeto' : 'Cadastrar Nova Obra'}
+            <Briefcase className="text-brand-blue dark:text-brand-ocre" size={16} /> {projetoId ? 'Editar Projeto' : 'Cadastrar Novo Projeto'}
           </h2>
           <p className="text-sub text-[10px] mt-0.5">
             {projetoId ? `Editando OS ${os} - Planejamento financeiro, endereço inteligente e orçamento.` : 'Planejamento estruturado de engenharia, endereço inteligente e faturamento financeiro.'}
@@ -548,7 +568,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
             </>
           ) : (
             <>
-              <Check size={18} /> {projetoId ? 'Salvar Alterações' : 'Salvar Obra Integrada'}
+              <Check size={18} /> {projetoId ? 'Salvar Alterações' : 'Salvar Projeto Integrado'}
             </>
           )}
         </button>
@@ -556,13 +576,13 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
         
-        {/* ══════════ COLUNA 1: DADOS DA OBRA + ENDEREÇO ══════════ */}
+        {/* ══════════ COLUNA 1: DADOS DO PROJETO + ENDEREÇO ══════════ */}
         <div className="space-y-5">
-          {/* Módulo 1: Dados Gerais da Obra */}
+          {/* Módulo 1: Dados Gerais do Projeto */}
           <div className="bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm">
             <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom">
               <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">1</span>
-              Dados Gerais da Obra
+              Dados Gerais do Projeto
             </h3>
             
             <div className="space-y-3">
@@ -613,12 +633,60 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                   )}
                 </div>
                 {clientesDisponiveis.length === 0 && (
-                  <p className="text-[9px] text-red-500 mt-0.5 font-bold">Nenhum cliente cadastrado no CRM. Cadastre um cliente antes de criar a obra.</p>
+                  <p className="text-[9px] text-red-500 mt-0.5 font-bold">Nenhum cliente cadastrado no CRM. Cadastre um cliente antes de criar o projeto.</p>
                 )}
               </div>
 
+              {/* Cliente Final / Beneficiário (Opcional) */}
+              <div className="space-y-1 relative">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cliente Final / Beneficiário <span className="text-[9px] lowercase font-normal">(opcional)</span></label>
+                  {podeCadastrarCliente && (
+                    <Link href="/crm/clientes/novo" className="text-[10px] font-bold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1">
+                      <UserPlus size={10} /> Novo
+                    </Link>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={14} className="text-sub" />
+                  </div>
+                  <input
+                    type="text"
+                    value={clienteFinalBusca}
+                    onChange={(e) => {
+                      setClienteFinalBusca(e.target.value);
+                      setClienteFinalId('');
+                      setMostrarDropdownClienteFinal(true);
+                    }}
+                    onFocus={() => setMostrarDropdownClienteFinal(true)}
+                    onBlur={() => setTimeout(() => setMostrarDropdownClienteFinal(false), 200)}
+                    className="w-full pl-9 pr-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all"
+                    placeholder="Ex: Itaú, Santander..."
+                  />
+                  {mostrarDropdownClienteFinal && clientesFinalFiltrados.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-card-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                      {clientesFinalFiltrados.map(c => (
+                        <div
+                          key={c.id}
+                          className="px-3 py-2 text-xs text-main hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer font-medium border-b border-card-border/50 last:border-0"
+                          onClick={() => {
+                            setClienteFinalId(c.id);
+                            setClienteFinalBusca(c.nome);
+                            setMostrarDropdownClienteFinal(false);
+                          }}
+                        >
+                          <div className="font-bold">{c.nome}</div>
+                          <div className="text-[10px] text-sub">{c.documento}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto/Obra *</label>
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto *</label>
                 <input
                   type="text"
                   required
@@ -671,16 +739,16 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Status da Obra</label>
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Status do Projeto</label>
                 <select
                   value={status}
                   onChange={(e: any) => setStatus(e.target.value)}
                   className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold"
                 >
-                  <option value="planejado">Planejada</option>
+                  <option value="planejado">Planejado</option>
                   <option value="em_andamento">Em Andamento</option>
-                  <option value="concluido">Concluída</option>
-                  <option value="suspenso">Suspensa</option>
+                  <option value="concluido">Concluído</option>
+                  <option value="suspenso">Suspenso</option>
                 </select>
               </div>
 
@@ -996,7 +1064,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
           </div>
         </div>
 
-        {/* ══════════ COLUNA 3: DESPESAS E INFORMAÇÕES DA OBRA ══════════ */}
+        {/* ══════════ COLUNA 3: DESPESAS E INFORMAÇÕES DO PROJETO ══════════ */}
         <div className="space-y-5">
           {/* Viabilidade Operacional */}
           <div className="bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm text-left">
@@ -1183,11 +1251,11 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
             </div>
           </div>
 
-          {/* Indicadores da Obra */}
+          {/* Indicadores do Projeto */}
           <div className="bg-card border border-card-border rounded-xl p-4 space-y-3 shadow-sm text-left">
             <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom">
               <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">9</span>
-              Indicadores da Obra
+              Indicadores do Projeto
             </h3>
             <div className="space-y-2">
               {/* Margem visual grande */}

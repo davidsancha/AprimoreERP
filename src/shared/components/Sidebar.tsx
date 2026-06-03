@@ -80,14 +80,13 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
       title: 'Core Business',
       items: [
         { 
-          label: 'Operacional (Obras)', 
+          label: 'Operacional (Projetos)', 
           icon: HardHat, 
           roles: ['god', 'admin', 'engenheiro'],
           subItems: [
             { label: 'Dashboard Operacional', href: '/operacional', active: true },
-            { label: 'Lista de Obras', href: '/projetos', active: true },
-            { label: 'Nova Obra (OS)', href: '/projetos/novo', active: true },
-            { label: 'Diário de Obra', href: '#', active: false, badge: 'Breve' },
+            { label: 'Projetos', href: '/projetos', active: true },
+            { label: 'Diário de Projeto', href: '#', active: false, badge: 'Breve' },
             { label: 'Medição Física', href: '#', active: false, badge: 'Breve' }
           ]
         },
@@ -97,7 +96,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           roles: ['god', 'admin', 'engenheiro'],
           subItems: [
             { label: 'Dashboard PCM', href: '/engenharia', active: true },
-            { label: 'Orçamento da Obra', href: '#', active: false, badge: 'Breve' },
+            { label: 'Orçamento do Projeto', href: '#', active: false, badge: 'Breve' },
             { label: 'Cronograma (EAP)', href: '#', active: false, badge: 'Breve' }
           ]
         },
@@ -184,7 +183,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           roles: ['god', 'admin', 'rh'],
           subItems: [
             { label: 'Dashboard RH', href: '/rh', active: true },
-            { label: 'Cadastro de Parceiros', href: '/rh/parceiros/novo', active: true },
+            { label: 'Parceiros', href: '/rh/parceiros', active: true },
             { label: 'Lançar Diárias', href: '/rh/pagamentos-parceiros', active: true },
             { label: 'Colaboradores', href: '#', active: false, badge: 'Breve' },
             { label: 'Folha de Pagamento', href: '#', active: false, badge: 'Breve' }
@@ -232,7 +231,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           subItems: [
             { label: 'Painel Consolidado BI', href: '/controladoria', active: true },
             { label: 'Relatórios Gerenciais', href: '/relatorios', active: true },
-            { label: 'Margem por Obra', href: '#', active: false, badge: 'Breve' }
+            { label: 'Margem por Projeto', href: '#', active: false, badge: 'Breve' }
           ]
         },
         { 

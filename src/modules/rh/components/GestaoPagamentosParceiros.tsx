@@ -136,7 +136,7 @@ export default function GestaoPagamentosParceiros() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.parceiro_id || !formData.projeto_id) {
-      setErro('Selecione um parceiro e uma obra.');
+      setErro('Selecione um parceiro e um projeto.');
       return;
     }
 
@@ -164,7 +164,7 @@ export default function GestaoPagamentosParceiros() {
 
       if (error) throw error;
 
-      // Integrar com os Custos Realizados da Obra
+      // Integrar com os Custos Realizados do Projeto
       await salvarCustoRealizado({
         projeto_id: formData.projeto_id,
         categoria: 'mao_de_obra',
@@ -221,7 +221,7 @@ export default function GestaoPagamentosParceiros() {
             <Calculator className="text-brand-blue dark:text-brand-ocre" size={16} /> Lançar Diárias e Empreitadas
           </h2>
           <p className="text-sub text-[10px] mt-0.5">
-            Registre os dias trabalhados por parceiros nas obras e calcule o pagamento automaticamente.
+            Registre os dias trabalhados por parceiros nos projetos e calcule o pagamento automaticamente.
           </p>
         </div>
         <div className="flex gap-2">
@@ -241,7 +241,7 @@ export default function GestaoPagamentosParceiros() {
       {sucesso && (
         <div className="bg-green-500/10 border border-green-500/20 text-green-600 p-4 rounded-xl flex items-center gap-3 shadow-sm">
           <Check size={20} />
-          <span className="text-xs font-bold">Pagamento lançado e registrado nos custos da obra com sucesso!</span>
+          <span className="text-xs font-bold">Pagamento lançado e registrado nos custos do projeto com sucesso!</span>
         </div>
       )}
 
@@ -261,9 +261,9 @@ export default function GestaoPagamentosParceiros() {
             </div>
 
             <div className="space-y-1 col-span-2 md:col-span-1">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-blue">Obra / Projeto *</label>
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-blue">Projeto *</label>
               <select name="projeto_id" value={formData.projeto_id} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold" required>
-                <option value="">Selecione a Obra...</option>
+                <option value="">Selecione o Projeto...</option>
                 {projetos.map(p => (
                   <option key={p.id} value={p.id}>[{p.os}] {p.nome}</option>
                 ))}
