@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { Save, AlertCircle, Building2, User, ArrowLeft, MapPin, Phone, Mail, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Save, AlertCircle, Building2, User, ArrowLeft, MapPin, Phone, Mail, Plus, Trash2, Loader2, Briefcase, Globe, FileText, Activity, Check } from 'lucide-react';
 import Link from 'next/link';
 import { validarCPF, validarCNPJ } from '@/shared/utils/validators';
 
@@ -16,6 +16,34 @@ const CATEGORIAS = [
   'Órgão Público',
   'Parceiro Comercial',
   'Outros'
+];
+
+const ORIGENS_LEAD = [
+  'Indicação',
+  'Prospecção Ativa',
+  'Google Ads',
+  'Instagram / Facebook Ads',
+  'Feira / Evento',
+  'Redes Sociais (Orgânico)',
+  'Outros'
+];
+
+const STATUS_CLIENTE = [
+  'Prospect',
+  'Ativo',
+  'Inativo'
+];
+
+const SEGMENTOS = [
+  'Residencial de Alto Padrão',
+  'Residencial Popular',
+  'Comercial / Corporativo',
+  'Indústria',
+  'Infraestrutura',
+  'Varejo',
+  'Saúde',
+  'Educação',
+  'Outro'
 ];
 
 interface ContatoExtra {
@@ -46,11 +74,18 @@ export default function FormCliente() {
     bairro: '',
     cidade: '',
     uf: '',
+    // BI / Comercial
+    origem_lead: 'Indicação',
+    faturamento_estimado: '',
+    segmento_atuacao: 'Residencial de Alto Padrão',
+    status: 'Prospect',
+    redes_sociais: '',
+    observacoes: ''
   });
 
   const [contatos, setContatos] = useState<ContatoExtra[]>([]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
     // Máscara documento
@@ -89,6 +124,19 @@ export default function FormCliente() {
       if (numbersOnly.length === 8) {
         buscarEnderecoPorCep(numbersOnly);
       }
+      return;
+    }
+
+    // Formatador Monetário
+    if (name === 'faturamento_estimado') {
+      const rawValue = value.replace(/\D/g, '');
+      const numberValue = Number(rawValue) / 100;
+      if (rawValue === '') {
+        setFormData(prev => ({ ...prev, faturamento_estimado: '' }));
+        return;
+      }
+      const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue);
+      setFormData(prev => ({ ...prev, faturamento_estimado: formatted }));
       return;
     }
 
@@ -161,6 +209,8 @@ export default function FormCliente() {
         throw new Error('O CNPJ informado é inválido. Verifique os números digitados.');
       }
 
+      const faturamentoNum = formData.faturamento_estimado ? Number(formData.faturamento_estimado.replace(/\D/g, '')) / 100 : 0;
+
       // 1. Inserir Cliente
       const { data: clienteData, error: clienteError } = await supabase.from('crm_clientes').insert([{
         tipo: formData.tipo,
@@ -176,6 +226,13 @@ export default function FormCliente() {
         bairro: formData.bairro,
         cidade: formData.cidade,
         uf: formData.uf,
+        // BI Fields
+        origem_lead: formData.origem_lead,
+        faturamento_estimado: faturamentoNum,
+        segmento_atuacao: formData.segmento_atuacao,
+        status: formData.status,
+        redes_sociais: formData.redes_sociais,
+        observacoes: formData.observacoes
       }]).select('id').single();
 
       if (clienteError) {
@@ -207,206 +264,274 @@ export default function FormCliente() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-8 pb-16">
+    <form onSubmit={handleSubmit} className="space-y-6 w-full pb-16">
       
-      {/* Header do Form */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-card-border pb-5">
+      {/* Título da Página e Ações */}
+      <div className="flex items-center justify-between border-b border-card-border pb-3">
         <div>
-          <h2 className="text-2xl font-extrabold tracking-tight text-main capitalize font-vomzom">Novo Cliente</h2>
-          <p className="text-sub text-sm mt-1">Cadastro completo de clientes físicos ou jurídicos.</p>
+          <h2 className="text-base font-bold tracking-tight text-main flex items-center gap-1.5 uppercase tracking-wider font-vomzom">
+            <User className="text-brand-blue dark:text-brand-ocre" size={16} /> Cadastrar Novo Cliente
+          </h2>
+          <p className="text-sub text-[10px] mt-0.5">
+            Cadastro estratégico de clientes com inteligência comercial integrada.
+          </p>
         </div>
-        <div className="flex gap-3">
-          <Link href="/crm" className="flex items-center gap-2 px-4 py-2 bg-card border border-card-border text-main rounded-xl font-bold hover:bg-slate-50 transition-all text-sm shadow-sm">
-            <ArrowLeft size={16} /> Voltar
+        <div className="flex gap-2">
+          <Link href="/crm" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-card-border text-sub hover:text-main hover:bg-slate-50 transition-all text-xs font-bold shadow-sm">
+            <ArrowLeft size={14} /> Voltar
           </Link>
-          <button type="submit" disabled={loading} className="flex items-center gap-2 px-6 py-2 bg-brand-ocre text-brand-dark rounded-xl font-bold hover:bg-brand-ocre/90 transition-all text-sm shadow-md disabled:opacity-50">
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            {loading ? 'Salvando...' : 'Salvar Cadastro'}
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
+          >
+            {loading ? (
+              <><Loader2 className="animate-spin" size={16} /> Salvando...</>
+            ) : (
+              <><Check size={16} /> Salvar Cliente</>
+            )}
           </button>
         </div>
       </div>
 
       {erro && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3">
+        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3 shadow-sm">
           <AlertCircle size={20} />
-          <span className="text-sm font-semibold">{erro}</span>
+          <span className="text-xs font-bold">{erro}</span>
         </div>
       )}
 
-      {/* Tipo e Categoria */}
-      <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm space-y-6">
-        <h3 className="text-sm font-black text-brand-ocre uppercase tracking-wider border-b border-card-border pb-3 flex items-center gap-2">
-          <User size={16} /> Perfil do Cliente
-        </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 grid grid-cols-2 gap-4">
-            <label className={`cursor-pointer border rounded-xl p-4 flex items-center gap-3 transition-all ${
-              formData.tipo === 'pessoa_fisica' 
-                ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' 
-                : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
-            }`}>
-              <input type="radio" name="tipo" value="pessoa_fisica" checked={formData.tipo === 'pessoa_fisica'} onChange={handleChange} className="hidden" />
-              <User size={20} />
-              <span className="font-bold text-sm">Pessoa Física (CPF)</span>
-            </label>
-            
-            <label className={`cursor-pointer border rounded-xl p-4 flex items-center gap-3 transition-all ${
-              formData.tipo === 'pessoa_juridica' 
-                ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' 
-                : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
-            }`}>
-              <input type="radio" name="tipo" value="pessoa_juridica" checked={formData.tipo === 'pessoa_juridica'} onChange={handleChange} className="hidden" />
-              <Building2 size={20} />
-              <span className="font-bold text-sm">Pessoa Jurídica (CNPJ)</span>
-            </label>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Categoria no CRM *</label>
-            <select name="categoria" value={formData.categoria} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-3 text-sm text-main focus:outline-none focus:border-brand-blue transition-all font-semibold" required>
-              {CATEGORIAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">
-              {formData.tipo === 'pessoa_fisica' ? 'Nome Completo' : 'Razão Social'} <span className="text-red-500">*</span>
-            </label>
-            <input type="text" name="nome" value={formData.nome} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder={formData.tipo === 'pessoa_fisica' ? 'Ex: João da Silva' : 'Ex: Empresa Exemplo LTDA'} required />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">
-              {formData.tipo === 'pessoa_fisica' ? 'CPF' : 'CNPJ'} <span className="text-red-500">*</span>
-            </label>
-            <input type="text" name="documento" value={formData.documento} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main font-semibold focus:outline-none focus:border-brand-blue transition-all" placeholder={formData.tipo === 'pessoa_fisica' ? '000.000.000-00' : '00.000.000/0000-00'} required maxLength={formData.tipo === 'pessoa_fisica' ? 14 : 18} />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Telefone Principal</label>
-            <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
-              <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="(00) 00000-0000" maxLength={15} />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">E-mail Principal</label>
-            <div className="relative">
-              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
-              <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="contato@exemplo.com.br" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Endereço */}
-      <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm space-y-6">
-        <h3 className="text-sm font-black text-brand-ocre uppercase tracking-wider border-b border-card-border pb-3 flex items-center gap-2">
-          <MapPin size={16} /> Endereço Completo
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">CEP</label>
-            <div className="relative">
-              <input type="text" name="cep" value={formData.cep} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="00000-000" maxLength={9} />
-              {cepLoading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-blue animate-spin" />}
-            </div>
-          </div>
-
-          <div className="space-y-1.5 md:col-span-4">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Logradouro / Rua</label>
-            <input type="text" name="logradouro" value={formData.logradouro} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="Ex: Av. Paulista" />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Número</label>
-            <input id="numero" type="text" name="numero" value={formData.numero} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="Ex: 1000" />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-4">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Complemento</label>
-            <input type="text" name="complemento" value={formData.complemento} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="Sala, Apto, Galpão..." />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Bairro</label>
-            <input type="text" name="bairro" value={formData.bairro} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-3">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Cidade</label>
-            <input type="text" name="cidade" value={formData.cidade} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-1">
-            <label className="text-[10px] font-bold text-sub uppercase tracking-wider">UF</label>
-            <input type="text" name="uf" value={formData.uf} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2.5 text-sm text-main focus:outline-none focus:border-brand-blue transition-all" maxLength={2} />
-          </div>
-        </div>
-      </div>
-
-      {/* Contatos Adicionais */}
-      <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="flex items-center justify-between border-b border-card-border pb-3">
-          <div>
-            <h3 className="text-sm font-black text-brand-ocre uppercase tracking-wider flex items-center gap-2">
-              <Phone size={16} /> Contatos Adicionais
+        {/* ══════════ COLUNA 1 e 2: DADOS BÁSICOS & INTELIGÊNCIA ══════════ */}
+        <div className="md:col-span-2 space-y-5">
+          
+          {/* Módulo 1: Perfil do Cliente */}
+          <div className="bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom">
+              <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">1</span>
+              Perfil do Cliente
             </h3>
-            <p className="text-[11px] text-sub mt-1">
-              {formData.tipo === 'pessoa_fisica' 
-                ? 'Adicione outros telefones ou e-mails do cliente (opcional).' 
-                : 'Cadastre os responsáveis, diretores ou contatos internos da empresa.'}
-            </p>
-          </div>
-          <button type="button" onClick={addContato} className="flex items-center gap-1.5 text-xs font-bold text-brand-blue bg-brand-blue/10 px-3 py-1.5 rounded-lg hover:bg-brand-blue hover:text-white transition-colors">
-            <Plus size={14} /> Adicionar
-          </button>
-        </div>
+            
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <label className={`cursor-pointer border rounded-xl p-3 flex items-center gap-2 transition-all ${
+                formData.tipo === 'pessoa_fisica' 
+                  ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' 
+                  : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
+              }`}>
+                <input type="radio" name="tipo" value="pessoa_fisica" checked={formData.tipo === 'pessoa_fisica'} onChange={handleChange} className="hidden" />
+                <User size={16} />
+                <span className="font-bold text-[10px] uppercase tracking-wider">Pessoa Física</span>
+              </label>
+              
+              <label className={`cursor-pointer border rounded-xl p-3 flex items-center gap-2 transition-all ${
+                formData.tipo === 'pessoa_juridica' 
+                  ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' 
+                  : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
+              }`}>
+                <input type="radio" name="tipo" value="pessoa_juridica" checked={formData.tipo === 'pessoa_juridica'} onChange={handleChange} className="hidden" />
+                <Building2 size={16} />
+                <span className="font-bold text-[10px] uppercase tracking-wider">Pessoa Jurídica</span>
+              </label>
+            </div>
 
-        {contatos.length === 0 ? (
-          <div className="text-center py-6 text-sub text-sm">
-            Nenhum contato adicional. Clique em "Adicionar" para incluir mais opções.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {contatos.map((contato, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-background p-4 rounded-xl border border-card-border relative group">
-                <div className="md:col-span-3 space-y-1.5">
-                  <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Nome do Contato</label>
-                  <input type="text" value={contato.nome} onChange={(e) => handleContatoChange(index, 'nome', e.target.value)} className="w-full bg-card border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="Nome da pessoa" />
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">
+                  {formData.tipo === 'pessoa_fisica' ? 'Nome Completo' : 'Razão Social'} <span className="text-red-500">*</span>
+                </label>
+                <input type="text" name="nome" value={formData.nome} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" placeholder={formData.tipo === 'pessoa_fisica' ? 'Ex: João da Silva' : 'Ex: Empresa Exemplo LTDA'} required />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">
+                    {formData.tipo === 'pessoa_fisica' ? 'CPF' : 'CNPJ'} <span className="text-red-500">*</span>
+                  </label>
+                  <input type="text" name="documento" value={formData.documento} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main font-bold focus:outline-none focus:border-brand-blue transition-all" placeholder={formData.tipo === 'pessoa_fisica' ? '000.000.000-00' : '00.000.000/0000-00'} required maxLength={formData.tipo === 'pessoa_fisica' ? 14 : 18} />
                 </div>
                 
-                {formData.tipo === 'pessoa_juridica' && (
-                  <div className="md:col-span-3 space-y-1.5">
-                    <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Função / Cargo</label>
-                    <input type="text" value={contato.funcao} onChange={(e) => handleContatoChange(index, 'funcao', e.target.value)} className="w-full bg-card border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="Ex: Financeiro" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Telefone Principal</label>
+                  <div className="relative">
+                    <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
+                    <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-8 pr-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold" placeholder="(00) 00000-0000" maxLength={15} />
                   </div>
-                )}
-                
-                <div className={formData.tipo === 'pessoa_juridica' ? "md:col-span-2 space-y-1.5" : "md:col-span-4 space-y-1.5"}>
-                  <label className="text-[10px] font-bold text-sub uppercase tracking-wider">Telefone</label>
-                  <input type="text" value={contato.telefone} onChange={(e) => handleContatoChange(index, 'telefone', e.target.value)} className="w-full bg-card border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="(00) 00000-0000" maxLength={15} />
-                </div>
-
-                <div className="md:col-span-3 space-y-1.5">
-                  <label className="text-[10px] font-bold text-sub uppercase tracking-wider">E-mail</label>
-                  <input type="email" value={contato.email} onChange={(e) => handleContatoChange(index, 'email', e.target.value)} className="w-full bg-card border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="E-mail" />
-                </div>
-
-                <div className="md:col-span-1 flex justify-end md:mt-6">
-                  <button type="button" onClick={() => removeContato(index)} className="text-red-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors">
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               </div>
-            ))}
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">E-mail Principal</label>
+                <div className="relative">
+                  <Mail size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-8 pr-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold" placeholder="contato@exemplo.com.br" />
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Módulo 2: Inteligência Comercial (BI) */}
+          <div className="bg-card border border-brand-blue/20 bg-brand-blue/5 rounded-xl p-4 space-y-4 shadow-sm relative overflow-hidden">
+            <div className="absolute -right-6 -top-6 text-brand-blue/10">
+              <Activity size={100} />
+            </div>
+            
+            <h3 className="text-xs font-bold text-brand-blue flex items-center gap-2 border-b border-brand-blue/20 pb-2 uppercase tracking-wider font-vomzom relative z-10">
+              <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/20 text-brand-blue font-black text-[10px]">2</span>
+              Inteligência Comercial (BI)
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-3 relative z-10">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Categoria Estratégica *</label>
+                <select name="categoria" value={formData.categoria} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold" required>
+                  {CATEGORIAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Origem do Lead</label>
+                <select name="origem_lead" value={formData.origem_lead} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold">
+                  {ORIGENS_LEAD.map(origem => <option key={origem} value={origem}>{origem}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Faturamento Estimado</label>
+                <input type="text" name="faturamento_estimado" value={formData.faturamento_estimado} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-brand-blue font-bold focus:outline-none focus:border-brand-blue transition-all" placeholder="R$ 0,00" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Status Comercial</label>
+                <select name="status" value={formData.status} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold">
+                  {STATUS_CLIENTE.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Segmento de Atuação</label>
+                <select name="segmento_atuacao" value={formData.segmento_atuacao} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold">
+                  {SEGMENTOS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Redes Sociais (LinkedIn/Instagram)</label>
+                <div className="relative">
+                  <Globe size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
+                  <input type="text" name="redes_sociais" value={formData.redes_sociais} onChange={handleChange} className="w-full bg-background border border-brand-blue/30 rounded-lg pl-8 pr-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" placeholder="https://linkedin.com/in/..." />
+                </div>
+              </div>
+
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider flex items-center gap-1">
+                  <FileText size={10} /> Observações Estratégicas
+                </label>
+                <textarea name="observacoes" value={formData.observacoes} onChange={handleChange} rows={2} className="w-full bg-background border border-brand-blue/30 rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all resize-none" placeholder="Anotações sobre o cliente, perfil de investimento, dores principais..." />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ══════════ COLUNA 3 e 4: ENDEREÇO & CONTATOS ══════════ */}
+        <div className="md:col-span-2 space-y-5">
+          
+          {/* Módulo 3: Endereço Inteligente */}
+          <div className="bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom">
+              <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">3</span>
+              Endereço Inteligente
+            </h3>
+
+            <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+              <div className="space-y-1 xl:col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">CEP</label>
+                <div className="relative">
+                  <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-ocre" />
+                  <input type="text" name="cep" value={formData.cep} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-8 pr-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all font-bold" placeholder="00000-000" maxLength={9} />
+                  {cepLoading && <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-ocre animate-spin" />}
+                </div>
+              </div>
+
+              <div className="space-y-1 xl:col-span-4">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Logradouro / Rua</label>
+                <input type="text" name="logradouro" value={formData.logradouro} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" placeholder="Ex: Av. Paulista" />
+              </div>
+
+              <div className="space-y-1 xl:col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Número</label>
+                <input id="numero" type="text" name="numero" value={formData.numero} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" placeholder="1000" />
+              </div>
+
+              <div className="space-y-1 xl:col-span-4">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Complemento</label>
+                <input type="text" name="complemento" value={formData.complemento} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" placeholder="Sala, Apto, Galpão..." />
+              </div>
+
+              <div className="space-y-1 xl:col-span-2">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Bairro</label>
+                <input type="text" name="bairro" value={formData.bairro} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" />
+              </div>
+
+              <div className="space-y-1 xl:col-span-3">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cidade</label>
+                <input type="text" name="cidade" value={formData.cidade} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" />
+              </div>
+
+              <div className="space-y-1 xl:col-span-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">UF</label>
+                <input type="text" name="uf" value={formData.uf} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all" maxLength={2} />
+              </div>
+            </div>
+          </div>
+
+          {/* Módulo 4: Contatos Adicionais */}
+          <div className="bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-card-border pb-2">
+              <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
+                <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">4</span>
+                Contatos Estratégicos
+              </h3>
+              <button type="button" onClick={addContato} className="flex items-center gap-1 text-[10px] font-bold text-brand-blue hover:text-brand-blue/80 transition-colors">
+                <Plus size={12} /> Adicionar
+              </button>
+            </div>
+
+            {contatos.length === 0 ? (
+              <div className="text-center py-6 text-sub text-[11px] bg-slate-50 dark:bg-zinc-800/20 rounded-lg border border-dashed border-card-border">
+                Adicione sócios, diretores ou responsáveis do cliente.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contatos.map((contato, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-background p-3 rounded-lg border border-card-border relative group">
+                    <div className="md:col-span-4 space-y-1">
+                      <label className="text-[9px] font-bold text-desc uppercase tracking-wider">Nome</label>
+                      <input type="text" value={contato.nome} onChange={(e) => handleContatoChange(index, 'nome', e.target.value)} className="w-full bg-card border border-card-border rounded-md px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="Nome" />
+                    </div>
+                    
+                    <div className="md:col-span-3 space-y-1">
+                      <label className="text-[9px] font-bold text-desc uppercase tracking-wider">Cargo</label>
+                      <input type="text" value={contato.funcao} onChange={(e) => handleContatoChange(index, 'funcao', e.target.value)} className="w-full bg-card border border-card-border rounded-md px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="Ex: Diretor" />
+                    </div>
+                    
+                    <div className="md:col-span-5 space-y-1 relative">
+                      <label className="text-[9px] font-bold text-desc uppercase tracking-wider">Telefone</label>
+                      <div className="flex gap-2">
+                        <input type="text" value={contato.telefone} onChange={(e) => handleContatoChange(index, 'telefone', e.target.value)} className="w-full bg-card border border-card-border rounded-md px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue" placeholder="(00) 00000-0000" maxLength={15} />
+                        <button type="button" onClick={() => removeContato(index)} className="text-red-400 hover:text-red-500 hover:bg-red-500/10 px-2 rounded-md transition-colors border border-transparent hover:border-red-500/20">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+        </div>
       </div>
       
     </form>
