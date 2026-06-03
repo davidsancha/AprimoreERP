@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { Calculator, Save, AlertCircle, Plus, Loader2, ArrowLeft, Check, Calendar, HardHat, DollarSign } from 'lucide-react';
+import { Calculator, AlertCircle, Plus, Loader2, Check, Calendar, HardHat, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface Parceiro {
@@ -31,12 +31,19 @@ export default function GestaoPagamentosParceiros() {
     parceiro_id: '',
     projeto_id: '',
     data_pagamento: new Date().toISOString().split('T')[0],
-    dias_trabalhados: '1',
     valor_base: 0,
     bonificacao: '0',
     desconto: '0',
     status: 'Pago'
   });
+
+  // Novos estados para cálculo de dias
+  const [modoDias, setModoDias] = useState<'manual' | 'periodo' | 'isoladas'>('manual');
+  const [diasTrabalhadosManual, setDiasTrabalhadosManual] = useState('1');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  const [datasIsoladas, setDatasIsoladas] = useState<string[]>([]);
+  const [novaDataIsolada, setNovaDataIsolada] = useState('');
 
   useEffect(() => {
     async function fetchData() {
@@ -70,9 +77,7 @@ export default function GestaoPagamentosParceiros() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    // Tratamento de valores monetários para input
     if (name === 'bonificacao' || name === 'desconto') {
-      // Limitar a apenas números e virgula
       const cleanValue = value.replace(/[^\d]/g, '');
       const numberValue = Number(cleanValue) / 100;
       if (cleanValue === '') {
@@ -86,13 +91,34 @@ export default function GestaoPagamentosParceiros() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleDiasChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^\d.]/g, '');
-    setFormData(prev => ({ ...prev, dias_trabalhados: val }));
+  const handleAddDataIsolada = () => {
+    if (novaDataIsolada && !datasIsoladas.includes(novaDataIsolada)) {
+      setDatasIsoladas(prev => [...prev, novaDataIsolada].sort());
+      setNovaDataIsolada('');
+    }
+  };
+
+  const handleRemoveDataIsolada = (dt: string) => {
+    setDatasIsoladas(prev => prev.filter(d => d !== dt));
   };
 
   // Cálculos
-  const diasNum = parseFloat(formData.dias_trabalhados) || 0;
+  let diasNum = 0;
+  if (modoDias === 'manual') {
+    diasNum = parseFloat(diasTrabalhadosManual) || 0;
+  } else if (modoDias === 'periodo') {
+    if (dataInicio && dataFim) {
+      const start = new Date(dataInicio);
+      const end = new Date(dataFim);
+      if (end >= start) {
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        diasNum = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      }
+    }
+  } else if (modoDias === 'isoladas') {
+    diasNum = datasIsoladas.length;
+  }
+
   const bonificacaoNum = parseFloat(formData.bonificacao) || 0;
   const descontoNum = parseFloat(formData.desconto) || 0;
   const totalPagamento = (formData.valor_base * diasNum) + bonificacaoNum - descontoNum;
@@ -101,6 +127,11 @@ export default function GestaoPagamentosParceiros() {
     e.preventDefault();
     if (!formData.parceiro_id || !formData.projeto_id) {
       setErro('Selecione um parceiro e uma obra.');
+      return;
+    }
+
+    if (diasNum <= 0) {
+      setErro('A quantidade de dias trabalhados deve ser maior que zero.');
       return;
     }
 
@@ -124,10 +155,13 @@ export default function GestaoPagamentosParceiros() {
       if (error) throw error;
       setSucesso(true);
       
-      // Reset campos de valores e dias
+      // Reset
+      setDiasTrabalhadosManual('1');
+      setDataInicio('');
+      setDataFim('');
+      setDatasIsoladas([]);
       setFormData(prev => ({
         ...prev,
-        dias_trabalhados: '1',
         bonificacao: '0',
         desconto: '0',
       }));
@@ -144,6 +178,12 @@ export default function GestaoPagamentosParceiros() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const formatDateBR = (isoDate: string) => {
+    if (!isoDate) return '';
+    const [y, m, d] = isoDate.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
   if (loadingData) {
     return (
       <div className="flex justify-center items-center h-64 text-brand-blue">
@@ -155,7 +195,6 @@ export default function GestaoPagamentosParceiros() {
   return (
     <div className="space-y-6 w-full pb-16">
       
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between border-b border-card-border pb-3">
         <div>
           <h2 className="text-base font-bold tracking-tight text-main flex items-center gap-1.5 uppercase tracking-wider font-vomzom">
@@ -188,11 +227,9 @@ export default function GestaoPagamentosParceiros() {
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
         
-        {/* Formulário de Lançamento */}
         <div className="md:col-span-8 bg-card border border-card-border rounded-xl p-5 shadow-sm space-y-5">
           <div className="grid grid-cols-2 gap-4">
             
-            {/* Parceiro */}
             <div className="space-y-1 col-span-2 md:col-span-1">
               <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre">Parceiro / Prestador *</label>
               <select name="parceiro_id" value={formData.parceiro_id} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre transition-all font-bold" required>
@@ -203,7 +240,6 @@ export default function GestaoPagamentosParceiros() {
               </select>
             </div>
 
-            {/* Obra */}
             <div className="space-y-1 col-span-2 md:col-span-1">
               <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-blue">Obra / Projeto *</label>
               <select name="projeto_id" value={formData.projeto_id} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all font-bold" required>
@@ -214,37 +250,107 @@ export default function GestaoPagamentosParceiros() {
               </select>
             </div>
 
-            {/* Data e Dias Trabalhados */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data do Registro *</label>
-              <div className="relative">
+            <div className="space-y-1 col-span-2">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data do Lançamento *</label>
+              <div className="relative md:w-1/2">
                 <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
                 <input type="date" name="data_pagamento" value={formData.data_pagamento} onChange={handleChange} className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" required />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Dias Trabalhados *</label>
-              <div className="relative">
-                <HardHat size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
-                <input type="text" name="dias_trabalhados" value={formData.dias_trabalhados} onChange={handleDiasChange} className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2 text-xs text-main font-bold focus:outline-none focus:border-brand-blue transition-all" placeholder="Ex: 5.5" required />
+            {/* Módulo de Dias Trabalhados */}
+            <div className="col-span-2 border-t border-card-border pt-4 mt-2">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider block mb-3">Como deseja informar os dias trabalhados?</label>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <label className={`cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all ${
+                  modoDias === 'manual' ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
+                }`}>
+                  <input type="radio" name="modoDias" value="manual" checked={modoDias === 'manual'} onChange={() => setModoDias('manual')} className="hidden" />
+                  <span className="font-bold text-xs">Quantidade Manual</span>
+                  <span className="text-[9px]">Apenas digitar o nº de dias</span>
+                </label>
+                <label className={`cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all ${
+                  modoDias === 'periodo' ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
+                }`}>
+                  <input type="radio" name="modoDias" value="periodo" checked={modoDias === 'periodo'} onChange={() => setModoDias('periodo')} className="hidden" />
+                  <span className="font-bold text-xs">Período (De/Até)</span>
+                  <span className="text-[9px]">Calcular entre duas datas</span>
+                </label>
+                <label className={`cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all ${
+                  modoDias === 'isoladas' ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-inner' : 'border-card-border bg-card text-sub hover:border-brand-blue/50'
+                }`}>
+                  <input type="radio" name="modoDias" value="isoladas" checked={modoDias === 'isoladas'} onChange={() => setModoDias('isoladas')} className="hidden" />
+                  <span className="font-bold text-xs">Datas Específicas</span>
+                  <span className="text-[9px]">Selecionar dias no calendário</span>
+                </label>
               </div>
+
+              {modoDias === 'manual' && (
+                <div className="space-y-1 sm:w-1/3">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Quantidade de Dias *</label>
+                  <div className="relative">
+                    <HardHat size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sub" />
+                    <input type="text" value={diasTrabalhadosManual} onChange={(e) => setDiasTrabalhadosManual(e.target.value.replace(/[^\d.]/g, ''))} className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2 text-xs text-main font-bold focus:outline-none focus:border-brand-blue transition-all" placeholder="Ex: 5.5" />
+                  </div>
+                </div>
+              )}
+
+              {modoDias === 'periodo' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data Inicial *</label>
+                    <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data Final *</label>
+                    <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                  </div>
+                </div>
+              )}
+
+              {modoDias === 'isoladas' && (
+                <div className="space-y-3">
+                  <div className="flex gap-2 items-end">
+                    <div className="space-y-1 flex-1 sm:flex-none sm:w-1/2">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Selecione uma data</label>
+                      <input type="date" value={novaDataIsolada} onChange={(e) => setNovaDataIsolada(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                    </div>
+                    <button type="button" onClick={handleAddDataIsolada} className="px-3 py-2 bg-brand-blue/10 text-brand-blue border border-brand-blue/20 rounded-lg text-xs font-bold hover:bg-brand-blue hover:text-white transition-all flex items-center gap-1 h-[34px]">
+                      <Plus size={14} /> Adicionar
+                    </button>
+                  </div>
+                  {datasIsoladas.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {datasIsoladas.map(dt => (
+                        <div key={dt} className="flex items-center gap-1.5 bg-brand-blue/5 text-brand-blue border border-brand-blue/20 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm">
+                          {formatDateBR(dt)}
+                          <button type="button" onClick={() => handleRemoveDataIsolada(dt)} className="text-brand-blue/60 hover:text-red-500 transition-colors">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Bonificação e Desconto */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-green-600">Bonificação Extra (+)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-green-600 font-bold">R$</span>
-                <input type="text" name="bonificacao" value={(parseFloat(formData.bonificacao) * 100).toString()} onChange={handleChange} className="w-full bg-background border border-green-500/30 rounded-lg pl-9 pr-3 py-2 text-xs text-green-600 focus:outline-none focus:border-green-500 transition-all font-bold" />
+            <div className="col-span-2 border-t border-card-border pt-4 mt-2 grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-green-600">Bonificação Extra (+)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-green-600 font-bold">R$</span>
+                  <input type="text" name="bonificacao" value={(parseFloat(formData.bonificacao) * 100).toString() === 'NaN' ? '' : (parseFloat(formData.bonificacao) * 100).toString()} onChange={handleChange} className="w-full bg-background border border-green-500/30 rounded-lg pl-9 pr-3 py-2 text-xs text-green-600 focus:outline-none focus:border-green-500 transition-all font-bold" />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-red-500">Descontos (-)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-red-500 font-bold">R$</span>
-                <input type="text" name="desconto" value={(parseFloat(formData.desconto) * 100).toString()} onChange={handleChange} className="w-full bg-background border border-red-500/30 rounded-lg pl-9 pr-3 py-2 text-xs text-red-500 focus:outline-none focus:border-red-500 transition-all font-bold" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-red-500">Descontos (-)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-red-500 font-bold">R$</span>
+                  <input type="text" name="desconto" value={(parseFloat(formData.desconto) * 100).toString() === 'NaN' ? '' : (parseFloat(formData.desconto) * 100).toString()} onChange={handleChange} className="w-full bg-background border border-red-500/30 rounded-lg pl-9 pr-3 py-2 text-xs text-red-500 focus:outline-none focus:border-red-500 transition-all font-bold" />
+                </div>
               </div>
             </div>
 
@@ -287,7 +393,7 @@ export default function GestaoPagamentosParceiros() {
 
           <button
             type="submit"
-            disabled={loadingSave || !formData.parceiro_id || !formData.projeto_id}
+            disabled={loadingSave || !formData.parceiro_id || !formData.projeto_id || diasNum <= 0}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-brand-dark text-sm font-bold hover:bg-brand-ocre/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md mt-4"
           >
             {loadingSave ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}

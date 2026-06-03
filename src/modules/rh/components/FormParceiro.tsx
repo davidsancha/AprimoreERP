@@ -102,6 +102,15 @@ export default function FormParceiro() {
       return;
     }
 
+    if (name === 'tipo_parceiro') {
+      let valorSugerido = 'R$ 250,00';
+      if (value === 'Servente / Ajudante') {
+        valorSugerido = 'R$ 150,00';
+      }
+      setFormData(prev => ({ ...prev, tipo_parceiro: value, valor_diaria: valorSugerido }));
+      return;
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
