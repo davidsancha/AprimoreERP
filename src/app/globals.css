@@ -1,26 +1,157 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Tema Claro (Light Mode) - Elegância e Sobriedade */
+  --background: #f5f7fa; /* Cinza suave e fosco, muito agradável visualmente */
+  --foreground: #2d3748; /* Cinza grafite profundo, mais elegante que preto puro */
+  
+  --brand-blue: #002f6c; /* Pantone 280 C - Azul Aprimore */
+  --brand-ocre: #c69214; /* Pantone 1245 C - Ocre Aprimore */
+  --brand-dark: #1b1b1f; /* Preto 90k premium */
+  
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, 0.06); /* Borda ultra-suave */
+  
+  --sidebar-bg: #f8fafc; /* Sidebar clara, sóbria e elegante no Light Mode */
+  --sidebar-text: #1e293b;
+  
+  --header-bg: rgba(255, 255, 255, 0.8);
+  --header-border: rgba(0, 0, 0, 0.05);
+  
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-readonly-bg: #f8fafc;
+  
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+}
+
+.dark {
+  /* Tema Escuro (Dark Mode) - Sofisticação de Alto Nível */
+  --background: #0f0f11; /* Fundo escuro fosco e suave */
+  --foreground: #e2e8f0; /* Texto claro fosco */
+  
+  --card-bg: #16161a; /* Cards ligeiramente mais claros que o fundo */
+  --card-border: rgba(255, 255, 255, 0.04); /* Linhas ultra-finas e discretas */
+  
+  --sidebar-bg: #09090b; /* Sidebar ainda mais escura para contraste */
+  --sidebar-text: #e2e8f0;
+  
+  --header-bg: rgba(22, 22, 26, 0.8);
+  --header-border: rgba(255, 255, 255, 0.03);
+  
+  --input-bg: #0f0f11;
+  --input-border: #222226;
+  --input-readonly-bg: #16161a;
+  
+  --text-primary: #f7fafc;
+  --text-secondary: #a0aec0;
+  --text-muted: #4a5568;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-ocre: var(--brand-ocre);
+  --color-brand-dark: var(--brand-dark);
+  
+  --color-card: var(--card-bg);
+  --color-card-border: var(--card-border);
+  
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  
+  --color-header: var(--header-bg);
+  --color-header-border: var(--header-border);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Custom Scrollbar Premium */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-ocre);
+}
+
+/* Efeito Glassmorphism Premium */
+.glass-panel {
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--header-border);
+}
+
+/* Animação Suave para Cards */
+.hover-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(198, 146, 20, 0.2);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .hover-card:hover {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Inputs Refinados */
+.form-input {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  outline: none;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.form-input:focus {
+  border-color: var(--brand-ocre);
+  box-shadow: 0 0 0 1px rgba(198, 146, 20, 0.2);
+}
+
+.form-input-readonly {
+  background-color: var(--input-readonly-bg);
+  border-color: var(--card-border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Utilitários de Texto Sóbrio */
+.text-main {
+  color: var(--text-primary);
+}
+
+.text-sub {
+  color: var(--text-secondary);
+}
+
+.text-desc {
+  color: var(--text-muted);
 }
