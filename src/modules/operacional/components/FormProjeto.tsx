@@ -14,8 +14,12 @@ import {
   Loader2, 
   ShieldAlert,
   Calculator,
-  ArrowRight
+  ArrowRight,
+  Search,
+  UserPlus
 } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/core/auth/AuthProvider';
 import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '../types';
 import { Recebimento } from '../../financeiro/types';
 import { salvarProjetoCompleto, fetchProjetoById, fetchOrcamentosByProjeto } from '../services/apiProjetos';
@@ -46,6 +50,27 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [tipologia, setTipologia] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([]);
+  
+  // Autocomplete e Privilégios
+  const { profile } = useAuth();
+  const podeCadastrarCliente = profile?.role === 'god' || profile?.role === 'admin';
+  const [clienteBusca, setClienteBusca] = useState('');
+  const [mostrarDropdownClientes, setMostrarDropdownClientes] = useState(false);
+
+  // Inicializar o campo de busca quando carregar edição
+  useEffect(() => {
+    if (clienteId && clientesDisponiveis.length > 0) {
+      const cliente = clientesDisponiveis.find(c => c.id === clienteId);
+      if (cliente && clienteBusca === '') {
+        setClienteBusca(cliente.nome);
+      }
+    }
+  }, [clienteId, clientesDisponiveis]);
+
+  const clientesFiltrados = clientesDisponiveis.filter(c => 
+    c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || 
+    c.documento.includes(clienteBusca)
+  );
 
   // 2. Estados de Endereço Inteligente (Módulo 2)
   const [cep, setCep] = useState('');
@@ -541,19 +566,52 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
             </h3>
             
             <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre">Cliente / Contratante *</label>
-                <select
-                  required
-                  value={clienteId}
-                  onChange={(e) => setClienteId(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-bold"
-                >
-                  <option value="" disabled>Selecione o Cliente...</option>
-                  {clientesDisponiveis.map(c => (
-                    <option key={c.id} value={c.id}>{c.nome} ({c.documento})</option>
-                  ))}
-                </select>
+              <div className="space-y-1 relative">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre">Cliente / Contratante *</label>
+                  {podeCadastrarCliente && (
+                    <Link href="/crm/clientes/novo" className="text-[10px] font-bold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1">
+                      <UserPlus size={10} /> Novo Cliente
+                    </Link>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={14} className="text-sub" />
+                  </div>
+                  <input
+                    type="text"
+                    required={!clienteId}
+                    value={clienteBusca}
+                    onChange={(e) => {
+                      setClienteBusca(e.target.value);
+                      setClienteId('');
+                      setMostrarDropdownClientes(true);
+                    }}
+                    onFocus={() => setMostrarDropdownClientes(true)}
+                    onBlur={() => setTimeout(() => setMostrarDropdownClientes(false), 200)}
+                    className="w-full pl-9 pr-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-bold"
+                    placeholder="Busque pelo nome ou documento..."
+                  />
+                  {mostrarDropdownClientes && clientesFiltrados.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border border-card-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                      {clientesFiltrados.map(c => (
+                        <div
+                          key={c.id}
+                          className="px-3 py-2 text-xs text-main hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer font-medium border-b border-card-border/50 last:border-0"
+                          onClick={() => {
+                            setClienteId(c.id);
+                            setClienteBusca(c.nome);
+                            setMostrarDropdownClientes(false);
+                          }}
+                        >
+                          <div className="font-bold">{c.nome}</div>
+                          <div className="text-[10px] text-sub">{c.documento}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {clientesDisponiveis.length === 0 && (
                   <p className="text-[9px] text-red-500 mt-0.5 font-bold">Nenhum cliente cadastrado no CRM. Cadastre um cliente antes de criar a obra.</p>
                 )}
