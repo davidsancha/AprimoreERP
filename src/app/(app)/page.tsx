@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -55,6 +56,7 @@ interface ProjetoComFinanceiro extends Projeto {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [projetos, setProjetos] = useState<ProjetoComFinanceiro[]>([]);
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
