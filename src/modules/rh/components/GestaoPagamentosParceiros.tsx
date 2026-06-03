@@ -43,7 +43,7 @@ export default function GestaoPagamentosParceiros() {
       try {
         const [resParceiros, resProjetos] = await Promise.all([
           supabase.from('rh_parceiros').select('id, nome, tipo_parceiro, valor_diaria').order('nome'),
-          supabase.from('operacional_projetos').select('id, nome, os').order('nome')
+          supabase.from('projetos').select('id, nome, os').order('nome')
         ]);
 
         if (resParceiros.data) setParceiros(resParceiros.data);
