@@ -26,6 +26,7 @@ export default function FormParceiro() {
   const [loading, setLoading] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState(false);
 
   const [formData, setFormData] = useState({
     tipo_pessoa: 'pessoa_fisica',
@@ -43,7 +44,7 @@ export default function FormParceiro() {
     uf: '',
     // Comercial / RH
     tipo_parceiro: 'Pedreiro',
-    valor_diaria: '',
+    valor_diaria: 'R$ 250,00',
     observacoes: ''
   });
 
@@ -181,8 +182,10 @@ export default function FormParceiro() {
         throw parceiroError;
       }
 
-      // TODO: Redirecionar para lista de parceiros quando ela existir
-      router.push('/rh/pagamentos-parceiros');
+      setSucesso(true);
+      setTimeout(() => {
+        router.push('/rh/parceiros');
+      }, 2000);
     } catch (err: any) {
       setErro(err.message || 'Erro ao cadastrar parceiro');
     } finally {
@@ -226,6 +229,13 @@ export default function FormParceiro() {
         <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3 shadow-sm">
           <AlertCircle size={20} />
           <span className="text-xs font-bold">{erro}</span>
+        </div>
+      )}
+
+      {sucesso && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 p-4 rounded-xl flex items-center gap-3 shadow-sm">
+          <Check size={20} />
+          <span className="text-xs font-bold">Parceiro cadastrado com sucesso! Redirecionando...</span>
         </div>
       )}
 

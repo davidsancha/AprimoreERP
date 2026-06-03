@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { Calculator, AlertCircle, Plus, Loader2, Check, Calendar, HardHat, X } from 'lucide-react';
 import Link from 'next/link';
+import { salvarCustoRealizado } from '@/modules/operacional/services/apiProjetos';
 
 interface Parceiro {
   id: string;
@@ -62,6 +63,15 @@ export default function GestaoPagamentosParceiros() {
       }
     }
     fetchData();
+
+    // Ler projeto_id da URL (Lançamento rápido)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const projId = params.get('projeto_id');
+      if (projId) {
+        setFormData(prev => ({ ...prev, projeto_id: projId }));
+      }
+    }
   }, []);
 
   // Atualiza o valor base ao trocar de parceiro
@@ -153,6 +163,16 @@ export default function GestaoPagamentosParceiros() {
       }]);
 
       if (error) throw error;
+
+      // Integrar com os Custos Realizados da Obra
+      await salvarCustoRealizado({
+        projeto_id: formData.projeto_id,
+        categoria: 'mao_de_obra',
+        descricao: `Pagamento Parceiro RH (ID: ${formData.parceiro_id})`,
+        valor: totalPagamento,
+        data_custo: formData.data_pagamento
+      });
+
       setSucesso(true);
       
       // Reset

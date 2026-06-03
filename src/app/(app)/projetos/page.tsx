@@ -473,12 +473,18 @@ export default function ProjetosPage() {
                           <button
                             key={cat}
                             type="button"
-                            onClick={() => setQuickCusto({
-                              projetoId: proj.id!,
-                              projetoNome: proj.nome,
-                              categoria: cat as CategoriaCusto,
-                              categoriaLabel: label
-                            })}
+                            onClick={() => {
+                              if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
+                                window.location.href = `/rh/pagamentos-parceiros?projeto_id=${proj.id}`;
+                              } else {
+                                setQuickCusto({
+                                  projetoId: proj.id!,
+                                  projetoNome: proj.nome,
+                                  categoria: cat as CategoriaCusto,
+                                  categoriaLabel: label
+                                });
+                              }
+                            }}
                             title={`Lançamento Rápido: ${label}`}
                             className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-blue/5 hover:border-brand-blue/30 dark:hover:bg-brand-ocre/5 dark:hover:border-brand-ocre/30 text-desc hover:text-brand-blue dark:hover:text-brand-ocre transition-all flex items-center justify-center shadow-2xs cursor-pointer"
                           >

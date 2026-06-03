@@ -785,12 +785,18 @@ export default function DashboardPage() {
                                         <button
                                           key={cat}
                                           type="button"
-                                          onClick={() => setQuickCusto({
-                                            projetoId: proj.id!,
-                                            projetoNome: proj.nome,
-                                            categoria: cat as CategoriaCusto,
-                                            categoriaLabel: label
-                                          })}
+                                          onClick={() => {
+                                            if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
+                                              window.location.href = `/rh/pagamentos-parceiros?projeto_id=${proj.id}`;
+                                            } else {
+                                              setQuickCusto({
+                                                projetoId: proj.id!,
+                                                projetoNome: proj.nome,
+                                                categoria: cat as CategoriaCusto,
+                                                categoriaLabel: label
+                                              });
+                                            }
+                                          }}
                                           title={`Lançamento Rápido: ${label}`}
                                           className="p-1.5 rounded hover:bg-brand-blue/10 dark:hover:bg-brand-ocre/10 text-desc hover:text-brand-blue dark:hover:text-brand-ocre transition-all cursor-pointer"
                                         >
