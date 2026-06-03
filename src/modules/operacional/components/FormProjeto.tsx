@@ -26,6 +26,7 @@ import { salvarProjetoCompleto, fetchProjetoById, fetchOrcamentosByProjeto } fro
 import { fetchRecebimentosByProjeto } from '../../financeiro/services/apiFinanceiro';
 import { supabase } from '@/shared/lib/supabaseClient';
 import ValorPremium from '@/shared/components/ValorPremium';
+import Toast, { ToastType } from '@/shared/components/Toast';
 import MoneyInput from '@/shared/components/MoneyInput';
 
 interface FormProjetoProps {
@@ -37,6 +38,11 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [loading, setLoading] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type });
+  };
 
   // 1. Estados de Dados Gerais da Obra
   const [nome, setNome] = useState('');
@@ -195,7 +201,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
         }
       } catch (err) {
         console.error('Erro ao carregar projeto para edição:', err);
-        alert('Erro ao carregar os dados do projeto.');
+        showToast('Erro ao carregar os dados do projeto.', 'error');
       } finally {
         setLoading(false);
       }
@@ -498,12 +504,12 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     e.preventDefault();
 
     if (!clienteId || !nome || !os || !dataPrevistaInicio || !dataPrevistaTermino || !cep || !logradouro || !bairro || !cidade || !uf || !numero || !tipologia) {
-      alert('Por favor, selecione um cliente e preencha todos os campos obrigatórios do projeto e endereço.');
+      showToast('Por favor, selecione um cliente e preencha todos os campos obrigatórios do projeto e endereço.', 'warning');
       return;
     }
 
     if (!cronogramaValido) {
-      alert('A soma das parcelas de recebimento deve ser exatamente igual a 100%!');
+      showToast('A soma das parcelas de recebimento deve ser exatamente igual a 100%!', 'warning');
       return;
     }
 
@@ -534,11 +540,13 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     try {
       await salvarProjetoCompleto(projetoPayload, orcamentos, recebimentos);
       
-      alert(projetoId ? 'Projeto e cronograma atualizados com sucesso!' : 'Projeto cadastrado e salvo com sucesso! O cronograma financeiro e os orçamentos foram vinculados.');
-      router.push(projetoId ? '/projetos' : '/');
+      showToast(projetoId ? 'Projeto e cronograma atualizados com sucesso!' : 'Projeto cadastrado e salvo com sucesso!', 'success');
+      setTimeout(() => {
+        router.push(projetoId ? '/projetos' : '/');
+      }, 1500);
     } catch (err) {
       console.error('Erro ao salvar projeto:', err);
-      alert('Houve um erro ao processar o cadastro do projeto.');
+      showToast('Houve um erro ao processar o cadastro do projeto.', 'error');
     } finally {
       setLoading(false);
     }
@@ -546,6 +554,13 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 w-full pb-16">
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
       
       {/* Título da Página */}
       <div className="flex items-center justify-between border-b border-card-border pb-3">

@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { fetchProjetos, salvarCustoRealizado } from '@/modules/operacional/services/apiProjetos';
 import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/operacional/types';
 import MoneyInput from '@/shared/components/MoneyInput';
+import Toast, { ToastType } from '@/shared/components/Toast';
 
 function CustosFormContent() {
   const router = useRouter();
@@ -33,6 +34,11 @@ function CustosFormContent() {
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState<number>(0);
   const [dataCusto, setDataCusto] = useState(new Date().toISOString().split('T')[0]);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ message, type });
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -65,7 +71,7 @@ function CustosFormContent() {
     e.preventDefault();
 
     if (!projetoId || !categoria || !descricao || valor <= 0 || !dataCusto) {
-      alert('Por favor, preencha todos os campos corretamente com valores maiores que zero.');
+      showToast('Por favor, preencha todos os campos corretamente com valores maiores que zero.', 'warning');
       return;
     }
 
@@ -79,11 +85,13 @@ function CustosFormContent() {
         data_custo: dataCusto
       });
 
-      alert('Despesa lançada com sucesso! A saúde financeira da obra foi atualizada no painel.');
-      router.push('/');
+      showToast('Despesa lançada com sucesso! A saúde financeira do projeto foi atualizada no painel.', 'success');
+      setTimeout(() => {
+        router.push('/');
+      }, 1500);
     } catch (err) {
       console.error('Erro ao salvar despesa:', err);
-      alert('Ocorreu um erro ao registrar a despesa.');
+      showToast('Ocorreu um erro ao registrar a despesa.', 'error');
     } finally {
       setSalvando(false);
     }
@@ -116,6 +124,13 @@ function CustosFormContent() {
 
   return (
     <form onSubmit={handleSubmit} className="bg-card border border-card-border rounded-2xl p-6 space-y-5 shadow-sm">
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
       
       {/* Projeto */}
       <div className="space-y-1.5">
