@@ -184,6 +184,8 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           roles: ['god', 'admin', 'rh'],
           subItems: [
             { label: 'Dashboard RH', href: '/rh', active: true },
+            { label: 'Cadastro de Parceiros', href: '/rh/parceiros/novo', active: true },
+            { label: 'Lançar Diárias', href: '/rh/pagamentos-parceiros', active: true },
             { label: 'Colaboradores', href: '#', active: false, badge: 'Breve' },
             { label: 'Folha de Pagamento', href: '#', active: false, badge: 'Breve' }
           ]
