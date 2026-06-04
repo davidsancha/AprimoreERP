@@ -37,7 +37,6 @@ export default function QrCodeModal({ isOpen, onClose, onScan }: QrCodeModalProp
               }
             }}
             components={{
-              audio: false,
               onOff: true,
               torch: true,
               zoom: true,
