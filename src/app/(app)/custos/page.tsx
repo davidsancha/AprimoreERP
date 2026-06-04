@@ -116,9 +116,6 @@ function CustosFormContent() {
           setCategoria(queryCategoria as CategoriaCusto);
         }
 
-        if (queryOpenScanner === 'true') {
-          setIsQrModalOpen(true);
-        }
       } catch (err) {
         console.error('Erro ao carregar projetos:', err);
       } finally {
