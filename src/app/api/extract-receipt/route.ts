@@ -35,6 +35,20 @@ export async function POST(req: Request) {
     // 1. Extrair Nome da Loja
     let loja_nome = $('#u20').text().trim() || 'Nome do Estabelecimento Não Identificado';
 
+    // 4. Extrair Chave de Acesso
+    let chave_acesso = '';
+    const chaveEl = $('.chave').text().trim() || $('#conteudo .text').text().trim();
+    const chaveMatch = chaveEl.replace(/\s/g, '').match(/\d{44}/);
+    if (chaveMatch) {
+      chave_acesso = chaveMatch[0];
+    } else {
+      // Tentar pegar da URL (padrão RJ ?p=CHAVE|...)
+      const urlMatch = url.match(/p=(\d{44})/);
+      if (urlMatch) {
+        chave_acesso = urlMatch[1];
+      }
+    }
+
     // 2. Extrair CNPJ
     let cnpj = '';
     const textElements = $('.text').toArray();
@@ -48,27 +62,9 @@ export async function POST(req: Request) {
         }
       }
     }
-
-    // 3. Extrair Data de Emissão
-    let data_emissao = null;
-    for (const el of textElements) {
-      const text = $(el).text();
-      if (text.includes('Emissão:')) {
-        // Formato: Emissão: 03/06/2026 14:30:00
-        const match = text.match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}:\d{2}:\d{2})/);
-        if (match) {
-          data_emissao = `${match[3]}-${match[2]}-${match[1]}T${match[4]}Z`;
-          break;
-        }
-      }
-    }
-
-    // 4. Extrair Chave de Acesso
-    let chave_acesso = '';
-    const chaveEl = $('.chave').text().trim() || $('#conteudo .text').text().trim();
-    const chaveMatch = chaveEl.replace(/\s/g, '').match(/\d{44}/);
-    if (chaveMatch) {
-      chave_acesso = chaveMatch[0];
+    // Fallback do CNPJ a partir da chave de acesso (posições 7 a 20)
+    if (!cnpj && chave_acesso && chave_acesso.length === 44) {
+      cnpj = chave_acesso.substring(6, 20);
     }
 
     // 5. Extrair Valor Total
@@ -101,11 +97,23 @@ export async function POST(req: Request) {
       }
     });
 
+    let endereco = 'Não extraído via HTML básico';
+    let blockedByFirewall = false;
+    
+    if (htmlContent.includes('bloqueia acessos provenientes desses endereços IP') || htmlContent.includes('bloqueio')) {
+      loja_nome = 'BLOQUEADO PELO FIREWALL DA SEFAZ-RJ';
+      blockedByFirewall = true;
+    }
+
+    if (loja_nome === 'Nome do Estabelecimento Não Identificado' || blockedByFirewall) {
+      endereco = `Aviso: Servidor (Vercel) bloqueado pela SEFAZ. ${blockedByFirewall ? 'O IP está na blocklist da SEFAZ.' : ''} Link original: ${url}`;
+    }
+
     const notaFiscal = {
       loja_nome,
       cnpj,
       data_emissao,
-      endereco: 'Não extraído via HTML básico',
+      endereco,
       valor_total,
       chave_acesso,
       url_qr_code: url,
