@@ -42,6 +42,30 @@ export interface OrcamentoCusto {
   updated_at?: string;
 }
 
+export interface NotaFiscal {
+  id?: string;
+  custo_id?: string;
+  loja_nome: string;
+  cnpj: string;
+  data_emissao?: string | null;
+  endereco?: string | null;
+  valor_total: number;
+  chave_acesso?: string | null;
+  url_qr_code?: string | null;
+  created_at?: string;
+  itens?: ItemNotaFiscal[];
+}
+
+export interface ItemNotaFiscal {
+  id?: string;
+  nota_fiscal_id?: string;
+  nome_item: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+  created_at?: string;
+}
+
 export interface CustoRealizado {
   id?: string;
   projeto_id: string;
@@ -50,6 +74,7 @@ export interface CustoRealizado {
   valor: number;
   data_custo: string;
   created_at?: string;
+  nota_fiscal?: NotaFiscal; // Opcional, para armazenar a nota vinculada no envio
 }
 
 export const CATEGORIAS_CUSTO_LABELS: Record<CategoriaCusto, string> = {

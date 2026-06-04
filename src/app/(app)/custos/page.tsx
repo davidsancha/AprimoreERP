@@ -18,6 +18,10 @@ import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/oper
 import MoneyInput from '@/shared/components/MoneyInput';
 import Toast, { ToastType } from '@/shared/components/Toast';
 
+import QrCodeModal from '@/modules/operacional/components/QrCodeModal';
+import { NotaFiscal } from '@/modules/operacional/types';
+import { QrCode, Receipt } from 'lucide-react';
+
 function CustosFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,8 +40,60 @@ function CustosFormContent() {
   const [dataCusto, setDataCusto] = useState(new Date().toISOString().split('T')[0]);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   
+  // Estados para o Leitor de QR Code e Nota Fiscal
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [processandoNota, setProcessandoNota] = useState(false);
+  const [notaFiscal, setNotaFiscal] = useState<NotaFiscal | null>(null);
+
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type });
+  };
+
+  const handleQrScan = async (text: string) => {
+    setIsQrModalOpen(false);
+    setProcessandoNota(true);
+    
+    try {
+      const res = await fetch('/api/extract-receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: text })
+      });
+
+      if (!res.ok) {
+        throw new Error('Falha ao extrair dados da nota fiscal');
+      }
+
+      const data = await res.json();
+      
+      if (data && data.notaFiscal) {
+        const nf: NotaFiscal = data.notaFiscal;
+        setNotaFiscal(nf);
+        
+        // Auto-preencher campos do formulário
+        if (nf.valor_total) setValor(nf.valor_total);
+        if (nf.loja_nome) {
+          const firstItem = nf.itens?.[0]?.nome_item || 'Materiais';
+          setDescricao(`Compra em ${nf.loja_nome} - ${firstItem}${nf.itens && nf.itens.length > 1 ? ' e outros' : ''}`);
+        }
+        if (nf.data_emissao) {
+          // Extrair apenas a data (YYYY-MM-DD) do timestamp retornado
+          const dataApenas = nf.data_emissao.split('T')[0];
+          setDataCusto(dataApenas);
+        }
+        
+        showToast('Nota Fiscal processada com sucesso!', 'success');
+      } else {
+        throw new Error('Formato de resposta inválido');
+      }
+    } catch (err) {
+      console.error('Erro ao ler QR Code:', err);
+      showToast('Não foi possível processar o QR Code. Tente novamente ou preencha manualmente.', 'error');
+    } finally {
+      setProcessandoNota(false);
+    }
   };
 
   useEffect(() => {
@@ -82,7 +138,8 @@ function CustosFormContent() {
         categoria,
         descricao,
         valor,
-        data_custo: dataCusto
+        data_custo: dataCusto,
+        nota_fiscal: notaFiscal || undefined
       });
 
       showToast('Despesa lançada com sucesso! A saúde financeira do projeto foi atualizada no painel.', 'success');
@@ -130,6 +187,60 @@ function CustosFormContent() {
           type={toast.type} 
           onClose={() => setToast(null)} 
         />
+      )}
+      
+      <QrCodeModal 
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        onScan={handleQrScan}
+      />
+
+      {/* Botão de Leitura Inteligente */}
+      <div className="bg-gradient-to-r from-brand-ocre/10 to-transparent border border-brand-ocre/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="text-sm">
+          <p className="font-semibold text-main flex items-center gap-1.5">
+            <Receipt size={16} className="text-brand-ocre" />
+            Lançamento Inteligente
+          </p>
+          <p className="text-sub text-xs mt-1">
+            Faça a leitura do QR Code do cupom fiscal para extrair os itens e o valor total automaticamente.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsQrModalOpen(true)}
+          disabled={processandoNota}
+          className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-ocre/20 text-brand-ocre font-semibold hover:bg-brand-ocre/30 transition-colors border border-brand-ocre/40 text-sm disabled:opacity-50"
+        >
+          {processandoNota ? (
+            <><Loader2 className="animate-spin" size={16} /> Processando...</>
+          ) : (
+            <><QrCode size={16} /> Ler QR Code</>
+          )}
+        </button>
+      </div>
+
+      {notaFiscal && (
+        <div className="bg-black/20 border border-green-500/30 rounded-xl p-4 space-y-2 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-green-400">Cupom Fiscal Identificado</span>
+            <span className="text-xs text-sub">CNPJ: {notaFiscal.cnpj}</span>
+          </div>
+          <p className="text-main">Loja: <span className="font-medium">{notaFiscal.loja_nome}</span></p>
+          {notaFiscal.itens && notaFiscal.itens.length > 0 && (
+            <div className="mt-3 bg-background rounded-lg border border-card-border p-3">
+              <p className="text-xs font-semibold text-sub uppercase mb-2">Itens Reconhecidos ({notaFiscal.itens.length})</p>
+              <ul className="space-y-1 text-xs text-main max-h-32 overflow-y-auto pr-2">
+                {notaFiscal.itens.map((item, idx) => (
+                  <li key={idx} className="flex justify-between items-center border-b border-card-border/50 pb-1 last:border-0 last:pb-0">
+                    <span className="truncate pr-2">{item.quantidade}x {item.nome_item}</span>
+                    <span className="font-medium">R$ {item.valor_total.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
       
       {/* Projeto */}

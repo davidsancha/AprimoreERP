@@ -170,7 +170,8 @@ export async function salvarCustoRealizado(custo: CustoRealizado): Promise<Custo
     throw new Error('Supabase client not initialized');
   }
 
-  const { data, error } = await supabase
+  // 1. Salvar o custo realizado
+  const { data: custoData, error: custoError } = await supabase
     .from('custos_realizados')
     .insert([
       {
@@ -181,14 +182,64 @@ export async function salvarCustoRealizado(custo: CustoRealizado): Promise<Custo
         data_custo: custo.data_custo
       }
     ])
-    .select();
+    .select()
+    .single();
 
-  if (error) {
-    console.error('Erro ao salvar custo no Supabase:', error);
-    throw error;
+  if (custoError) {
+    console.error('Erro ao salvar custo no Supabase:', custoError);
+    throw custoError;
   }
 
-  return data[0];
+  const custoSalvo = custoData;
+
+  // 2. Salvar a nota fiscal, se existir
+  if (custo.nota_fiscal && custoSalvo.id) {
+    const { itens, ...notaFiscalData } = custo.nota_fiscal;
+    
+    const { data: nfData, error: nfError } = await supabase
+      .from('notas_fiscais')
+      .insert([
+        {
+          custo_id: custoSalvo.id,
+          loja_nome: notaFiscalData.loja_nome,
+          cnpj: notaFiscalData.cnpj,
+          data_emissao: notaFiscalData.data_emissao,
+          endereco: notaFiscalData.endereco,
+          valor_total: notaFiscalData.valor_total,
+          chave_acesso: notaFiscalData.chave_acesso,
+          url_qr_code: notaFiscalData.url_qr_code,
+        }
+      ])
+      .select()
+      .single();
+
+    if (nfError) {
+      console.error('Erro ao salvar nota fiscal no Supabase:', nfError);
+      throw nfError;
+    }
+
+    // 3. Salvar os itens da nota fiscal, se existirem
+    if (itens && itens.length > 0 && nfData.id) {
+      const itensInsert = itens.map(item => ({
+        nota_fiscal_id: nfData.id,
+        nome_item: item.nome_item,
+        quantidade: item.quantidade,
+        valor_unitario: item.valor_unitario,
+        valor_total: item.valor_total
+      }));
+
+      const { error: itensError } = await supabase
+        .from('itens_nota_fiscal')
+        .insert(itensInsert);
+
+      if (itensError) {
+        console.error('Erro ao salvar itens da nota fiscal no Supabase:', itensError);
+        throw itensError;
+      }
+    }
+  }
+
+  return custoSalvo;
 }
 
 export async function fetchProjetoById(id: string): Promise<Projeto | null> {
