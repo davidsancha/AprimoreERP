@@ -478,6 +478,8 @@ export default function ProjetosPage() {
                             onClick={() => {
                               if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
                                 router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
+                              } else if (cat === 'insumos') {
+                                router.push(`/custos?projetoId=${proj.id}&categoria=insumos&openScanner=true`);
                               } else {
                                 setQuickCusto({
                                   projetoId: proj.id!,
@@ -820,6 +822,8 @@ export default function ProjetosPage() {
                                             onClick={() => {
                                               if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
                                                 router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
+                                              } else if (cat === 'insumos') {
+                                                router.push(`/custos?projetoId=${proj.id}&categoria=insumos&openScanner=true`);
                                               } else {
                                                 setQuickCusto({
                                                   projetoId: proj.id!,

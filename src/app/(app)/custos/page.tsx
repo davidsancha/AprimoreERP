@@ -27,6 +27,7 @@ function CustosFormContent() {
   const searchParams = useSearchParams();
   const queryProjetoId = searchParams.get('projetoId');
   const queryCategoria = searchParams.get('categoria');
+  const queryOpenScanner = searchParams.get('openScanner');
 
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [loadingProjetos, setLoadingProjetos] = useState(true);
@@ -113,6 +114,10 @@ function CustosFormContent() {
         const categoriasValidas = Object.keys(CATEGORIAS_CUSTO_LABELS);
         if (queryCategoria && categoriasValidas.includes(queryCategoria)) {
           setCategoria(queryCategoria as CategoriaCusto);
+        }
+
+        if (queryOpenScanner === 'true') {
+          setIsQrModalOpen(true);
         }
       } catch (err) {
         console.error('Erro ao carregar projetos:', err);
@@ -221,23 +226,113 @@ function CustosFormContent() {
       </div>
 
       {notaFiscal && (
-        <div className="bg-black/20 border border-green-500/30 rounded-xl p-4 space-y-2 text-sm animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-green-400">Cupom Fiscal Identificado</span>
-            <span className="text-xs text-sub">CNPJ: {notaFiscal.cnpj}</span>
+        <div className="bg-black/20 border border-green-500/30 rounded-xl p-5 space-y-4 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between pb-2 border-b border-card-border">
+            <span className="font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
+              <Check size={16} /> Dados Extraídos do Cupom
+            </span>
           </div>
-          <p className="text-main">Loja: <span className="font-medium">{notaFiscal.loja_nome}</span></p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome da Loja</label>
+              <input
+                type="text"
+                value={notaFiscal.loja_nome}
+                onChange={(e) => setNotaFiscal({...notaFiscal, loja_nome: e.target.value})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">CNPJ</label>
+              <input
+                type="text"
+                value={notaFiscal.cnpj}
+                onChange={(e) => setNotaFiscal({...notaFiscal, cnpj: e.target.value})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data da Compra</label>
+              <input
+                type="datetime-local"
+                value={notaFiscal.data_emissao ? notaFiscal.data_emissao.slice(0, 16) : ''}
+                onChange={(e) => setNotaFiscal({...notaFiscal, data_emissao: new Date(e.target.value).toISOString()})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Chave de Acesso</label>
+              <input
+                type="text"
+                value={notaFiscal.chave_acesso || ''}
+                onChange={(e) => setNotaFiscal({...notaFiscal, chave_acesso: e.target.value})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Endereço</label>
+            <input
+              type="text"
+              value={notaFiscal.endereco || ''}
+              onChange={(e) => setNotaFiscal({...notaFiscal, endereco: e.target.value})}
+              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+            />
+          </div>
+
           {notaFiscal.itens && notaFiscal.itens.length > 0 && (
-            <div className="mt-3 bg-background rounded-lg border border-card-border p-3">
-              <p className="text-xs font-semibold text-sub uppercase mb-2">Itens Reconhecidos ({notaFiscal.itens.length})</p>
-              <ul className="space-y-1 text-xs text-main max-h-32 overflow-y-auto pr-2">
-                {notaFiscal.itens.map((item, idx) => (
-                  <li key={idx} className="flex justify-between items-center border-b border-card-border/50 pb-1 last:border-0 last:pb-0">
-                    <span className="truncate pr-2">{item.quantidade}x {item.nome_item}</span>
-                    <span className="font-medium">R$ {item.valor_total.toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="mt-4 pt-4 border-t border-card-border">
+              <p className="text-[10px] font-bold text-desc uppercase tracking-wider mb-3">Itens Comprados ({notaFiscal.itens.length})</p>
+              <div className="bg-background rounded-lg border border-card-border overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-card border-b border-card-border">
+                    <tr>
+                      <th className="py-2 px-3 font-semibold">Nome do Item</th>
+                      <th className="py-2 px-3 font-semibold text-right">Qtd</th>
+                      <th className="py-2 px-3 font-semibold text-right">Vl. Unit</th>
+                      <th className="py-2 px-3 font-semibold text-right">Vl. Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-card-border">
+                    {notaFiscal.itens.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                        <td className="py-2 px-3 truncate max-w-[150px]">{item.nome_item}</td>
+                        <td className="py-2 px-3 text-right">
+                          <input 
+                            type="number" 
+                            className="w-14 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                            value={item.quantidade} 
+                            onChange={(e) => {
+                              const newItens = [...notaFiscal.itens!];
+                              newItens[idx].quantidade = parseFloat(e.target.value) || 0;
+                              newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
+                              setNotaFiscal({...notaFiscal, itens: newItens});
+                            }}
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <input 
+                            type="number" 
+                            className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                            value={item.valor_unitario} 
+                            onChange={(e) => {
+                              const newItens = [...notaFiscal.itens!];
+                              newItens[idx].valor_unitario = parseFloat(e.target.value) || 0;
+                              newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
+                              setNotaFiscal({...notaFiscal, itens: newItens});
+                            }}
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-right font-medium text-brand-ocre">
+                          R$ {item.valor_total.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
