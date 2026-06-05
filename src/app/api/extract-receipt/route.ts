@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 import { GoogleGenAI } from '@google/genai';
 
 // Instância do Gemini. Utilizará a variável de ambiente GEMINI_API_KEY
-const ai = new GoogleGenAI();
+const ai = new GoogleGenAI({});
 
 export async function POST(req: Request) {
   try {
