@@ -294,25 +294,36 @@ function CustosFormContent() {
           {notaFiscal.itens && notaFiscal.itens.length > 0 && (
             <div className="mt-4 pt-4 border-t border-card-border">
               <p className="text-[10px] font-bold text-desc uppercase tracking-wider mb-3">Itens Comprados ({notaFiscal.itens.length})</p>
-              <div className="bg-background rounded-lg border border-card-border overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-card border-b border-card-border">
-                    <tr>
-                      <th className="py-2 px-3 font-semibold">Nome do Item</th>
-                      <th className="py-2 px-3 font-semibold text-right">Qtd</th>
-                      <th className="py-2 px-3 font-semibold text-right">Vl. Unit</th>
-                      <th className="py-2 px-3 font-semibold text-right">Vl. Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-card-border">
-                    {notaFiscal.itens.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
-                        <td className="py-2 px-3 truncate max-w-[150px]">{item.nome_item}</td>
-                        <td className="py-2 px-3 text-right">
+              <div className="bg-background sm:bg-transparent rounded-lg border border-card-border sm:border-none overflow-hidden">
+                {/* Cabeçalho Desktop */}
+                <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 px-3 py-2 bg-card border border-card-border rounded-t-lg text-xs font-semibold text-main">
+                  <div>Nome do Item</div>
+                  <div className="text-right">Qtd</div>
+                  <div className="text-right">Vl. Unit</div>
+                  <div className="text-right">Vl. Total</div>
+                </div>
+                
+                {/* Lista de Itens */}
+                <div className="divide-y divide-card-border sm:border-x sm:border-b sm:border-card-border sm:rounded-b-lg sm:bg-background">
+                  {notaFiscal.itens.map((item, idx) => (
+                    <div key={idx} className="p-3 sm:py-2 sm:px-3 sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] sm:gap-2 items-center hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      
+                      {/* Mobile: Nome e Total Rápido */}
+                      <div className="flex justify-between items-start sm:block mb-2 sm:mb-0">
+                        <div className="font-medium text-sm sm:text-xs text-main truncate pr-2" title={item.nome_item}>{item.nome_item}</div>
+                        <div className="sm:hidden font-bold text-brand-ocre text-sm whitespace-nowrap">R$ {item.valor_total.toFixed(2)}</div>
+                      </div>
+                      
+                      {/* Grid de Inputs (Qtd / Unit) */}
+                      <div className="grid grid-cols-2 gap-3 sm:contents">
+                        
+                        {/* Quantidade */}
+                        <div className="flex items-center justify-between sm:justify-end bg-black/5 sm:bg-transparent px-2 py-1.5 sm:p-0 rounded-lg sm:rounded-none">
+                          <span className="text-[10px] text-desc font-bold uppercase sm:hidden">Qtd</span>
                           <input 
                             type="number" 
                             step="0.01"
-                            className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                            className="w-16 sm:w-14 bg-transparent text-right focus:outline-none sm:border-b sm:border-dashed sm:border-card-border focus:border-brand-ocre text-main font-semibold sm:font-normal text-xs" 
                             value={item.quantidade} 
                             onChange={(e) => {
                               const newItens = [...notaFiscal.itens!];
@@ -321,14 +332,17 @@ function CustosFormContent() {
                               setNotaFiscal({...notaFiscal, itens: newItens});
                             }}
                           />
-                        </td>
-                        <td className="py-2 px-3 text-right">
+                        </div>
+
+                        {/* Valor Unitário */}
+                        <div className="flex items-center justify-between sm:justify-end bg-black/5 sm:bg-transparent px-2 py-1.5 sm:p-0 rounded-lg sm:rounded-none">
+                          <span className="text-[10px] text-desc font-bold uppercase sm:hidden">Vl. Unit</span>
                           <div className="flex items-center justify-end gap-1">
-                            <span className="text-desc text-[10px]">R$</span>
+                            <span className="text-desc text-[10px] font-semibold">R$</span>
                             <input 
                               type="number" 
                               step="0.01"
-                              className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                              className="w-16 bg-transparent text-right focus:outline-none sm:border-b sm:border-dashed sm:border-card-border focus:border-brand-ocre text-main font-semibold sm:font-normal text-xs" 
                               value={item.valor_unitario} 
                               onChange={(e) => {
                                 const newItens = [...notaFiscal.itens!];
@@ -338,14 +352,16 @@ function CustosFormContent() {
                               }}
                             />
                           </div>
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium text-brand-ocre">
-                          R$ {item.valor_total.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+
+                      {/* Total Desktop */}
+                      <div className="hidden sm:block text-right font-medium text-brand-ocre text-xs">
+                        R$ {item.valor_total.toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
