@@ -348,6 +348,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
                                 <Link
                                   key={screen.label}
                                   href={screen.href}
+                                  onClick={onClose}
                                   className={`pl-5 pr-2 py-1.5 rounded-lg text-xs font-semibold transition-all relative ${
                                     isActive 
                                       ? 'bg-brand-blue/10 dark:bg-white/[0.06] text-brand-blue dark:text-brand-ocre' 
