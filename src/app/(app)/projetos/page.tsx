@@ -478,15 +478,8 @@ export default function ProjetosPage() {
                             onClick={() => {
                               if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
                                 router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
-                              } else if (cat === 'insumos') {
-                                router.push(`/custos?projetoId=${proj.id}&categoria=insumos`);
                               } else {
-                                setQuickCusto({
-                                  projetoId: proj.id!,
-                                  projetoNome: proj.nome,
-                                  categoria: cat as CategoriaCusto,
-                                  categoriaLabel: label
-                                });
+                                router.push(`/custos?projetoId=${proj.id}&categoria=${cat}`);
                               }
                             }}
                             title={`Lançamento Rápido: ${label}`}
@@ -822,15 +815,8 @@ export default function ProjetosPage() {
                                             onClick={() => {
                                               if (cat === 'mao_de_obra' || cat === 'empreiteiros') {
                                                 router.push(`/rh/pagamentos-parceiros?projeto_id=${proj.id}`);
-                                              } else if (cat === 'insumos') {
-                                                router.push(`/custos?projetoId=${proj.id}&categoria=insumos`);
                                               } else {
-                                                setQuickCusto({
-                                                  projetoId: proj.id!,
-                                                  projetoNome: proj.nome,
-                                                  categoria: cat as CategoriaCusto,
-                                                  categoriaLabel: label
-                                                });
+                                                router.push(`/custos?projetoId=${proj.id}&categoria=${cat}`);
                                               }
                                             }}
                                             title={`Lançamento Rápido: ${label}`}
