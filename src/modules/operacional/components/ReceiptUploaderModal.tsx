@@ -25,7 +25,8 @@ export default function ReceiptUploaderModal({ isOpen, onClose, onProcess }: Rec
       
       for (const file of files) {
         const base64 = await readFileAsDataURL(file);
-        newImages.push(base64);
+        const resizedBase64 = await resizeImage(base64, 1200);
+        newImages.push(resizedBase64);
       }
       
       setImages([...images, ...newImages]);
@@ -39,6 +40,35 @@ export default function ReceiptUploaderModal({ isOpen, onClose, onProcess }: Rec
       reader.onload = (e) => resolve(e.target?.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  };
+
+  const resizeImage = (dataUrl: string, maxWidth: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxWidth) {
+          const ratio = Math.min(maxWidth / width, maxWidth / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Comprime para 60% qualidade JPEG (Evita Payload Too Large)
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
     });
   };
 

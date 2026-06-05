@@ -64,7 +64,8 @@ function CustosFormContent() {
       });
 
       if (!res.ok) {
-        throw new Error('Falha ao extrair dados da nota fiscal');
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || `Falha ao extrair dados da nota fiscal (${res.status})`);
       }
 
       const data = await res.json();
@@ -89,9 +90,9 @@ function CustosFormContent() {
       } else {
         throw new Error('Formato de resposta inválido');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao ler QR Code:', err);
-      showToast('Não foi possível processar o QR Code. Tente novamente ou preencha manualmente.', 'error');
+      showToast(err.message || 'Não foi possível processar o QR Code. Tente novamente ou preencha manualmente.', 'error');
     } finally {
       setProcessandoNota(false);
     }
