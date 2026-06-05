@@ -258,7 +258,7 @@ export default function ProjetosPage() {
         </div>
 
         {/* Alternador de Visualização (Grade vs Lista) */}
-        <div className="hidden md:flex items-center gap-1 bg-background border border-card-border p-1 rounded-lg shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+        <div className="flex items-center gap-1 bg-background border border-card-border p-1 rounded-lg shrink-0 w-full sm:w-auto justify-center sm:justify-start">
           <span className="text-[10px] text-desc font-semibold px-2.5 hidden sm:inline">Exibição:</span>
           <button
             onClick={() => setViewMode('grid')}
@@ -315,10 +315,9 @@ export default function ProjetosPage() {
             </Link>
           )}
         </div>
-      ) : (
-        <>
-          {/* VISUALIZAÇÃO EM GRADE (CARDS) - SEMPRE NO MOBILE */}
-          <div className={`grid-cols-1 md:grid-cols-2 gap-6 ${viewMode === 'grid' ? 'grid' : 'grid md:hidden'}`}>
+      ) : viewMode === 'grid' ? (
+        /* VISUALIZAÇÃO EM GRADE (CARDS) */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {projetosFiltrados.map((proj) => {
             const estouro = proj.custoRealizado > proj.custoPrevisto;
             
@@ -498,12 +497,12 @@ export default function ProjetosPage() {
             );
           })}
         </div>
-          
-          {/* VISUALIZAÇÃO EM LISTA (TABELA COM EXPANSÃO) - APENAS NO DESKTOP SE SELECIONADO */}
-          <div className={`bg-card border border-card-border rounded-2xl overflow-hidden shadow-xs ${viewMode === 'list' ? 'hidden md:block' : 'hidden'}`}>
+      ) : (
+        /* VISUALIZAÇÃO EM LISTA (TABELA COM EXPANSÃO) */
+        <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
+            <table className="w-full text-left border-collapse block md:table">
+              <thead className="hidden md:table-header-group">
                 <tr className="border-b border-card-border bg-slate-50 dark:bg-zinc-900/50 text-xs font-bold text-desc uppercase tracking-wider">
                   <th className="py-3 px-5 w-32">OS</th>
                   <th className="py-3 px-4 min-w-[400px]">Projeto</th>
@@ -515,7 +514,7 @@ export default function ProjetosPage() {
                   <th className="py-3 px-5 text-center w-32">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-card-border">
+              <tbody className="block md:table-row-group divide-y divide-card-border">
                 {projetosFiltrados.map((proj) => {
                   const isExpanded = expandedProjetoId === proj.id;
                   const estouro = proj.custoRealizado > proj.custoPrevisto;
@@ -525,28 +524,33 @@ export default function ProjetosPage() {
                       {/* Linha Principal */}
                       <tr 
                         onClick={() => setExpandedProjetoId(isExpanded ? null : proj.id!)}
-                        className={`hover:bg-slate-50/50 dark:hover:bg-zinc-855/20 cursor-pointer transition-colors text-xs font-semibold text-main ${
+                        className={`hover:bg-slate-50/50 dark:hover:bg-zinc-855/20 cursor-pointer transition-colors text-xs font-semibold text-main flex flex-col md:table-row relative pb-3 md:pb-0 ${
                           isExpanded ? 'bg-slate-50/30 dark:bg-zinc-900/20' : ''
                         }`}
                       >
-                        <td className="py-3 px-5 font-bold text-brand-ocre whitespace-nowrap text-xs">
-                          {proj.os}
+                        <td className="py-2.5 px-5 md:py-3 font-bold text-brand-ocre text-xs flex justify-between items-center md:table-cell">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">OS</span>
+                          <span>{proj.os}</span>
                         </td>
-                        <td className="py-3 px-4 text-xs">
-                          <div className="flex items-center gap-1.5">
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Projeto</span>
+                          <div className="flex items-center gap-1.5 justify-end md:justify-start">
                             <div className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-700">
                               {isExpanded ? <ChevronUp size={12} className="text-desc" /> : <ChevronDown size={12} className="text-desc" />}
                             </div>
-                            <span className="font-bold hover:text-brand-ocre transition-colors font-vomzom">{proj.nome}</span>
+                            <span className="font-bold hover:text-brand-ocre transition-colors font-vomzom text-right md:text-left">{proj.nome}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-xs">
-                          {proj.tipologia || 'Residencial'}
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Tipologia</span>
+                          <span>{proj.tipologia || 'Residencial'}</span>
                         </td>
-                        <td className="py-3 px-4 w-48 text-xs">
-                          {proj.cidade}/{proj.uf}
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 w-full md:w-48 text-xs flex justify-between items-center md:table-cell">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Cidade/UF</span>
+                          <span className="text-right md:text-left">{proj.cidade}/{proj.uf}</span>
                         </td>
-                        <td className="py-3 px-4 text-xs whitespace-nowrap">
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell whitespace-nowrap">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Status</span>
                           <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap ${
                             proj.status === 'em_andamento'
                               ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
@@ -559,14 +563,17 @@ export default function ProjetosPage() {
                             {proj.status === 'em_andamento' ? 'Em Andamento' : proj.status === 'concluido' ? 'Concluído' : proj.status === 'planejado' ? 'Planejado' : 'Suspenso'}
                         </span>
                         </td>
-                        <td className="py-3 px-4 text-right text-xs">
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Contrato</span>
                           <ValorPremium valor={proj.valor_total_contrato} size="xs" />
                         </td>
-                        <td className="py-3 px-4 text-right text-xs">
+                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Recebido</span>
                           <ValorPremium valor={proj.valorRecebido} size="xs" />
                         </td>
-                        <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-4 px-5 md:px-6 flex justify-between md:justify-center items-center md:table-cell" onClick={(e) => e.stopPropagation()}>
+                          <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Ações Rápidas</span>
+                          <div className="flex items-center justify-end md:justify-center gap-1.5">
                             <Link
                               href={`/projetos/editar?id=${proj.id}`}
                               className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs"
@@ -628,8 +635,8 @@ export default function ProjetosPage() {
 
 
                         return (
-                          <tr className="bg-slate-50/20 dark:bg-zinc-900/10">
-                            <td colSpan={8} className="py-4 px-5 border-b border-card-border">
+                          <tr className="bg-slate-50/20 dark:bg-zinc-900/10 block md:table-row border-t-4 md:border-t-0 border-card-border/50">
+                            <td colSpan={8} className="py-4 px-5 border-b border-card-border block md:table-cell">
                               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 bg-card border border-card-border rounded-xl p-5 shadow-sm text-left items-start">
                                 
                                 {/* ══════════ COLUNA 1: DADOS DA OBRA E ENDEREÇO ══════════ */}
@@ -972,7 +979,6 @@ export default function ProjetosPage() {
             </table>
           </div>
         </div>
-        </>
       )}
       {/* Modal de Lançamento Rápido de Custos */}
       {quickCusto && (
