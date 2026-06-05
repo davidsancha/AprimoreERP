@@ -1,128 +1,186 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { GoogleGenAI } from '@google/genai';
+
+// Instância do Gemini. Utilizará a variável de ambiente GEMINI_API_KEY
+const ai = new GoogleGenAI();
 
 export async function POST(req: Request) {
   try {
-    const { url } = await req.json();
+    const body = await req.json();
+    const { images, qrCodeUrl } = body;
 
-    if (!url) {
-      return NextResponse.json({ error: 'Conteúdo do QR Code é obrigatório' }, { status: 400 });
+    if ((!images || images.length === 0) && !qrCodeUrl) {
+      return NextResponse.json({ error: 'Nenhuma imagem ou QR Code fornecido' }, { status: 400 });
     }
 
-    const isHttpUrl = url.trim().startsWith('http://') || url.trim().startsWith('https://');
-
-    if (!isHttpUrl) {
-      return NextResponse.json({ error: 'Formato inválido. Apenas URLs da SEFAZ são suportadas nesta versão sem IA.' }, { status: 400 });
-    }
-
-    let htmlContent = '';
-    try {
-      const fetchResponse = await fetch(url.trim(), {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-        },
-        signal: AbortSignal.timeout(10000)
-      });
-      htmlContent = await fetchResponse.text();
-    } catch (e) {
-      console.error('Erro ao fazer fetch da URL SEFAZ:', e);
-      return NextResponse.json({ error: 'Falha ao carregar os dados da SEFAZ.' }, { status: 500 });
-    }
-
-    const $ = cheerio.load(htmlContent);
-
-    // 1. Extrair Nome da Loja
-    let loja_nome = $('#u20').text().trim() || 'Nome do Estabelecimento Não Identificado';
-
-    // 4. Extrair Chave de Acesso
+    let loja_nome = 'Nome do Estabelecimento Não Identificado';
+    let endereco = '';
     let chave_acesso = '';
-    const chaveEl = $('.chave').text().trim() || $('#conteudo .text').text().trim();
-    const chaveMatch = chaveEl.replace(/\s/g, '').match(/\d{44}/);
-    if (chaveMatch) {
-      chave_acesso = chaveMatch[0];
-    } else {
-      // Tentar pegar da URL (padrão RJ ?p=CHAVE|...)
+    let cnpj = '';
+    let data_emissao = '';
+    let valor_total = 0;
+    
+    // Passo 1: Extração rápida via Código/QR Code (se URL existir)
+    if (qrCodeUrl) {
+      const url = qrCodeUrl.trim();
+      
+      // Extrair Chave de Acesso da URL (padrão RJ ?p=CHAVE|...)
       const urlMatch = url.match(/p=(\d{44})/);
       if (urlMatch) {
         chave_acesso = urlMatch[1];
+        cnpj = chave_acesso.substring(6, 20); // Extrai CNPJ da chave
       }
-    }
 
-    // 2. Extrair CNPJ
-    let cnpj = '';
-    const textElements = $('.text').toArray();
-    for (const el of textElements) {
-      const text = $(el).text();
-      if (text.includes('CNPJ:')) {
-        const match = text.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
-        if (match) {
-          cnpj = match[0].replace(/\D/g, '');
-          break;
+      // Tentar raspar a SEFAZ
+      const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
+      if (isHttpUrl) {
+        try {
+          const fetchResponse = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'Accept': 'text/html,application/xhtml+xml,application/xml'
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+          
+          if (fetchResponse.ok) {
+            const htmlContent = await fetchResponse.text();
+            
+            if (!htmlContent.includes('bloqueia acessos provenientes') && !htmlContent.includes('bloqueio')) {
+              const $ = cheerio.load(htmlContent);
+              
+              const lojaText = $('#u20').text().trim();
+              if (lojaText) loja_nome = lojaText;
+
+              const chaveEl = $('.chave').text().trim() || $('#conteudo .text').text().trim();
+              const chaveMatch = chaveEl.replace(/\s/g, '').match(/\d{44}/);
+              if (chaveMatch) {
+                chave_acesso = chaveMatch[0];
+                if (!cnpj) cnpj = chave_acesso.substring(6, 20);
+              }
+
+              const textElements = $('.text').toArray();
+              for (const el of textElements) {
+                const text = $(el).text();
+                if (text.includes('CNPJ:')) {
+                  const match = text.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+                  if (match) {
+                    cnpj = match[0].replace(/\D/g, '');
+                    break;
+                  }
+                }
+              }
+
+              const totalText = $('#totalNota .txtMax').text() || $('#totalNota').text() || $('.txtMax').text();
+              const totalMatch = totalText.match(/[\d\.]+\,\d{2}/);
+              if (totalMatch) {
+                valor_total = parseFloat(totalMatch[0].replace('.', '').replace(',', '.'));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Scraping da SEFAZ falhou (fallback para IA):', e);
         }
       }
     }
-    // Fallback do CNPJ a partir da chave de acesso (posições 7 a 20)
-    if (!cnpj && chave_acesso && chave_acesso.length === 44) {
-      cnpj = chave_acesso.substring(6, 20);
-    }
 
-    // 5. Extrair Valor Total
-    let valor_total = 0;
-    const totalText = $('#totalNota .txtMax').text() || $('#totalNota').text() || $('.txtMax').text();
-    const totalMatch = totalText.match(/[\d\.]+\,\d{2}/);
-    if (totalMatch) {
-      valor_total = parseFloat(totalMatch[0].replace('.', '').replace(',', '.'));
-    }
-
-    // 6. Extrair Itens
-    const itens: any[] = [];
-    $('#tabResult tr').each((i, el) => {
-      const nome_item = $(el).find('.txtTit').text().trim();
-      const qtdText = $(el).find('.Rqtd').text().match(/[\d\.]+\,\d+/);
-      const vUnitText = $(el).find('.RvlUnit').text().match(/[\d\.]+\,\d{2}/);
-      const vTotalText = $(el).find('.valor').text().match(/[\d\.]+\,\d{2}/);
-
-      if (nome_item) {
-        const quantidade = qtdText ? parseFloat(qtdText[0].replace('.', '').replace(',', '.')) : 1;
-        const valor_unitario = vUnitText ? parseFloat(vUnitText[0].replace('.', '').replace(',', '.')) : 0;
-        const valor_total_item = vTotalText ? parseFloat(vTotalText[0].replace('.', '').replace(',', '.')) : (quantidade * valor_unitario);
-
-        itens.push({
-          nome_item,
-          quantidade,
-          valor_unitario,
-          valor_total: valor_total_item
-        });
-      }
-    });
-
-    let endereco = 'Não extraído via HTML básico';
-    let blockedByFirewall = false;
+    // Passo 2: Extração Inteligente via Gemini Flash (Fallback + Itens)
+    let aiData: any = null;
     
-    if (htmlContent.includes('bloqueia acessos provenientes desses endereços IP') || htmlContent.includes('bloqueio')) {
-      loja_nome = 'BLOQUEADO PELO FIREWALL DA SEFAZ-RJ';
-      blockedByFirewall = true;
+    if (images && images.length > 0) {
+      try {
+        const prompt = `
+Você é um assistente especializado em ler cupons fiscais brasileiros.
+Vou te enviar imagens de um cupom fiscal (podem ser várias partes do mesmo cupom).
+Já extraímos alguns dados via código, não reescreva se não for necessário para economizar tokens:
+- Chave de Acesso: ${chave_acesso || 'Não encontrada'}
+- Nome da Loja: ${loja_nome !== 'Nome do Estabelecimento Não Identificado' ? loja_nome : 'Não encontrado'}
+- CNPJ: ${cnpj || 'Não encontrado'}
+- Data de Emissão: ${data_emissao || 'Não encontrada'}
+
+Sua tarefa:
+1. Extrair a Forma de Pagamento (Dinheiro, Cartão de Crédito, Pix, etc).
+2. Extrair os ITENS da compra (descrição, quantidade, valor_unitario, valor_total do item).
+3. SE os dados do emissor (Nome, Endereço, CNPJ, Data) não foram encontrados acima, extraia-os da imagem.
+4. O valor total da compra.
+
+Retorne APENAS um JSON válido no seguinte formato estrito, sem markdown ou formatação adicional:
+{
+  "loja_nome": "Nome do local (se não tínhamos)",
+  "cnpj": "Apenas os números (se não tínhamos)",
+  "endereco": "Endereço completo (se visível nas imagens)",
+  "data_emissao": "YYYY-MM-DDTHH:mm:ss (se visível e não tínhamos)",
+  "forma_pagamento": "Forma de pagamento (Pix, Cartão, Dinheiro...)",
+  "valor_total": 0.00,
+  "itens": [
+    {
+      "nome_item": "Descrição do item",
+      "quantidade": 1.0,
+      "valor_unitario": 0.00,
+      "valor_total": 0.00
+    }
+  ]
+}`;
+
+        // Preparar as imagens para o Gemini
+        const parts = images.map((imgUrl: string) => {
+          // Remove prefixo de base64 se existir
+          const base64Data = imgUrl.replace(/^data:image\/\w+;base64,/, '');
+          return {
+            inlineData: {
+              data: base64Data,
+              mimeType: 'image/jpeg' // assumimos jpeg, ou pegaríamos da string
+            }
+          };
+        });
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                ...parts
+              ]
+            }
+          ],
+          config: {
+            temperature: 0.1, // baixa temperatura para maior precisão de extração
+            responseMimeType: "application/json",
+          }
+        });
+
+        const responseText = response.text || '';
+        if (responseText) {
+          aiData = JSON.parse(responseText.replace(/```json/g, '').replace(/```/g, '').trim());
+        }
+
+      } catch (aiError) {
+        console.error('Erro na extração via Gemini:', aiError);
+      }
     }
 
-    if (loja_nome === 'Nome do Estabelecimento Não Identificado' || blockedByFirewall) {
-      endereco = `Aviso: Servidor (Vercel) bloqueado pela SEFAZ. ${blockedByFirewall ? 'O IP está na blocklist da SEFAZ.' : ''} Link original: ${url}`;
-    }
-
+    // Passo 3: Merge Híbrido dos Dados
+    // Priorizamos dados da IA para campos que a IA é melhor (itens, forma_pagamento, endereco), 
+    // e o código para chaves matemáticas.
     const notaFiscal = {
-      loja_nome,
-      cnpj,
-      data_emissao,
-      endereco,
-      valor_total,
-      chave_acesso,
-      url_qr_code: url,
-      itens
+      loja_nome: aiData?.loja_nome || loja_nome,
+      cnpj: aiData?.cnpj || cnpj,
+      endereco: aiData?.endereco || endereco,
+      data_emissao: aiData?.data_emissao || data_emissao || new Date().toISOString(),
+      valor_total: aiData?.valor_total || valor_total,
+      chave_acesso: chave_acesso,
+      url_qr_code: qrCodeUrl || null,
+      forma_pagamento: aiData?.forma_pagamento || 'Não identificada',
+      itens: aiData?.itens || []
     };
 
     return NextResponse.json({ notaFiscal });
+
   } catch (error) {
-    console.error('Erro no processamento da nota fiscal (Cheerio):', error);
-    return NextResponse.json({ error: 'Erro interno ao extrair a nota fiscal via Cheerio' }, { status: 500 });
+    console.error('Erro interno ao extrair a nota fiscal:', error);
+    return NextResponse.json({ error: 'Erro interno ao extrair a nota fiscal.' }, { status: 500 });
   }
 }

@@ -52,6 +52,7 @@ export interface NotaFiscal {
   valor_total: number;
   chave_acesso?: string | null;
   url_qr_code?: string | null;
+  forma_pagamento?: string | null;
   created_at?: string;
   itens?: ItemNotaFiscal[];
 }

@@ -18,9 +18,9 @@ import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/oper
 import MoneyInput from '@/shared/components/MoneyInput';
 import Toast, { ToastType } from '@/shared/components/Toast';
 
-import QrCodeModal from '@/modules/operacional/components/QrCodeModal';
+import ReceiptUploaderModal from '@/modules/operacional/components/ReceiptUploaderModal';
 import { NotaFiscal } from '@/modules/operacional/types';
-import { QrCode, Receipt } from 'lucide-react';
+import { QrCode, Receipt, Camera } from 'lucide-react';
 
 function CustosFormContent() {
   const router = useRouter();
@@ -50,7 +50,7 @@ function CustosFormContent() {
     setToast({ message, type });
   };
 
-  const handleQrScan = async (text: string) => {
+  const handleReceiptProcess = async (images: string[], qrCodeUrl: string | null) => {
     setIsQrModalOpen(false);
     setProcessandoNota(true);
     
@@ -60,7 +60,7 @@ function CustosFormContent() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ url: text })
+        body: JSON.stringify({ images, qrCodeUrl })
       });
 
       if (!res.ok) {
@@ -191,10 +191,10 @@ function CustosFormContent() {
         />
       )}
       
-      <QrCodeModal 
+      <ReceiptUploaderModal 
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
-        onScan={handleQrScan}
+        onProcess={handleReceiptProcess}
       />
 
       {/* Botão de Leitura Inteligente */}
@@ -269,14 +269,25 @@ function CustosFormContent() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Endereço</label>
-            <input
-              type="text"
-              value={notaFiscal.endereco || ''}
-              onChange={(e) => setNotaFiscal({...notaFiscal, endereco: e.target.value})}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Endereço</label>
+              <input
+                type="text"
+                value={notaFiscal.endereco || ''}
+                onChange={(e) => setNotaFiscal({...notaFiscal, endereco: e.target.value})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Forma de Pagamento</label>
+              <input
+                type="text"
+                value={notaFiscal.forma_pagamento || ''}
+                onChange={(e) => setNotaFiscal({...notaFiscal, forma_pagamento: e.target.value})}
+                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
+              />
+            </div>
           </div>
 
           {notaFiscal.itens && notaFiscal.itens.length > 0 && (
