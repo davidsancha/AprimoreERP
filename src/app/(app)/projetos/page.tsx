@@ -30,7 +30,8 @@ import {
   Users,
   Utensils,
   MoreHorizontal,
-  Calculator
+  Calculator,
+  TrendingUp
 } from 'lucide-react';
 import { fetchProjetos, fetchOrcamentosByProjeto, fetchCustosRealizadosByProjeto, deletarProjeto, salvarCustoRealizado } from '@/modules/operacional/services/apiProjetos';
 import { fetchRecebimentosByProjeto } from '@/modules/financeiro/services/apiFinanceiro';
@@ -458,6 +459,17 @@ export default function ProjetosPage() {
                   <div className="border-t border-card-border pt-3 mt-3 space-y-1.5">
                     <span className="text-xs text-desc font-bold uppercase tracking-wider block">Lançamento Rápido por Categoria</span>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Entradas */}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/recebimentos?projeto_id=${proj.id}`)}
+                        title="Lançar Recebimento (Entrada)"
+                        className="p-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-emerald-600 transition-all flex items-center justify-center shadow-2xs cursor-pointer"
+                      >
+                        <TrendingUp size={14} className="shrink-0" />
+                      </button>
+                      <div className="w-[1px] h-6 bg-card-border/50 mx-1"></div>
+                      
                       {Object.entries(CATEGORIAS_CUSTO_LABELS).map(([cat, label]) => {
                         const CATEGORIAS_ICONS: Record<string, React.ComponentType<any>> = {
                           insumos: Package,
@@ -489,6 +501,46 @@ export default function ProjetosPage() {
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+
+                  {/* Últimas Despesas (Adicionado para mobile/grid) */}
+                  <div className="border-t border-card-border pt-3 mt-3">
+                    <span className="text-xs text-desc font-bold uppercase tracking-wider block mb-2">Últimas Despesas</span>
+                    <div className="bg-slate-500/5 dark:bg-white/[0.01] border border-card-border/60 rounded-xl overflow-hidden">
+                      {(() => {
+                        const custosRecentes = [...(proj.custosObra || [])]
+                          .sort((a, b) => new Date(b.data_custo).getTime() - new Date(a.data_custo).getTime())
+                          .slice(0, 3);
+
+                        if (custosRecentes.length === 0) {
+                          return (
+                            <div className="p-3 text-center text-[11px] text-desc font-semibold">
+                              Nenhuma despesa lançada.
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="divide-y divide-card-border/50 text-[11px]">
+                            {custosRecentes.map((c, i) => (
+                              <div key={i} className="flex justify-between items-center p-2 hover:bg-slate-500/10 transition-colors">
+                                <div className="space-y-0.5 text-left min-w-0">
+                                  <span className="font-bold text-main block truncate">
+                                    {CATEGORIAS_CUSTO_LABELS[c.categoria as CategoriaCusto] || c.categoria}
+                                  </span>
+                                  <span className="text-[10px] text-desc block font-medium">
+                                    {new Date(c.data_custo).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </div>
+                                <span className="font-bold text-red-500 shrink-0 ml-2">
+                                  - R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -762,13 +814,13 @@ export default function ProjetosPage() {
                                 </div>
 
                                 {/* ══════════ COLUNA 3: DESPESAS E INFORMAÇÕES ══════════ */}
-                                <div className="space-y-4">
-                                  <h4 className="text-xs font-black text-brand-ocre uppercase tracking-wider font-vomzom flex items-center gap-1.5 pb-2 border-b border-card-border/50">
+                                <div className="flex flex-col">
+                                  <h4 className="text-xs font-black text-brand-ocre uppercase tracking-wider font-vomzom flex items-center gap-1.5 pb-2 mb-4 border-b border-card-border/50 order-first">
                                     <Coins size={14} className="text-brand-blue" /> Despesas e Lançamentos
                                   </h4>
 
                                   {/* Despesas Recentes */}
-                                  <div>
+                                  <div className="order-2 md:order-1 mt-4 md:mt-0">
                                     <span className="text-[10px] text-desc font-black uppercase tracking-wider block mb-1.5">Últimas Despesas</span>
                                     <div className="bg-slate-500/5 dark:bg-white/[0.01] border border-card-border/60 rounded-xl overflow-hidden">
                                       {(() => {
@@ -808,9 +860,20 @@ export default function ProjetosPage() {
                                   </div>
 
                                   {/* Lançamento Rápido */}
-                                  <div>
+                                  <div className="order-1 md:order-2">
                                     <span className="text-[10px] text-desc font-black uppercase tracking-wider block mb-1.5">Lançamento Rápido</span>
                                     <div className="flex flex-wrap gap-1">
+                                      {/* Lançar Entradas */}
+                                      <button
+                                        type="button"
+                                        onClick={() => router.push(`/recebimentos?projeto_id=${proj.id}`)}
+                                        title="Lançar Recebimento (Entrada)"
+                                        className="flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-[10px] text-emerald-600 transition-all cursor-pointer shadow-2xs font-bold"
+                                      >
+                                        <TrendingUp size={11} className="text-emerald-600 shrink-0" />
+                                        <span>Entradas</span>
+                                      </button>
+
                                       {Object.entries(CATEGORIAS_CUSTO_LABELS).map(([cat, label]) => {
                                         const CATEGORIAS_ICONS: Record<string, React.ComponentType<any>> = {
                                           insumos: Package, mao_de_obra: HardHat, empreiteiros: Users, ferramentas: Wrench, locacoes: Key, logistica: Truck, administrativo: FileText, alimentacao: Utensils, outros: MoreHorizontal
