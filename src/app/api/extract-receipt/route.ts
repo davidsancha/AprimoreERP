@@ -136,7 +136,7 @@ Retorne APENAS um JSON válido no seguinte formato estrito, sem markdown ou form
         });
 
         const response = await ai.models.generateContent({
-          model: 'gemini-1.5-flash',
+          model: 'gemini-flash-latest',
           contents: [
             {
               role: 'user',
