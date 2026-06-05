@@ -258,7 +258,7 @@ export default function ProjetosPage() {
         </div>
 
         {/* Alternador de Visualização (Grade vs Lista) */}
-        <div className="flex items-center gap-1 bg-background border border-card-border p-1 rounded-lg shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+        <div className="hidden md:flex items-center gap-1 bg-background border border-card-border p-1 rounded-lg shrink-0 w-full sm:w-auto justify-center sm:justify-start">
           <span className="text-[10px] text-desc font-semibold px-2.5 hidden sm:inline">Exibição:</span>
           <button
             onClick={() => setViewMode('grid')}
@@ -315,9 +315,10 @@ export default function ProjetosPage() {
             </Link>
           )}
         </div>
-      ) : viewMode === 'grid' ? (
-        /* VISUALIZAÇÃO EM GRADE (CARDS) */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      ) : (
+        <>
+          {/* VISUALIZAÇÃO EM GRADE (CARDS) - SEMPRE NO MOBILE */}
+          <div className={`grid-cols-1 md:grid-cols-2 gap-6 ${viewMode === 'grid' ? 'grid' : 'grid md:hidden'}`}>
           {projetosFiltrados.map((proj) => {
             const estouro = proj.custoRealizado > proj.custoPrevisto;
             
@@ -497,9 +498,9 @@ export default function ProjetosPage() {
             );
           })}
         </div>
-      ) : (
-        /* VISUALIZAÇÃO EM LISTA (TABELA COM EXPANSÃO) */
-        <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-xs">
+          
+          {/* VISUALIZAÇÃO EM LISTA (TABELA COM EXPANSÃO) - APENAS NO DESKTOP SE SELECIONADO */}
+          <div className={`bg-card border border-card-border rounded-2xl overflow-hidden shadow-xs ${viewMode === 'list' ? 'hidden md:block' : 'hidden'}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -971,6 +972,7 @@ export default function ProjetosPage() {
             </table>
           </div>
         </div>
+        </>
       )}
       {/* Modal de Lançamento Rápido de Custos */}
       {quickCusto && (
