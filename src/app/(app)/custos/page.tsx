@@ -311,7 +311,8 @@ function CustosFormContent() {
                         <td className="py-2 px-3 text-right">
                           <input 
                             type="number" 
-                            className="w-14 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                            step="0.01"
+                            className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
                             value={item.quantidade} 
                             onChange={(e) => {
                               const newItens = [...notaFiscal.itens!];
@@ -322,17 +323,21 @@ function CustosFormContent() {
                           />
                         </td>
                         <td className="py-2 px-3 text-right">
-                          <input 
-                            type="number" 
-                            className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
-                            value={item.valor_unitario} 
-                            onChange={(e) => {
-                              const newItens = [...notaFiscal.itens!];
-                              newItens[idx].valor_unitario = parseFloat(e.target.value) || 0;
-                              newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
-                              setNotaFiscal({...notaFiscal, itens: newItens});
-                            }}
-                          />
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-desc text-[10px]">R$</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              className="w-16 bg-transparent text-right focus:outline-none border-b border-dashed border-card-border focus:border-brand-ocre" 
+                              value={item.valor_unitario} 
+                              onChange={(e) => {
+                                const newItens = [...notaFiscal.itens!];
+                                newItens[idx].valor_unitario = parseFloat(e.target.value) || 0;
+                                newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
+                                setNotaFiscal({...notaFiscal, itens: newItens});
+                              }}
+                            />
+                          </div>
                         </td>
                         <td className="py-2 px-3 text-right font-medium text-brand-ocre">
                           R$ {item.valor_total.toFixed(2)}
