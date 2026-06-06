@@ -151,7 +151,7 @@ function CustosFormContent() {
       }, 1500);
     } catch (err) {
       console.error('Erro ao salvar despesa:', err);
-      showToast('Ocorreu um erro ao registrar a despesa.', 'error');
+      showToast(`Ocorreu um erro ao registrar a despesa: ${err instanceof Error ? err.message : JSON.stringify(err)}`, 'error');
     } finally {
       setSalvando(false);
     }
@@ -311,7 +311,7 @@ function CustosFormContent() {
                       {/* Mobile: Nome e Total Rápido */}
                       <div className="flex justify-between items-start sm:block mb-2 sm:mb-0">
                         <div className="font-medium text-sm sm:text-xs text-main truncate pr-2" title={item.nome_item}>{item.nome_item}</div>
-                        <div className="sm:hidden font-bold text-brand-ocre text-sm whitespace-nowrap">R$ {item.valor_total.toFixed(2)}</div>
+                        <div className="sm:hidden font-bold text-brand-ocre text-sm whitespace-nowrap">R$ {(item.valor_total || 0).toFixed(2)}</div>
                       </div>
                       
                       {/* Grid de Inputs (Qtd / Unit) */}
@@ -357,7 +357,7 @@ function CustosFormContent() {
 
                       {/* Total Desktop */}
                       <div className="hidden sm:block text-right font-medium text-brand-ocre text-xs">
-                        R$ {item.valor_total.toFixed(2)}
+                        R$ {(item.valor_total || 0).toFixed(2)}
                       </div>
                     </div>
                   ))}
