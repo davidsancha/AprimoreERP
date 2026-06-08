@@ -20,7 +20,7 @@ import Toast, { ToastType } from '@/shared/components/Toast';
 
 import ReceiptUploaderModal from '@/modules/operacional/components/ReceiptUploaderModal';
 import { NotaFiscal } from '@/modules/operacional/types';
-import { QrCode, Receipt, Camera } from 'lucide-react';
+import { QrCode, Receipt, Camera, Trash2 } from 'lucide-react';
 
 function CustosFormContent() {
   const router = useRouter();
@@ -306,11 +306,23 @@ function CustosFormContent() {
                 {/* Lista de Itens */}
                 <div className="divide-y divide-card-border sm:border-x sm:border-b sm:border-card-border sm:rounded-b-lg sm:bg-background">
                   {notaFiscal.itens.map((item, idx) => (
-                    <div key={idx} className="p-3 sm:py-2 sm:px-3 sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] sm:gap-2 items-center hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors">
+                    <div key={idx} className="p-3 sm:py-2 sm:px-3 sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] sm:gap-2 items-center hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors group">
                       
                       {/* Mobile: Nome e Total Rápido */}
                       <div className="flex justify-between items-start sm:block mb-2 sm:mb-0">
-                        <div className="font-medium text-sm sm:text-xs text-main truncate pr-2" title={item.nome_item}>{item.nome_item}</div>
+                        <div className="font-medium text-sm sm:text-xs text-main flex-1 mr-2">
+                          <input 
+                            type="text"
+                            value={item.nome_item}
+                            onChange={(e) => {
+                              const newItens = [...notaFiscal.itens!];
+                              newItens[idx].nome_item = e.target.value;
+                              setNotaFiscal({...notaFiscal, itens: newItens});
+                            }}
+                            className="w-full bg-transparent border-b border-transparent hover:border-card-border focus:border-brand-ocre focus:outline-none transition-colors"
+                            placeholder="Nome do item"
+                          />
+                        </div>
                         <div className="sm:hidden font-bold text-brand-ocre text-sm whitespace-nowrap">R$ {(item.valor_total || 0).toFixed(2)}</div>
                       </div>
                       
@@ -329,7 +341,10 @@ function CustosFormContent() {
                               const newItens = [...notaFiscal.itens!];
                               newItens[idx].quantidade = parseFloat(e.target.value) || 0;
                               newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
-                              setNotaFiscal({...notaFiscal, itens: newItens});
+                              
+                              const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
+                              setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
+                              setValor(novoTotalNota);
                             }}
                           />
                         </div>
@@ -348,16 +363,48 @@ function CustosFormContent() {
                                 const newItens = [...notaFiscal.itens!];
                                 newItens[idx].valor_unitario = parseFloat(e.target.value) || 0;
                                 newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
-                                setNotaFiscal({...notaFiscal, itens: newItens});
+                                
+                                const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
+                                setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
+                                setValor(novoTotalNota);
                               }}
                             />
                           </div>
                         </div>
                       </div>
 
-                      {/* Total Desktop */}
-                      <div className="hidden sm:block text-right font-medium text-brand-ocre text-xs">
+                      {/* Total Desktop e Botão Remover */}
+                      <div className="hidden sm:flex justify-end items-center gap-2 text-right font-medium text-brand-ocre text-xs">
                         R$ {(item.valor_total || 0).toFixed(2)}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newItens = notaFiscal.itens!.filter((_, i) => i !== idx);
+                            const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
+                            setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
+                            setValor(novoTotalNota);
+                          }}
+                          className="p-1 text-sub hover:text-red-500 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          title="Remover item"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      
+                      {/* Botão Remover Mobile */}
+                      <div className="sm:hidden mt-2 pt-2 border-t border-card-border/50 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newItens = notaFiscal.itens!.filter((_, i) => i !== idx);
+                            const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
+                            setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
+                            setValor(novoTotalNota);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 rounded-lg"
+                        >
+                          <Trash2 size={12} /> Remover Item
+                        </button>
                       </div>
                     </div>
                   ))}

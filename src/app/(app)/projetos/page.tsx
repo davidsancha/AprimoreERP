@@ -40,6 +40,8 @@ import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/oper
 import ValorPremium from '@/shared/components/ValorPremium';
 import ConfirmButton from '@/shared/components/ConfirmButton';
 import Toast, { ToastType } from '@/shared/components/Toast';
+import DespesaDetalhesModal from '@/modules/operacional/components/DespesaDetalhesModal';
+import { CustoRealizado } from '@/modules/operacional/types';
 
 
 interface ProjetoComFinanceiro extends Projeto {
@@ -72,6 +74,10 @@ export default function ProjetosPage() {
   const [quickValor, setQuickValor] = useState<string>('');
   const [salvandoQuick, setSalvandoQuick] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  // Modal de Detalhes da Despesa
+  const [selectedCusto, setSelectedCusto] = useState<CustoRealizado | null>(null);
+  const [isCustoModalOpen, setIsCustoModalOpen] = useState(false);
 
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type });
@@ -524,7 +530,15 @@ export default function ProjetosPage() {
                         return (
                           <div className="divide-y divide-card-border/50 text-[11px]">
                             {custosRecentes.map((c, i) => (
-                              <div key={i} className="flex justify-between items-center p-2 hover:bg-slate-500/10 transition-colors">
+                              <div 
+                                key={i} 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCusto(c as CustoRealizado);
+                                  setIsCustoModalOpen(true);
+                                }}
+                                className="flex justify-between items-center p-2 hover:bg-slate-500/10 transition-colors cursor-pointer"
+                              >
                                 <div className="space-y-0.5 text-left min-w-0">
                                   <span className="font-bold text-main block truncate">
                                     {CATEGORIAS_CUSTO_LABELS[c.categoria as CategoriaCusto] || c.categoria}
@@ -580,11 +594,11 @@ export default function ProjetosPage() {
                           isExpanded ? 'bg-slate-50/30 dark:bg-zinc-900/20' : ''
                         }`}
                       >
-                        <td className="py-2.5 px-5 md:py-3 font-bold text-brand-ocre text-xs flex justify-between items-center md:table-cell">
+                        <td className="py-2.5 px-3 md:py-3 md:px-5 font-bold text-brand-ocre text-xs flex justify-between items-center md:table-cell">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">OS</span>
                           <span>{proj.os}</span>
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Projeto</span>
                           <div className="flex items-center gap-1.5 justify-end md:justify-start">
                             <div className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-zinc-700">
@@ -593,15 +607,15 @@ export default function ProjetosPage() {
                             <span className="font-bold hover:text-brand-ocre transition-colors font-vomzom text-right md:text-left">{proj.nome}</span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Tipologia</span>
                           <span>{proj.tipologia || 'Residencial'}</span>
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 w-full md:w-48 text-xs flex justify-between items-center md:table-cell">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 w-full md:w-48 text-xs flex justify-between items-center md:table-cell">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Cidade/UF</span>
                           <span className="text-right md:text-left">{proj.cidade}/{proj.uf}</span>
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell whitespace-nowrap">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell whitespace-nowrap">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Status</span>
                           <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap ${
                             proj.status === 'em_andamento'
@@ -615,15 +629,15 @@ export default function ProjetosPage() {
                             {proj.status === 'em_andamento' ? 'Em Andamento' : proj.status === 'concluido' ? 'Concluído' : proj.status === 'planejado' ? 'Planejado' : 'Suspenso'}
                         </span>
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Contrato</span>
                           <ValorPremium valor={proj.valor_total_contrato} size="xs" />
                         </td>
-                        <td className="py-2.5 px-5 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
+                        <td className="py-2.5 px-3 md:py-3 md:px-4 text-xs flex justify-between items-center md:table-cell md:text-right">
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Recebido</span>
                           <ValorPremium valor={proj.valorRecebido} size="xs" />
                         </td>
-                        <td className="py-4 px-5 md:px-6 flex justify-between md:justify-center items-center md:table-cell" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-4 px-3 md:px-6 flex justify-between md:justify-center items-center md:table-cell" onClick={(e) => e.stopPropagation()}>
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Ações Rápidas</span>
                           <div className="flex items-center justify-end md:justify-center gap-1.5">
                             <Link
@@ -688,8 +702,8 @@ export default function ProjetosPage() {
 
                         return (
                           <tr className="bg-slate-50/20 dark:bg-zinc-900/10 block md:table-row border-t-4 md:border-t-0 border-card-border/50">
-                            <td colSpan={8} className="py-4 px-5 border-b border-card-border block md:table-cell">
-                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 bg-card border border-card-border rounded-xl p-5 shadow-sm text-left items-start">
+                            <td colSpan={8} className="py-3 px-2 md:py-4 md:px-5 border-b border-card-border block md:table-cell">
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5 bg-card border border-card-border rounded-xl p-3 md:p-5 shadow-sm text-left items-start">
                                 
                                 {/* ══════════ COLUNA 1: DADOS DA OBRA E ENDEREÇO ══════════ */}
                                 <div className="space-y-4">
@@ -839,7 +853,15 @@ export default function ProjetosPage() {
                                         return (
                                           <div className="divide-y divide-card-border/50 text-xs">
                                             {custosRecentes.map((c, i) => (
-                                              <div key={i} className="flex justify-between items-center p-2 hover:bg-slate-500/10 transition-colors">
+                                              <div 
+                                                key={i} 
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelectedCusto(c as CustoRealizado);
+                                                  setIsCustoModalOpen(true);
+                                                }}
+                                                className="flex justify-between items-center p-2 hover:bg-slate-500/10 transition-colors cursor-pointer"
+                                              >
                                                 <div className="space-y-0.5 text-left min-w-0">
                                                   <span className="text-xs font-bold text-main block truncate">
                                                     {CATEGORIAS_CUSTO_LABELS[c.categoria as CategoriaCusto] || c.categoria}
@@ -1114,6 +1136,14 @@ export default function ProjetosPage() {
           message={toast.message} 
           type={toast.type} 
           onClose={() => setToast(null)} 
+        />
+      )}
+
+      {selectedCusto && (
+        <DespesaDetalhesModal
+          isOpen={isCustoModalOpen}
+          onClose={() => setIsCustoModalOpen(false)}
+          custo={selectedCusto}
         />
       )}
 

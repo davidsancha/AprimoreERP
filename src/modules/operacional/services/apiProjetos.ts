@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient';
-import { Projeto, CategoriaCusto, OrcamentoCusto, CustoRealizado } from '../types';
+import { Projeto, CategoriaCusto, OrcamentoCusto, CustoRealizado, NotaFiscal } from '../types';
 import { Recebimento } from '../../financeiro/types';
 
 export async function fetchProjetos(): Promise<Projeto[]> {
@@ -286,5 +286,43 @@ export async function deletarProjeto(id: string): Promise<boolean> {
   } catch (err) {
     console.error('Erro na chamada deletarProjeto:', err);
     throw err;
+  }
+}
+
+export async function fetchNotaFiscalByCustoId(custoId: string): Promise<NotaFiscal | null> {
+  if (!supabase) {
+    throw new Error('Supabase client not initialized');
+  }
+
+  try {
+    const { data: notaFiscal, error: nfError } = await supabase
+      .from('notas_fiscais')
+      .select('*')
+      .eq('custo_id', custoId)
+      .single();
+
+    if (nfError) {
+      if (nfError.code === 'PGRST116') return null; // Não encontrada
+      throw nfError;
+    }
+
+    if (!notaFiscal) return null;
+
+    const { data: itens, error: itensError } = await supabase
+      .from('itens_nota_fiscal')
+      .select('*')
+      .eq('nota_fiscal_id', notaFiscal.id);
+
+    if (itensError) {
+      throw itensError;
+    }
+
+    return {
+      ...notaFiscal,
+      itens: itens || []
+    } as NotaFiscal;
+  } catch (err) {
+    console.error(`Erro ao buscar nota fiscal do custo ${custoId}:`, err);
+    return null;
   }
 }
