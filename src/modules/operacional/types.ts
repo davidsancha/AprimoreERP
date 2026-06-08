@@ -65,6 +65,8 @@ export interface ItemNotaFiscal {
   valor_unitario: number;
   valor_total: number;
   created_at?: string;
+  variacao?: number;
+  preco_anterior?: number;
 }
 
 export interface CustoRealizado {

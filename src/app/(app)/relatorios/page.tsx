@@ -823,7 +823,6 @@ export default function RelatoriosPage() {
           )}
 
         </div>
-        </div>
       )}
 
       {/* RENDERIZAÇÃO DA TAB DESPESAS */}

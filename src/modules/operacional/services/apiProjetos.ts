@@ -165,6 +165,43 @@ export async function fetchCustosRealizadosByProjeto(projetoId: string): Promise
   return data || [];
 }
 
+export async function fetchTodosCustosRealizados(): Promise<CustoRealizado[]> {
+  if (!supabase) {
+    throw new Error('Supabase client not initialized');
+  }
+
+  const { data, error } = await supabase
+    .from('custos_realizados')
+    .select('*')
+    .order('data_custo', { ascending: false });
+
+  if (error) {
+    console.error(`Erro ao buscar todos os custos:`, error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchHistoricoPrecoItem(nomeItem: string): Promise<number | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('itens_nota_fiscal')
+      .select('valor_unitario')
+      .ilike('nome_item', `%${nomeItem}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+    return data.valor_unitario;
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function salvarCustoRealizado(custo: CustoRealizado): Promise<CustoRealizado> {
   if (!supabase) {
     throw new Error('Supabase client not initialized');

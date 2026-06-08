@@ -1,559 +1,240 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
 import { 
   Coins, 
-  Check, 
-  Loader2, 
+  Search,
+  Filter,
+  Plus,
   ArrowLeft,
-  DollarSign,
-  Calendar,
-  Layers,
-  FileText
+  Loader2,
+  Eye,
+  Layers
 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchProjetos, salvarCustoRealizado } from '@/modules/operacional/services/apiProjetos';
-import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/operacional/types';
-import MoneyInput from '@/shared/components/MoneyInput';
-import Toast, { ToastType } from '@/shared/components/Toast';
+import { fetchProjetos, fetchTodosCustosRealizados } from '@/modules/operacional/services/apiProjetos';
+import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS, CustoRealizado } from '@/modules/operacional/types';
+import CustoLancarModal from '@/modules/operacional/components/CustoLancarModal';
+import DespesaDetalhesModal from '@/modules/operacional/components/DespesaDetalhesModal';
+import ValorPremium from '@/shared/components/ValorPremium';
 
-import ReceiptUploaderModal from '@/modules/operacional/components/ReceiptUploaderModal';
-import { NotaFiscal } from '@/modules/operacional/types';
-import { QrCode, Receipt, Camera, Trash2 } from 'lucide-react';
-
-function CustosFormContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const queryProjetoId = searchParams.get('projetoId');
-  const queryCategoria = searchParams.get('categoria');
-  const queryOpenScanner = searchParams.get('openScanner');
-
+export default function CustosPage() {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
-  const [loadingProjetos, setLoadingProjetos] = useState(true);
-  const [salvando, setSalvando] = useState(false);
+  const [custos, setCustos] = useState<CustoRealizado[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Estados do formulário de lançamento de custo
-  const [projetoId, setProjetoId] = useState('');
-  const [categoria, setCategoria] = useState<CategoriaCusto>('insumos');
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState<number>(0);
-  const [dataCusto, setDataCusto] = useState(new Date().toISOString().split('T')[0]);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  
-  // Estados para o Leitor de QR Code e Nota Fiscal
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [processandoNota, setProcessandoNota] = useState(false);
-  const [notaFiscal, setNotaFiscal] = useState<NotaFiscal | null>(null);
+  // Modals
+  const [isLancarModalOpen, setIsLancarModalOpen] = useState(false);
+  const [selectedDespesa, setSelectedDespesa] = useState<CustoRealizado | null>(null);
 
-  const showToast = (message: string, type: ToastType = 'success') => {
-    setToast({ message, type });
-  };
+  // Filtros
+  const [busca, setBusca] = useState('');
+  const [filtroProjeto, setFiltroProjeto] = useState('todos');
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
 
-  const handleReceiptProcess = async (images: string[], qrCodeUrl: string | null) => {
-    setIsQrModalOpen(false);
-    setProcessandoNota(true);
-    
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/extract-receipt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ images, qrCodeUrl })
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || `Falha ao extrair dados da nota fiscal (${res.status})`);
-      }
-
-      const data = await res.json();
-      
-      if (data && data.notaFiscal) {
-        const nf: NotaFiscal = data.notaFiscal;
-        setNotaFiscal(nf);
-        
-        // Auto-preencher campos do formulário
-        if (nf.valor_total) setValor(nf.valor_total);
-        if (nf.loja_nome) {
-          const firstItem = nf.itens?.[0]?.nome_item || 'Materiais';
-          setDescricao(`Compra em ${nf.loja_nome} - ${firstItem}${nf.itens && nf.itens.length > 1 ? ' e outros' : ''}`);
-        }
-        if (nf.data_emissao) {
-          // Extrair apenas a data (YYYY-MM-DD) do timestamp retornado
-          const dataApenas = nf.data_emissao.split('T')[0];
-          setDataCusto(dataApenas);
-        }
-        
-        showToast('Nota Fiscal processada com sucesso!', 'success');
-      } else {
-        throw new Error('Formato de resposta inválido');
-      }
-    } catch (err: any) {
-      console.error('Erro ao ler QR Code:', err);
-      showToast(err.message || 'Não foi possível processar o QR Code. Tente novamente ou preencha manualmente.', 'error');
+      const [projs, custs] = await Promise.all([
+        fetchProjetos(),
+        fetchTodosCustosRealizados()
+      ]);
+      setProjetos(projs);
+      setCustos(custs);
+    } catch (err) {
+      console.error('Erro ao carregar central de despesas:', err);
     } finally {
-      setProcessandoNota(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await fetchProjetos();
-        setProjetos(data);
-        
-        // Se houver um projetoId na query string e ele existir na lista, pré-seleciona
-        if (queryProjetoId && data.some(p => p.id === queryProjetoId)) {
-          setProjetoId(queryProjetoId);
-        } else if (data.length > 0) {
-          setProjetoId(data[0].id!);
-        }
-
-        // Se houver uma categoria válida na query string, pré-seleciona
-        const categoriasValidas = Object.keys(CATEGORIAS_CUSTO_LABELS);
-        if (queryCategoria && categoriasValidas.includes(queryCategoria)) {
-          setCategoria(queryCategoria as CategoriaCusto);
-        }
-
-      } catch (err) {
-        console.error('Erro ao carregar projetos:', err);
-      } finally {
-        setLoadingProjetos(false);
-      }
-    }
     loadData();
-  }, [queryProjetoId, queryCategoria]);
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Aplicar filtros
+  const custosFiltrados = custos.filter(c => {
+    const matchProjeto = filtroProjeto === 'todos' || c.projeto_id === filtroProjeto;
+    const matchCategoria = filtroCategoria === 'todas' || c.categoria === filtroCategoria;
+    const descLower = c.descricao.toLowerCase();
+    const buscaLower = busca.toLowerCase();
+    const projetoNome = projetos.find(p => p.id === c.projeto_id)?.nome.toLowerCase() || '';
+    
+    const matchBusca = busca === '' || descLower.includes(buscaLower) || projetoNome.includes(buscaLower);
 
-    if (!projetoId || !categoria || !descricao || valor <= 0 || !dataCusto) {
-      showToast('Por favor, preencha todos os campos corretamente com valores maiores que zero.', 'warning');
-      return;
-    }
+    return matchProjeto && matchCategoria && matchBusca;
+  });
 
-    setSalvando(true);
-    try {
-      await salvarCustoRealizado({
-        projeto_id: projetoId,
-        categoria,
-        descricao,
-        valor,
-        data_custo: dataCusto,
-        nota_fiscal: notaFiscal || undefined
-      });
-
-      showToast('Despesa lançada com sucesso! A saúde financeira do projeto foi atualizada no painel.', 'success');
-      setTimeout(() => {
-        router.push('/');
-      }, 1500);
-    } catch (err) {
-      console.error('Erro ao salvar despesa:', err);
-      showToast(`Ocorreu um erro ao registrar a despesa: ${err instanceof Error ? err.message : JSON.stringify(err)}`, 'error');
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  if (loadingProjetos) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-desc">
-        <Loader2 className="animate-spin text-brand-ocre" size={32} />
-        <span className="text-sm font-medium">Carregando obras ativas...</span>
-      </div>
-    );
-  }
-
-  if (projetos.length === 0) {
-    return (
-      <div className="bg-card border border-dashed border-card-border rounded-2xl p-8 text-center space-y-4 shadow-sm">
-        <p className="text-sm text-sub">
-          Nenhuma obra cadastrada no sistema. Cadastre uma obra primeiro para poder lançar custos.
-        </p>
-        <Link 
-          href="/projetos/novo"
-          className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark font-bold text-sm hover:bg-brand-ocre/90 transition-colors shadow-md"
-        >
-          Cadastrar Primeira Obra
-        </Link>
-      </div>
-    );
-  }
+  const totalFiltrado = custosFiltrados.reduce((acc, curr) => acc + Number(curr.valor), 0);
 
   return (
-    <form onSubmit={handleSubmit} className="bg-card border border-card-border rounded-2xl p-6 space-y-5 shadow-sm">
-      {toast && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast(null)} 
-        />
-      )}
+    <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-in fade-in duration-200">
       
-      <ReceiptUploaderModal 
-        isOpen={isQrModalOpen}
-        onClose={() => setIsQrModalOpen(false)}
-        onProcess={handleReceiptProcess}
-      />
-
-      {/* Botão de Leitura Inteligente */}
-      <div className="bg-gradient-to-r from-brand-ocre/10 to-transparent border border-brand-ocre/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="text-sm">
-          <p className="font-semibold text-main flex items-center gap-1.5">
-            <Receipt size={16} className="text-brand-ocre" />
-            Lançamento Inteligente
-          </p>
-          <p className="text-sub text-xs mt-1">
-            Faça a leitura do QR Code do cupom fiscal para extrair os itens e o valor total automaticamente.
+      {/* Voltar e Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-card-border pb-4">
+        <div>
+          <Link 
+            href="/" 
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-sub hover:text-brand-ocre transition-colors bg-card border border-card-border px-3 py-1.5 rounded-lg mb-3 shadow-2xs"
+          >
+            <ArrowLeft size={14} /> Voltar ao Dashboard
+          </Link>
+          <h2 className="text-2xl font-bold font-vomzom text-main flex items-center gap-2">
+            <Coins className="text-brand-ocre" /> Central de Despesas
+          </h2>
+          <p className="text-sub text-sm mt-1">
+            Gestão unificada de todos os custos e despesas registrados no sistema.
           </p>
         </div>
+        
         <button
-          type="button"
-          onClick={() => setIsQrModalOpen(true)}
-          disabled={processandoNota}
-          className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-ocre/20 text-brand-ocre font-semibold hover:bg-brand-ocre/30 transition-colors border border-brand-ocre/40 text-sm disabled:opacity-50"
+          onClick={() => setIsLancarModalOpen(true)}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark font-bold text-sm hover:bg-brand-ocre/90 transition-all shadow-md shadow-brand-ocre/20 shrink-0"
         >
-          {processandoNota ? (
-            <><Loader2 className="animate-spin" size={16} /> Processando...</>
-          ) : (
-            <><QrCode size={16} /> Ler QR Code</>
-          )}
+          <Plus size={16} /> Nova Despesa
         </button>
       </div>
 
-      {notaFiscal && (
-        <div className="bg-black/20 border border-green-500/30 rounded-xl p-5 space-y-4 text-sm animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between pb-2 border-b border-card-border">
-            <span className="font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
-              <Check size={16} /> Dados Extraídos do Cupom
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome da Loja</label>
-              <input
-                type="text"
-                value={notaFiscal.loja_nome}
-                onChange={(e) => setNotaFiscal({...notaFiscal, loja_nome: e.target.value})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">CNPJ</label>
-              <input
-                type="text"
-                value={notaFiscal.cnpj}
-                onChange={(e) => setNotaFiscal({...notaFiscal, cnpj: e.target.value})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Data da Compra</label>
-              <input
-                type="datetime-local"
-                value={notaFiscal.data_emissao ? notaFiscal.data_emissao.slice(0, 16) : ''}
-                onChange={(e) => setNotaFiscal({...notaFiscal, data_emissao: new Date(e.target.value).toISOString()})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Chave de Acesso</label>
-              <input
-                type="text"
-                value={notaFiscal.chave_acesso || ''}
-                onChange={(e) => setNotaFiscal({...notaFiscal, chave_acesso: e.target.value})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Endereço</label>
-              <input
-                type="text"
-                value={notaFiscal.endereco || ''}
-                onChange={(e) => setNotaFiscal({...notaFiscal, endereco: e.target.value})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Forma de Pagamento</label>
-              <input
-                type="text"
-                value={notaFiscal.forma_pagamento || ''}
-                onChange={(e) => setNotaFiscal({...notaFiscal, forma_pagamento: e.target.value})}
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:border-brand-ocre focus:outline-none"
-              />
-            </div>
-          </div>
-
-          {notaFiscal.itens && notaFiscal.itens.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-card-border">
-              <p className="text-[10px] font-bold text-desc uppercase tracking-wider mb-3">Itens Comprados ({notaFiscal.itens.length})</p>
-              <div className="bg-background sm:bg-transparent rounded-lg border border-card-border sm:border-none overflow-hidden">
-                {/* Cabeçalho Desktop */}
-                <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 px-3 py-2 bg-card border border-card-border rounded-t-lg text-xs font-semibold text-main">
-                  <div>Nome do Item</div>
-                  <div className="text-right">Qtd</div>
-                  <div className="text-right">Vl. Unit</div>
-                  <div className="text-right">Vl. Total</div>
-                </div>
-                
-                {/* Lista de Itens */}
-                <div className="divide-y divide-card-border sm:border-x sm:border-b sm:border-card-border sm:rounded-b-lg sm:bg-background">
-                  {notaFiscal.itens.map((item, idx) => (
-                    <div key={idx} className="p-3 sm:py-2 sm:px-3 sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] sm:gap-2 items-center hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors group">
-                      
-                      {/* Mobile: Nome e Total Rápido */}
-                      <div className="flex justify-between items-start sm:block mb-2 sm:mb-0">
-                        <div className="font-medium text-sm sm:text-xs text-main flex-1 mr-2">
-                          <input 
-                            type="text"
-                            value={item.nome_item}
-                            onChange={(e) => {
-                              const newItens = [...notaFiscal.itens!];
-                              newItens[idx].nome_item = e.target.value;
-                              setNotaFiscal({...notaFiscal, itens: newItens});
-                            }}
-                            className="w-full bg-transparent border-b border-transparent hover:border-card-border focus:border-brand-ocre focus:outline-none transition-colors"
-                            placeholder="Nome do item"
-                          />
-                        </div>
-                        <div className="sm:hidden font-bold text-brand-ocre text-sm whitespace-nowrap">R$ {(item.valor_total || 0).toFixed(2)}</div>
-                      </div>
-                      
-                      {/* Grid de Inputs (Qtd / Unit) */}
-                      <div className="grid grid-cols-2 gap-3 sm:contents">
-                        
-                        {/* Quantidade */}
-                        <div className="flex items-center justify-between sm:justify-end bg-black/5 sm:bg-transparent px-2 py-1.5 sm:p-0 rounded-lg sm:rounded-none">
-                          <span className="text-[10px] text-desc font-bold uppercase sm:hidden">Qtd</span>
-                          <input 
-                            type="number" 
-                            step="0.01"
-                            className="w-16 sm:w-14 bg-transparent text-right focus:outline-none sm:border-b sm:border-dashed sm:border-card-border focus:border-brand-ocre text-main font-semibold sm:font-normal text-xs" 
-                            value={item.quantidade} 
-                            onChange={(e) => {
-                              const newItens = [...notaFiscal.itens!];
-                              newItens[idx].quantidade = parseFloat(e.target.value) || 0;
-                              newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
-                              
-                              const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
-                              setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
-                              setValor(novoTotalNota);
-                            }}
-                          />
-                        </div>
-
-                        {/* Valor Unitário */}
-                        <div className="flex items-center justify-between sm:justify-end bg-black/5 sm:bg-transparent px-2 py-1.5 sm:p-0 rounded-lg sm:rounded-none">
-                          <span className="text-[10px] text-desc font-bold uppercase sm:hidden">Vl. Unit</span>
-                          <div className="flex items-center justify-end gap-1">
-                            <span className="text-desc text-[10px] font-semibold">R$</span>
-                            <input 
-                              type="number" 
-                              step="0.01"
-                              className="w-16 bg-transparent text-right focus:outline-none sm:border-b sm:border-dashed sm:border-card-border focus:border-brand-ocre text-main font-semibold sm:font-normal text-xs" 
-                              value={item.valor_unitario} 
-                              onChange={(e) => {
-                                const newItens = [...notaFiscal.itens!];
-                                newItens[idx].valor_unitario = parseFloat(e.target.value) || 0;
-                                newItens[idx].valor_total = newItens[idx].quantidade * newItens[idx].valor_unitario;
-                                
-                                const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
-                                setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
-                                setValor(novoTotalNota);
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Total Desktop e Botão Remover */}
-                      <div className="hidden sm:flex justify-end items-center gap-2 text-right font-medium text-brand-ocre text-xs">
-                        R$ {(item.valor_total || 0).toFixed(2)}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newItens = notaFiscal.itens!.filter((_, i) => i !== idx);
-                            const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
-                            setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
-                            setValor(novoTotalNota);
-                          }}
-                          className="p-1 text-sub hover:text-red-500 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                          title="Remover item"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      
-                      {/* Botão Remover Mobile */}
-                      <div className="sm:hidden mt-2 pt-2 border-t border-card-border/50 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newItens = notaFiscal.itens!.filter((_, i) => i !== idx);
-                            const novoTotalNota = newItens.reduce((acc, curr) => acc + curr.valor_total, 0);
-                            setNotaFiscal({...notaFiscal, itens: newItens, valor_total: novoTotalNota});
-                            setValor(novoTotalNota);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 rounded-lg"
-                        >
-                          <Trash2 size={12} /> Remover Item
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+      {/* Painel de Filtros */}
+      <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-main mb-2">
+          <Filter size={16} className="text-brand-ocre" /> Filtros Avançados
         </div>
-      )}
-      
-      {/* Projeto */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-sub uppercase tracking-wider flex items-center gap-1.5">
-          <Layers size={14} className="text-brand-ocre" /> Selecionar Obra *
-        </label>
-        <select
-          required
-          value={projetoId}
-          onChange={(e) => setProjetoId(e.target.value)}
-          className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-main focus:outline-none focus:border-brand-ocre"
-        >
-          {projetos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nome} ({p.os})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Categoria */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-sub uppercase tracking-wider">
-          Categoria do Custo *
-        </label>
-        <select
-          required
-          value={categoria}
-          onChange={(e) => setCategoria(e.target.value as CategoriaCusto)}
-          className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-main focus:outline-none focus:border-brand-ocre"
-        >
-          {(Object.keys(CATEGORIAS_CUSTO_LABELS) as CategoriaCusto[]).map((cat) => (
-            <option key={cat} value={cat}>
-              {CATEGORIAS_CUSTO_LABELS[cat]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Descrição */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-sub uppercase tracking-wider flex items-center gap-1.5">
-          <FileText size={14} className="text-brand-ocre" /> Descrição da Despesa *
-        </label>
-        <input
-          type="text"
-          required
-          placeholder="Ex: Compra de 50 sacos de cimento Votoran"
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre"
-        />
-      </div>
-
-      {/* Valor */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-sub uppercase tracking-wider flex items-center gap-1.5">
-          <DollarSign size={14} className="text-brand-ocre" /> Valor Efetivo (R$) *
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-desc font-semibold text-xs">
-            R$
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Busca Texto */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={14} className="text-sub" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por descrição ou obra..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="w-full bg-background border border-card-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre"
+            />
           </div>
-          <MoneyInput
-            value={valor}
-            onChange={setValor}
-            required
-            placeholder="0,00"
-            className="w-full bg-background border border-card-border rounded-xl pl-8 pr-4 py-2.5 text-main focus:outline-none focus:border-brand-ocre"
-          />
+
+          {/* Filtro Obra */}
+          <select
+            value={filtroProjeto}
+            onChange={(e) => setFiltroProjeto(e.target.value)}
+            className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-main focus:outline-none focus:border-brand-ocre"
+          >
+            <option value="todos">Todas as Obras</option>
+            {projetos.map(p => (
+              <option key={p.id} value={p.id}>{p.nome}</option>
+            ))}
+          </select>
+
+          {/* Filtro Categoria */}
+          <select
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value)}
+            className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-main focus:outline-none focus:border-brand-ocre"
+          >
+            <option value="todas">Todas as Categorias</option>
+            {(Object.keys(CATEGORIAS_CUSTO_LABELS) as CategoriaCusto[]).map(cat => (
+              <option key={cat} value={cat}>{CATEGORIAS_CUSTO_LABELS[cat]}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Data */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-sub uppercase tracking-wider flex items-center gap-1.5">
-          <Calendar size={14} className="text-brand-ocre" /> Data do Pagamento *
-        </label>
-        <input
-          type="date"
-          required
-          value={dataCusto}
-          onChange={(e) => setDataCusto(e.target.value)}
-          className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-main focus:outline-none focus:border-brand-ocre"
-        />
-      </div>
-
-      {/* Enviar */}
-      <button
-        type="submit"
-        disabled={salvando}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand-ocre text-brand-dark font-bold hover:bg-brand-ocre/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-brand-ocre/10 cursor-pointer"
-      >
-        {salvando ? (
-          <>
-            <Loader2 className="animate-spin" size={18} /> Registrando...
-          </>
-        ) : (
-          <>
-            <Check size={18} /> Registrar Despesa Efetiva
-          </>
-        )}
-      </button>
-
-    </form>
-  );
-}
-
-export default function CustosPage() {
-  return (
-    <div className="max-w-xl mx-auto space-y-6 pb-16">
-      
-      {/* Voltar */}
-      <div>
-        <Link 
-          href="/" 
-          className="flex items-center gap-1.5 text-xs text-sub hover:text-brand-ocre transition-colors"
-        >
-          <ArrowLeft size={14} /> Voltar ao Dashboard
-        </Link>
-      </div>
-
-      {/* Título */}
-      <div className="border-b border-card-border pb-4">
-        <h2 className="text-2xl font-bold tracking-tight text-main flex items-center gap-2">
-          <Coins className="text-brand-ocre" /> Registrar Custo Efetivo
-        </h2>
-        <p className="text-sub text-sm mt-1">
-          Lance notas fiscais, faturas ou despesas realizadas da obra para medir a saúde financeira.
+      {/* Resumo dos Filtros */}
+      <div className="flex items-center justify-between px-2">
+        <p className="text-xs text-sub">
+          Mostrando <strong className="text-main">{custosFiltrados.length}</strong> despesas
         </p>
+        <div className="text-sm">
+          Total: <strong className="text-brand-ocre"><ValorPremium valor={totalFiltrado} size="sm" /></strong>
+        </div>
       </div>
 
-      <Suspense fallback={
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-desc">
-          <Loader2 className="animate-spin text-brand-ocre" size={32} />
-          <span className="text-sm font-medium">Carregando formulário...</span>
-        </div>
-      }>
-        <CustosFormContent />
-      </Suspense>
+      {/* Tabela de Despesas */}
+      <div className="bg-card border border-card-border rounded-2xl shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-desc">
+            <Loader2 className="animate-spin text-brand-ocre" size={32} />
+            <span className="text-sm font-medium">Carregando despesas...</span>
+          </div>
+        ) : custosFiltrados.length === 0 ? (
+          <div className="py-16 text-center">
+            <Layers size={40} className="mx-auto text-desc opacity-40 mb-3" />
+            <p className="text-sm text-main font-semibold">Nenhuma despesa encontrada.</p>
+            <p className="text-xs text-sub mt-1">Tente ajustar os filtros ou cadastre uma nova despesa.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-card-border/60 text-[10px] font-bold text-desc uppercase tracking-wider bg-slate-50/50 dark:bg-zinc-900/50">
+                  <th className="py-4 px-5 w-28 whitespace-nowrap">Data</th>
+                  <th className="py-4 px-5 w-40">Obra</th>
+                  <th className="py-4 px-5 w-40">Categoria</th>
+                  <th className="py-4 px-5">Descrição</th>
+                  <th className="py-4 px-5 text-right w-36">Valor</th>
+                  <th className="py-4 px-5 text-center w-20">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border text-xs text-main">
+                {custosFiltrados.map((custo) => {
+                  const projeto = projetos.find(p => p.id === custo.projeto_id);
+                  return (
+                    <tr key={custo.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="py-3.5 px-5 text-sub whitespace-nowrap">
+                        {new Date(custo.data_custo).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        {projeto ? (
+                          <span className="font-bold text-[11px] truncate block max-w-[150px] text-main" title={projeto.nome}>
+                            {projeto.nome}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-zinc-800 text-sub">
+                          {CATEGORIAS_CUSTO_LABELS[custo.categoria as CategoriaCusto] || custo.categoria}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="truncate block max-w-[200px] sm:max-w-[300px]" title={custo.descricao}>
+                          {custo.descricao}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-black text-brand-ocre whitespace-nowrap">
+                        R$ {Number(custo.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-5 text-center">
+                        <button
+                          onClick={() => setSelectedDespesa(custo)}
+                          className="inline-flex items-center justify-center p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-sub transition-colors shadow-xs"
+                          title="Ver Detalhes"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <CustoLancarModal 
+        isOpen={isLancarModalOpen}
+        onClose={() => setIsLancarModalOpen(false)}
+        onSuccess={loadData}
+      />
+
+      <DespesaDetalhesModal
+        isOpen={!!selectedDespesa}
+        onClose={() => setSelectedDespesa(null)}
+        custo={selectedDespesa as CustoRealizado}
+      />
 
     </div>
   );
