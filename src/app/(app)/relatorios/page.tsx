@@ -20,7 +20,11 @@ import {
   MapPin,
   Calendar,
   Layers2,
-  DollarSign
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Receipt
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -44,6 +48,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '@/modules/operacional/types';
 import { Recebimento } from '@/modules/financeiro/types';
 import ValorPremium from '@/shared/components/ValorPremium';
+import DespesaDetalhesModal from '@/modules/operacional/components/DespesaDetalhesModal';
 
 const COLORS_CATEGORIES = {
   insumos: '#cca353',      // Ocre
@@ -87,7 +92,9 @@ async function fetchTodosOrcamentos() {
 
 export default function RelatoriosPage() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'consolidado' | 'obra'>('consolidado');
+  const [activeTab, setActiveTab] = useState<'consolidado' | 'obra' | 'despesas'>('consolidado');
+  const [expandedCategoria, setExpandedCategoria] = useState<string | null>(null);
+  const [selectedDespesa, setSelectedDespesa] = useState<any | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
   const [todosCustos, setTodosCustos] = useState<any[]>([]);
@@ -262,6 +269,18 @@ export default function RelatoriosPage() {
         >
           <div className="flex items-center gap-1.5">
             <Layers size={14} /> Análise Individual por Obra
+          </div>
+        </button>
+        <button
+          onClick={() => setActiveTab('despesas')}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+            activeTab === 'despesas'
+              ? 'border-brand-blue text-brand-blue dark:border-brand-ocre dark:text-brand-ocre'
+              : 'border-transparent text-sub hover:text-main'
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <Coins size={14} /> Análise de Despesas
           </div>
         </button>
       </div>
@@ -804,7 +823,151 @@ export default function RelatoriosPage() {
           )}
 
         </div>
+        </div>
       )}
+
+      {/* RENDERIZAÇÃO DA TAB DESPESAS */}
+      {activeTab === 'despesas' && (() => {
+        // Agrupar custos por categoria
+        const custosPorCategoriaAgrupados: Record<string, any[]> = {};
+        Object.keys(CATEGORIAS_CUSTO_LABELS).forEach(cat => {
+          custosPorCategoriaAgrupados[cat] = [];
+        });
+
+        todosCustos.forEach(c => {
+          if (c.categoria in custosPorCategoriaAgrupados) {
+            custosPorCategoriaAgrupados[c.categoria].push(c);
+          } else {
+            if (!custosPorCategoriaAgrupados.outros) custosPorCategoriaAgrupados.outros = [];
+            custosPorCategoriaAgrupados.outros.push(c);
+          }
+        });
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="bg-card border border-card-border rounded-2xl p-6 shadow-sm mb-6">
+              <h3 className="text-base font-bold text-main font-vomzom">Análise Detalhada de Despesas</h3>
+              <p className="text-xs text-sub">Explore todos os custos realizados, agrupados por categoria com visão analítica.</p>
+            </div>
+
+            <div className="space-y-4">
+              {Object.entries(custosPorCategoriaAgrupados).map(([catKey, custosDaCategoria]) => {
+                if (custosDaCategoria.length === 0) return null;
+                
+                const valorTotalCat = custosDaCategoria.reduce((acc, c) => acc + Number(c.valor), 0);
+                const percentual = despesaRealizada > 0 ? (valorTotalCat / despesaRealizada) * 100 : 0;
+                const isExpanded = expandedCategoria === catKey;
+
+                return (
+                  <div key={catKey} className="bg-card border border-card-border rounded-xl overflow-hidden shadow-xs transition-all">
+                    {/* Cabeçalho do Acordeão */}
+                    <div 
+                      onClick={() => setExpandedCategoria(isExpanded ? null : catKey)}
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-zinc-900/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ 
+                            backgroundColor: `${COLORS_CATEGORIES[catKey as CategoriaCusto] || '#6b7280'}15`,
+                            color: COLORS_CATEGORIES[catKey as CategoriaCusto] || '#6b7280'
+                          }}
+                        >
+                          <Layers size={18} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-main uppercase tracking-wide">
+                            {CATEGORIAS_CUSTO_LABELS[catKey as CategoriaCusto] || catKey}
+                          </h4>
+                          <p className="text-xs text-sub">{custosDaCategoria.length} lançamentos registrados</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-6 sm:gap-8">
+                        <div className="flex flex-col sm:items-end w-32 sm:w-48">
+                          <span className="text-sm font-black text-main">
+                            <ValorPremium valor={valorTotalCat} size="sm" />
+                          </span>
+                          <div className="flex items-center gap-2 w-full mt-1.5">
+                            <div className="h-1.5 flex-1 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full" 
+                                style={{ 
+                                  width: `${percentual}%`,
+                                  backgroundColor: COLORS_CATEGORIES[catKey as CategoriaCusto] || '#6b7280'
+                                }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-sub w-8 text-right">{percentual.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                        <div className="p-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-sub">
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Expandido (Drill-down) */}
+                    {isExpanded && (
+                      <div className="border-t border-card-border bg-slate-50/30 dark:bg-zinc-900/20 p-4 sm:p-5">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-card-border/60 text-[10px] font-bold text-desc uppercase tracking-wider">
+                                <th className="py-3 px-4 w-28">Data</th>
+                                <th className="py-3 px-4 w-40">Projeto</th>
+                                <th className="py-3 px-4">Descrição</th>
+                                <th className="py-3 px-4 text-right w-36">Valor Lançado</th>
+                                <th className="py-3 px-4 text-center w-24">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-card-border/40 text-xs font-medium text-main">
+                              {custosDaCategoria.map(c => {
+                                const projetoDoCusto = projetos.find(p => p.id === c.projeto_id);
+                                return (
+                                  <tr key={c.id} className="hover:bg-slate-100/50 dark:hover:bg-zinc-800/50">
+                                    <td className="py-3 px-4 text-sub">{new Date(c.data_custo).toLocaleDateString('pt-BR')}</td>
+                                    <td className="py-3 px-4">
+                                      {projetoDoCusto ? (
+                                        <span className="font-bold font-vomzom text-[11px] truncate block max-w-[150px]" title={projetoDoCusto.nome}>
+                                          {projetoDoCusto.nome}
+                                        </span>
+                                      ) : '-'}
+                                    </td>
+                                    <td className="py-3 px-4 text-sub">{c.descricao}</td>
+                                    <td className="py-3 px-4 text-right font-bold text-red-500">
+                                      R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                      <button
+                                        onClick={() => setSelectedDespesa(c)}
+                                        className="inline-flex items-center justify-center p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs"
+                                        title="Ver Detalhes"
+                                      >
+                                        <Eye size={14} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      <DespesaDetalhesModal 
+        isOpen={!!selectedDespesa}
+        onClose={() => setSelectedDespesa(null)}
+        custo={selectedDespesa}
+      />
 
     </div>
   );
