@@ -9,7 +9,7 @@ import ValorPremium from '@/shared/components/ValorPremium';
 interface DespesaDetalhesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  custo: CustoRealizado;
+  custo: CustoRealizado | null;
 }
 
 export default function DespesaDetalhesModal({ isOpen, onClose, custo }: DespesaDetalhesModalProps) {
@@ -18,7 +18,7 @@ export default function DespesaDetalhesModal({ isOpen, onClose, custo }: Despesa
 
   useEffect(() => {
     async function loadNotaFiscal() {
-      if (!isOpen || !custo.id) return;
+      if (!isOpen || !custo?.id) return;
       
       setLoading(true);
       try {
@@ -32,7 +32,7 @@ export default function DespesaDetalhesModal({ isOpen, onClose, custo }: Despesa
     }
 
     loadNotaFiscal();
-  }, [isOpen, custo.id]);
+  }, [isOpen, custo?.id]);
 
   if (!isOpen) return null;
 
@@ -51,7 +51,7 @@ export default function DespesaDetalhesModal({ isOpen, onClose, custo }: Despesa
                 Detalhes da Despesa
               </h3>
               <p className="text-xs text-sub font-medium mt-0.5">
-                Lançamento efetuado em {new Date(custo.data_custo).toLocaleDateString('pt-BR')}
+                Lançamento efetuado em {custo ? new Date(custo.data_custo).toLocaleDateString('pt-BR') : ''}
               </p>
             </div>
           </div>
@@ -72,11 +72,11 @@ export default function DespesaDetalhesModal({ isOpen, onClose, custo }: Despesa
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] font-bold text-desc uppercase tracking-wider block mb-1">Descrição</span>
-                <span className="text-sm font-semibold text-main">{custo.descricao}</span>
+                <span className="text-sm font-semibold text-main">{custo?.descricao}</span>
               </div>
               <div className="sm:text-right">
                 <span className="text-[10px] font-bold text-desc uppercase tracking-wider block mb-1">Valor Total Lançado</span>
-                <ValorPremium valor={custo.valor} size="lg" colorClass="text-red-500" />
+                <ValorPremium valor={custo?.valor || 0} size="lg" colorClass="text-red-500" />
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { 
   Coins, 
   Search,
@@ -224,16 +224,18 @@ export default function CustosPage() {
         )}
       </div>
 
-      <CustoLancarModal 
-        isOpen={isLancarModalOpen}
-        onClose={() => setIsLancarModalOpen(false)}
-        onSuccess={loadData}
-      />
+      <Suspense fallback={<div />}>
+        <CustoLancarModal 
+          isOpen={isLancarModalOpen}
+          onClose={() => setIsLancarModalOpen(false)}
+          onSuccess={loadData}
+        />
+      </Suspense>
 
       <DespesaDetalhesModal
         isOpen={!!selectedDespesa}
         onClose={() => setSelectedDespesa(null)}
-        custo={selectedDespesa as CustoRealizado}
+        custo={selectedDespesa}
       />
 
     </div>
