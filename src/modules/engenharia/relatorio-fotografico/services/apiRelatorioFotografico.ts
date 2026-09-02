@@ -1,6 +1,7 @@
 import { supabase } from "@/shared/lib/supabaseClient";
+import { atualizarCamposEngenharia } from "@/modules/operacional/services/apiProjetos";
 import { limpaNome } from "../calc";
-import type { Equipamento, EstruturaFotografica, ProjetoResumo, TipoProjetoFotografico } from "../types";
+import type { CamposObraProjeto, Equipamento, EstruturaFotografica, ProjetoResumo, TipoProjetoFotografico } from "../types";
 
 function exigirSupabase() {
   if (!supabase) throw new Error("Supabase client não inicializado.");
@@ -20,7 +21,9 @@ export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
   const sb = exigirSupabase();
   const query = sb
     .from("projetos")
-    .select("id, nome, os, tipologia, data_prevista_inicio, data_prevista_termino, cliente_final_id")
+    .select(
+      "id, nome, os, tipologia, data_prevista_inicio, data_prevista_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel",
+    )
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -45,7 +48,35 @@ export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
     data_prevista_termino: p.data_prevista_termino,
     cliente_final_id: p.cliente_final_id,
     cliente_final_nome: p.cliente_final_id ? nomesPorId.get(p.cliente_final_id) ?? null : null,
+    agencia: p.agencia ?? null,
+    upe: p.upe ?? null,
+    sap: p.sap ?? null,
+    gestor: p.gestor ?? null,
+    fiscalizacao_empresa: p.fiscalizacao_empresa ?? null,
+    fiscal: p.fiscal ?? null,
+    construtora: p.construtora ?? null,
+    responsavel: p.responsavel ?? null,
   }));
+}
+
+/**
+ * Grava os campos de obra (agência, UPE, SAP, gestor, fiscalização,
+ * construtora, responsável) direto na tabela `projetos` — fonte única
+ * dessa informação para toda a empresa quando o relatório está vinculado
+ * a um projeto oficial. Só usada quando NÃO é avulso (avulso não tem
+ * projeto_id, guarda esses campos na própria engenharia_estrutura_fotografica).
+ */
+export async function atualizarCamposProjeto(projetoId: string, campos: CamposObraProjeto): Promise<void> {
+  await atualizarCamposEngenharia(projetoId, {
+    agencia: campos.agencia,
+    upe: campos.upe,
+    sap: campos.sap,
+    gestor: campos.gestor,
+    fiscalizacao_empresa: campos.fiscalizacao_empresa,
+    fiscal: campos.fiscal,
+    construtora: campos.construtora,
+    responsavel: campos.responsavel,
+  });
 }
 
 export async function obterEstruturaPorProjeto(projetoId: string): Promise<EstruturaFotografica | null> {

@@ -54,7 +54,15 @@ export async function salvarProjetoCompleto(
           numero: projeto.numero,
           complemento: projeto.complemento,
           status: projeto.status,
-          tipologia: projeto.tipologia
+          tipologia: projeto.tipologia,
+          agencia: projeto.agencia,
+          upe: projeto.upe,
+          sap: projeto.sap,
+          gestor: projeto.gestor,
+          fiscalizacao_empresa: projeto.fiscalizacao_empresa,
+          fiscal: projeto.fiscal,
+          construtora: projeto.construtora,
+          responsavel: projeto.responsavel
         })
         .eq('id', projetoId);
 
@@ -82,7 +90,15 @@ export async function salvarProjetoCompleto(
             numero: projeto.numero,
             complemento: projeto.complemento,
             status: projeto.status,
-            tipologia: projeto.tipologia
+            tipologia: projeto.tipologia,
+            agencia: projeto.agencia,
+            upe: projeto.upe,
+            sap: projeto.sap,
+            gestor: projeto.gestor,
+            fiscalizacao_empresa: projeto.fiscalizacao_empresa,
+            fiscal: projeto.fiscal,
+            construtora: projeto.construtora,
+            responsavel: projeto.responsavel
           }
         ])
         .select();
@@ -277,6 +293,22 @@ export async function salvarCustoRealizado(custo: CustoRealizado): Promise<Custo
   }
 
   return custoSalvo;
+}
+
+/**
+ * Atualiza só os campos de obra usados por outros módulos (ex.: relatório
+ * fotográfico de engenharia) — evita ter que montar orçamentos/recebimentos
+ * só para editar Agência/UPE/SAP/gestor/fiscal/construtora/responsável.
+ */
+export async function atualizarCamposEngenharia(
+  projetoId: string,
+  campos: Pick<Projeto, 'agencia' | 'upe' | 'sap' | 'gestor' | 'fiscalizacao_empresa' | 'fiscal' | 'construtora' | 'responsavel'>
+): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase client not initialized');
+  }
+  const { error } = await supabase.from('projetos').update(campos).eq('id', projetoId);
+  if (error) throw error;
 }
 
 export async function fetchProjetoById(id: string): Promise<Projeto | null> {

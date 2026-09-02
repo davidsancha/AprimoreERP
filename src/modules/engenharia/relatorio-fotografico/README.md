@@ -47,26 +47,35 @@ de transitiva quebra se o Next parar de precisar dela.
 
 ## Status (atualizado pelo Claude Code, 02/09/2026)
 
-- **`supabase/migrations/00009_relatorio_fotografico_campos.sql`** —
-  proposta, **ainda não aplicada** (só tenho a anon key, não consigo
-  rodar DDL). Adiciona os campos de cabeçalho do relatório (agência,
-  programa, UPE, SAP, gestor, fiscalização, construtora, responsável,
-  datas) — só `ADD COLUMN` nullable, reversível.
+- Migration `00009_relatorio_fotografico_campos.sql` — aplicada pelo
+  Antigravity. Adiciona os campos de cabeçalho do relatório à própria
+  `engenharia_estrutura_fotografica`.
+- **Correção de rumo, mesmo dia:** o David esclareceu que Agência/UPE/
+  SAP/gestor/fiscalização/construtora/responsável deviam nascer no
+  **cadastro da OS** (`projetos`), não isolados aqui — são dados de
+  obra úteis pra empresa toda. Migration nova
+  `00010_projetos_campos_engenharia.sql` (proposta, ainda não aplicada)
+  adiciona essas colunas em `projetos`. As colunas de 00009 continuam
+  existindo e passam a servir **só** o caso avulso (sem projeto_id).
+  `src/modules/operacional/{types.ts,services/apiProjetos.ts,components/FormProjeto.tsx}`
+  ganharam os campos correspondentes no cadastro da OS — só adições,
+  nada removido. Detalhes em `_mensagens-agentes/PARA-ANTIGRAVITY.md`.
 - **`services/apiRelatorioFotografico.ts`** — CRUD da estrutura,
   catálogo global de serviços/ambientes, habilitar/desabilitar serviço
-  por relatório. Usa o client Supabase do navegador
+  por relatório, e `atualizarCamposProjeto` (grava os campos de obra em
+  `projetos` quando vinculado). Usa o client Supabase do navegador
   (`@/shared/lib/supabaseClient`), mesmo padrão de `apiProjetos.ts`.
 - **`src/app/(app)/engenharia/relatorio-fotografico/page.tsx`** —
   primeira tela: avulso ou vínculo a projeto (autocomplete igual ao
-  `FormProjeto.tsx`), tipo, dados de cabeçalho, serviços/equipamentos.
+  `FormProjeto.tsx`), tipo, dados de cabeçalho (fonte: `projetos`
+  quando vinculado, local quando avulso), serviços/equipamentos.
   **Sem etapa de "criar pastas"** — decisão do David, Storage não
   precisa de pasta vazia pré-criada.
+- Registrado na `Sidebar.tsx` pelo Antigravity.
 - Ainda faltam: upload de foto (câmera/galeria) + registro em
   `engenharia_progresso_relatorio`, geração do `.pptx` de verdade
-  (conectar `lib/pptx.ts` ao Storage), reordenação/prévia de slide,
-  registro na `Sidebar.tsx`.
+  (conectar `lib/pptx.ts` ao Storage), reordenação/prévia de slide.
 - `npx tsc --noEmit` limpo com essas mudanças.
-- Perguntas para o Antigravity em `_mensagens-agentes/PARA-ANTIGRAVITY.md`.
 
 ## Diferença de cor de marca encontrada
 

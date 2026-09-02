@@ -54,6 +54,15 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [valorTotalContrato, setValorTotalContrato] = useState<number>(0);
   const [status, setStatus] = useState<'planejado' | 'em_andamento' | 'concluido' | 'suspenso'>('em_andamento');
   const [tipologia, setTipologia] = useState('');
+  // Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia)
+  const [agencia, setAgencia] = useState('');
+  const [upe, setUpe] = useState('');
+  const [sap, setSap] = useState('');
+  const [gestor, setGestor] = useState('');
+  const [fiscalizacaoEmpresa, setFiscalizacaoEmpresa] = useState('');
+  const [fiscal, setFiscal] = useState('');
+  const [construtora, setConstrutora] = useState('');
+  const [responsavel, setResponsavel] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [clienteFinalId, setClienteFinalId] = useState('');
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([]);
@@ -151,7 +160,15 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
           setValorTotalContrato(Number(proj.valor_total_contrato));
           setStatus(proj.status);
           setTipologia(proj.tipologia || '');
-          
+          setAgencia(proj.agencia || '');
+          setUpe(proj.upe || '');
+          setSap(proj.sap || '');
+          setGestor(proj.gestor || '');
+          setFiscalizacaoEmpresa(proj.fiscalizacao_empresa || '');
+          setFiscal(proj.fiscal || '');
+          setConstrutora(proj.construtora || '');
+          setResponsavel(proj.responsavel || '');
+
           setCep(proj.cep);
           setLogradouro(proj.logradouro);
           setBairro(proj.bairro);
@@ -534,7 +551,15 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
       numero,
       complemento: complemento || null,
       status,
-      tipologia
+      tipologia,
+      agencia: agencia || null,
+      upe: upe || null,
+      sap: sap || null,
+      gestor: gestor || null,
+      fiscalizacao_empresa: fiscalizacaoEmpresa || null,
+      fiscal: fiscal || null,
+      construtora: construtora || null,
+      responsavel: responsavel || null
     };
 
     try {
@@ -775,6 +800,45 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Previsão Término *</label>
                   <input type="date" required value={dataPrevistaTermino} onChange={(e) => setDataPrevistaTermino(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                </div>
+              </div>
+
+              {/* Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia) — opcional */}
+              <div className="pt-2 border-t border-card-border/60 space-y-2">
+                <p className="text-[9px] font-bold text-desc uppercase tracking-wider">Dados de engenharia (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Agência</label>
+                    <input type="text" value={agencia} onChange={(e) => setAgencia(e.target.value)} placeholder="ex.: 8647PERSONNALITE RJ-CAMPOS" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód UPE</label>
+                    <input type="text" value={upe} onChange={(e) => setUpe(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód SAP</label>
+                    <input type="text" value={sap} onChange={(e) => setSap(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Gestor de Obras</label>
+                    <input type="text" value={gestor} onChange={(e) => setGestor(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscalização — Empresa</label>
+                    <input type="text" value={fiscalizacaoEmpresa} onChange={(e) => setFiscalizacaoEmpresa(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscal</label>
+                    <input type="text" value={fiscal} onChange={(e) => setFiscal(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Construtora — Empresa</label>
+                    <input type="text" value={construtora} onChange={(e) => setConstrutora(e.target.value)} placeholder="ex.: EGF CONSTRUTORA" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Responsável</label>
+                    <input type="text" value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                  </div>
                 </div>
               </div>
 

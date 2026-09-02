@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Building2, Check, Loader2, Ruler } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
+  atualizarCamposProjeto,
   atualizarEquipamentos,
   atualizarEstrutura,
   buscarProjetos,
@@ -95,6 +96,15 @@ export default function RelatorioFotograficoPage() {
     setMostrarSugestoes(false);
     setBanco(p.cliente_final_nome || '');
     setPrograma(p.tipologia || '');
+    // dados de obra vêm do projeto (migration 00010) — fonte única, não duplicada no relatório
+    setAgencia(p.agencia || '');
+    setUpe(p.upe || '');
+    setSap(p.sap || '');
+    setGestor(p.gestor || '');
+    setFiscEmpresa(p.fiscalizacao_empresa || '');
+    setFiscal(p.fiscal || '');
+    setConstrutora(p.construtora || '');
+    setResponsavel(p.responsavel || '');
 
     const existente = await obterEstruturaPorProjeto(p.id).catch(() => null);
     if (existente) {
@@ -107,24 +117,42 @@ export default function RelatorioFotograficoPage() {
     setTipoProjeto(e.tipo_projeto);
     setBanco(e.banco || '');
     setModeloRelatorio(e.modelo_relatorio || '');
-    setAgencia(e.agencia || '');
     setPrograma(e.programa || '');
-    setUpe(e.upe || '');
-    setSap(e.sap || '');
-    setGestor(e.gestor || '');
-    setFiscEmpresa(e.fiscalizacao_empresa || '');
-    setFiscal(e.fiscal || '');
-    setConstrutora(e.construtora || '');
-    setResponsavel(e.responsavel || '');
+    // agência/UPE/SAP/gestor/fiscalização/construtora/responsável: quando vinculado a
+    // projeto, essa informação vive em `projetos` (migration 00010) e já foi
+    // preenchida por selecionarProjeto() — aqui só sobrescreve no caso avulso,
+    // onde a própria engenharia_estrutura_fotografica é a fonte (migration 00009).
+    if (e.is_avulso) {
+      setAgencia(e.agencia || '');
+      setUpe(e.upe || '');
+      setSap(e.sap || '');
+      setGestor(e.gestor || '');
+      setFiscEmpresa(e.fiscalizacao_empresa || '');
+      setFiscal(e.fiscal || '');
+      setConstrutora(e.construtora || '');
+      setResponsavel(e.responsavel || '');
+    }
     setEquipamentos(e.equipamentos || []);
   }
 
   const podeCriar = isAvulso ? obraNome.trim().length > 0 : !!projetoSelecionado;
 
+  /**
+   * Dados de obra (agência/UPE/SAP/gestor/fiscalização/construtora/
+   * responsável): quando vinculado a projeto, moram em `projetos`
+   * (migration 00010) — fonte única, útil pra empresa toda, não só o
+   * relatório. Só ficam em `engenharia_estrutura_fotografica` (migration
+   * 00009) quando avulso, já que aí não existe uma linha de `projetos`
+   * pra guardar isso.
+   */
   async function criarOuAtualizarCabecalho() {
     setSalvando(true);
     setErro(null);
     try {
+      const camposObra = isAvulso
+        ? { agencia: agencia || null, upe: upe || null, sap: sap || null, gestor: gestor || null, fiscalizacao_empresa: fiscEmpresa || null, fiscal: fiscal || null, construtora: construtora || null, responsavel: responsavel || null }
+        : { agencia: null, upe: null, sap: null, gestor: null, fiscalizacao_empresa: null, fiscal: null, construtora: null, responsavel: null };
+
       if (!estrutura) {
         const nova = await criarEstrutura({
           projetoId: isAvulso ? null : projetoSelecionado!.id,
@@ -134,27 +162,45 @@ export default function RelatorioFotograficoPage() {
           tipoProjeto,
           banco: banco || null,
           modeloRelatorio: modeloRelatorio || null,
-          agencia: agencia || null,
           programa: programa || null,
+          ...camposObra,
         });
         setEstrutura(nova);
+        if (!isAvulso) {
+          await atualizarCamposProjeto(projetoSelecionado!.id, {
+            agencia: agencia || null,
+            upe: upe || null,
+            sap: sap || null,
+            gestor: gestor || null,
+            fiscalizacao_empresa: fiscEmpresa || null,
+            fiscal: fiscal || null,
+            construtora: construtora || null,
+            responsavel: responsavel || null,
+          });
+        }
         return nova;
       }
+
       const atualizada = await atualizarEstrutura(estrutura.id, {
         tipo_projeto: tipoProjeto,
         banco: banco || null,
         modelo_relatorio: modeloRelatorio || null,
-        agencia: agencia || null,
         programa: programa || null,
-        upe: upe || null,
-        sap: sap || null,
-        gestor: gestor || null,
-        fiscalizacao_empresa: fiscEmpresa || null,
-        fiscal: fiscal || null,
-        construtora: construtora || null,
-        responsavel: responsavel || null,
+        ...camposObra,
       });
       setEstrutura(atualizada);
+      if (!isAvulso && projetoSelecionado) {
+        await atualizarCamposProjeto(projetoSelecionado.id, {
+          agencia: agencia || null,
+          upe: upe || null,
+          sap: sap || null,
+          gestor: gestor || null,
+          fiscalizacao_empresa: fiscEmpresa || null,
+          fiscal: fiscal || null,
+          construtora: construtora || null,
+          responsavel: responsavel || null,
+        });
+      }
       return atualizada;
     } catch (e) {
       setErro((e as Error).message);

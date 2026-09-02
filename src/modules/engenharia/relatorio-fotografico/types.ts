@@ -51,8 +51,26 @@ export interface EstruturaFotografica {
   updated_at: string;
 }
 
+/**
+ * Campos de obra que vivem em `projetos` (migration 00010) quando o
+ * relatório está vinculado — Agência/UPE/SAP/gestor/fiscalização/
+ * construtora/responsável são dados da obra, úteis pra empresa toda, não
+ * exclusivos do relatório fotográfico. Só duplicados localmente em
+ * `engenharia_estrutura_fotografica` para o caso avulso (sem projeto_id).
+ */
+export interface CamposObraProjeto {
+  agencia: string | null;
+  upe: string | null;
+  sap: string | null;
+  gestor: string | null;
+  fiscalizacao_empresa: string | null;
+  fiscal: string | null;
+  construtora: string | null;
+  responsavel: string | null;
+}
+
 /** Resumo de `projetos` usado no seletor de projeto (não é uma tabela nova). */
-export interface ProjetoResumo {
+export interface ProjetoResumo extends CamposObraProjeto {
   id: string;
   nome: string;
   os: string;

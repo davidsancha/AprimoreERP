@@ -18,6 +18,15 @@ export interface Projeto {
   complemento?: string | null;
   status: 'planejado' | 'em_andamento' | 'concluido' | 'suspenso';
   tipologia: string;
+  // Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia) — migration 00010
+  agencia?: string | null;
+  upe?: string | null;
+  sap?: string | null;
+  gestor?: string | null;
+  fiscalizacao_empresa?: string | null;
+  fiscal?: string | null;
+  construtora?: string | null;
+  responsavel?: string | null;
   created_at?: string;
   updated_at?: string;
 }
