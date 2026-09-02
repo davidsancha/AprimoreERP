@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# mensagens transitórias entre agentes (Claude Code <-> Antigravity) —
+# ver _mensagens-agentes/README.md
+_mensagens-agentes/PARA-ANTIGRAVITY.md
+_mensagens-agentes/PARA-CLAUDE.md

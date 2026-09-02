@@ -1,7 +1,7 @@
 /**
- * Tipos do módulo de relatório fotográfico — porta de
- * C:\Users\david\OneDrive\APRIMORE\EGF\ITAÚ\APRIMORE_ERP (packages/shared).
- * Ver README.md desta pasta para o status da integração.
+ * Tipos do módulo de relatório fotográfico. Espelha a tabela
+ * `engenharia_estrutura_fotografica` (migrations 00008 + 00009) — ver
+ * schema-proposta.sql para o histórico e README.md para o status.
  */
 
 export type TipoProjetoFotografico = "infraestrutura" | "reforma";
@@ -23,18 +23,47 @@ export interface Equipamento {
   pontos: Ponto[];
 }
 
-export interface Servico {
-  nome: string;
-  etapas?: readonly string[];
-}
-
-/** Equivalente ao antigo projeto.json — aqui vira linha(s) de tabela, não arquivo. */
+/** Linha real da tabela engenharia_estrutura_fotografica. */
 export interface EstruturaFotografica {
-  tipoProjeto: TipoProjetoFotografico;
+  id: string;
+  projeto_id: string | null;
+  user_id: string | null;
+  is_avulso: boolean;
+  obra_nome: string | null;
+  tipo_projeto: TipoProjetoFotografico;
+  banco: string | null;
+  modelo_relatorio: string | null;
   equipamentos: Equipamento[];
-  servicos: Servico[];
+  servicos_habilitados: string[];
+  // campos de cabeçalho (slides 1 e 2) — migration 00009
+  agencia: string | null;
+  programa: string | null;
+  upe: string | null;
+  sap: string | null;
+  gestor: string | null;
+  fiscalizacao_empresa: string | null;
+  fiscal: string | null;
+  construtora: string | null;
+  responsavel: string | null;
+  data_inicio_obra: string | null;
+  data_termino_obra: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
+/** Resumo de `projetos` usado no seletor de projeto (não é uma tabela nova). */
+export interface ProjetoResumo {
+  id: string;
+  nome: string;
+  os: string;
+  tipologia: string;
+  data_prevista_inicio: string | null;
+  data_prevista_termino: string | null;
+  cliente_final_id: string | null;
+  cliente_final_nome: string | null;
+}
+
+/** Campos que alimentam os slides 1 e 2 do PowerPoint — mesmo formato usado por lib/pptx.ts. */
 export interface CamposRelatorio {
   agencia: string;
   programa: string;
@@ -54,18 +83,25 @@ export const CAMPOS_RELATORIO_VAZIOS: CamposRelatorio = {
   fiscal: "", construtora: "", responsavel: "", inicio: "", termino: "",
 };
 
-/** Referência à foto já enviada pro Supabase Storage (nunca a foto solta). */
+/** Caminho da foto já enviada pro bucket `relatorios-fotograficos` (nunca a foto solta). */
 export interface FotoReferencia {
   storagePath: string;
   nomeOriginal: string;
 }
 
-export interface ProgressoReformaSlide {
-  servico: string;
-  ambiente: string;
+export interface ProgressoSlide {
+  id: string;
+  relatorio_id: string;
+  ordem: number;
+  servico: string | null;
+  ambiente: string | null;
+  equipamento: string | null;
+  numero_ponto: string | null;
+  local: string | null;
   etapa1: "ANTES" | "DURANTE";
-  antes: FotoReferencia;
-  depois: FotoReferencia;
+  foto_antes_path: string;
+  foto_depois_path: string;
+  created_at: string;
 }
 
 export interface ModeloCfgCampo {

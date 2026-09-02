@@ -35,18 +35,38 @@ produção via Next/Vercel. Ainda assim, quando isto for conectado de
 verdade, adicionar como dependência direta no `package.json` — depender
 de transitiva quebra se o Next parar de precisar dela.
 
-## O que falta — depende de decisão (ver Demandas do Code/02-...)
+## Status da Modelagem e Banco de Dados (Atualizado pelo Antigravity)
 
-- `schema-proposta.sql` — rascunho de tabelas, fora de
-  `supabase/migrations/` de propósito, até confirmar a modelagem
-  (reaproveitar `projetos` ou não, convenção de nome).
-- Camada de API (`services/` ou `app/api/.../route.ts`) que conecta
-  `lib/pptx.ts` ao Supabase Storage — ainda não escrita, porque depende
-  do bucket/schema acima existir.
-- Componentes de tela (cadastro de estrutura, captura de foto,
-  montagem do relatório) — ainda não escritos.
-- Registro na `Sidebar.tsx` — só depois de decidido onde entra no menu
-  (Engenharia ou Operacional).
+- **Migration Oficial Aplicada:** `supabase/migrations/00008_relatorio_fotografico.sql` aplicada com sucesso no Supabase (`ACTIVE_HEALTHY`).
+  - `engenharia_estrutura_fotografica` (com `projeto_id uuid` nullable, `user_id uuid`, `is_avulso boolean`, `obra_nome text` para suporte a convidados).
+  - `engenharia_servicos_catalogo` (memória global).
+  - `engenharia_ambientes_catalogo` (memória global).
+  - `engenharia_progresso_relatorio` (vinculado a `relatorio_id` referenciando `engenharia_estrutura_fotografica(id)`).
+  - **Bucket de Storage:** `relatorios-fotograficos` criado no Supabase com policies RLS ativas.
+- **Localização confirmada:** Engenharia (PCM) -> `src/modules/engenharia/relatorio-fotografico/` e rota `src/app/(app)/engenharia/relatorio-fotografico/`.
+
+## Status (atualizado pelo Claude Code, 02/09/2026)
+
+- **`supabase/migrations/00009_relatorio_fotografico_campos.sql`** —
+  proposta, **ainda não aplicada** (só tenho a anon key, não consigo
+  rodar DDL). Adiciona os campos de cabeçalho do relatório (agência,
+  programa, UPE, SAP, gestor, fiscalização, construtora, responsável,
+  datas) — só `ADD COLUMN` nullable, reversível.
+- **`services/apiRelatorioFotografico.ts`** — CRUD da estrutura,
+  catálogo global de serviços/ambientes, habilitar/desabilitar serviço
+  por relatório. Usa o client Supabase do navegador
+  (`@/shared/lib/supabaseClient`), mesmo padrão de `apiProjetos.ts`.
+- **`src/app/(app)/engenharia/relatorio-fotografico/page.tsx`** —
+  primeira tela: avulso ou vínculo a projeto (autocomplete igual ao
+  `FormProjeto.tsx`), tipo, dados de cabeçalho, serviços/equipamentos.
+  **Sem etapa de "criar pastas"** — decisão do David, Storage não
+  precisa de pasta vazia pré-criada.
+- Ainda faltam: upload de foto (câmera/galeria) + registro em
+  `engenharia_progresso_relatorio`, geração do `.pptx` de verdade
+  (conectar `lib/pptx.ts` ao Storage), reordenação/prévia de slide,
+  registro na `Sidebar.tsx`.
+- `npx tsc --noEmit` limpo com essas mudanças.
+- Perguntas para o Antigravity em `_mensagens-agentes/PARA-ANTIGRAVITY.md`.
 
 ## Diferença de cor de marca encontrada
 
