@@ -93,9 +93,10 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
         { 
           label: 'Engenharia (PCM)', 
           icon: Ruler, 
-          roles: ['god', 'admin', 'engenheiro'],
+          roles: ['god', 'admin', 'engenheiro', 'convidado'],
           subItems: [
             { label: 'Dashboard PCM', href: '/engenharia', active: true },
+            { label: 'Relatório Fotográfico', href: '/engenharia/relatorio-fotografico', active: true },
             { label: 'Orçamento do Projeto', href: '#', active: false, badge: 'Breve' },
             { label: 'Cronograma (EAP)', href: '#', active: false, badge: 'Breve' }
           ]
