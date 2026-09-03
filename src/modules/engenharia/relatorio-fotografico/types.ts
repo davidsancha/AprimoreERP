@@ -35,6 +35,10 @@ export interface EstruturaFotografica {
   modelo_relatorio: string | null;
   equipamentos: Equipamento[];
   servicos_habilitados: string[];
+  // ordem dos ambientes NESTE relatório (migration 00012) — cada relatório
+  // pode querer os mesmos ambientes do catálogo global em ordem diferente;
+  // ambiente fora da lista cai no fim, em ordem alfabética
+  ambientes_ordem: string[];
   // campos de cabeçalho (slides 1 e 2) — migration 00009
   agencia: string | null;
   programa: string | null;

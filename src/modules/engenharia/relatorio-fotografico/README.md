@@ -376,10 +376,57 @@ de transitiva quebra se o Next parar de precisar dela.
     que dá pra oferecer sem depender de um app nativo/PWA instalado;
     documentado aqui pra não tentar de novo achando que tem solução
     melhor por engano.
-- Ainda faltam: reordenar ambientes por relatório (migration `00012`
-  já proposta, falta UI de arrastar + aplicar), prévia de slide antes
-  de montar, drag-and-drop também nos pontos de infraestrutura (hoje
-  só tem ▲▼).
+- **Sétimo round (03/09/2026, Claude Code)**:
+  - **Ordem de ambientes por relatório, implementada** — migration
+    `00012` já estava aplicada; faltava só a UI. Etapa 4 (Ambientes)
+    ganhou uma lista com ▲▼ pra definir a ordem deste relatório
+    especificamente (persiste em `estrutura.ambientes_ordem`).
+    `compararOrdemAutomatica` (usado pelo checkbox "Organizar
+    automaticamente") passou a usar essa ordem como critério primário
+    de Ambiente — quem não foi ordenado ainda cai no fim, alfabético.
+  - **`ModalEscolhaOrigemFoto` reforçado**: no PC (detecção via
+    `matchMedia('(pointer: coarse)')`, sem sniff de user agent), pula
+    a escolha câmera/galeria e abre o explorador de arquivos direto —
+    câmera não faz sentido nesse contexto. No celular, depois de tirar
+    foto pela câmera, o convite pra "salvar no aparelho" virou um
+    passo próprio com botão dedicado (`navigator.share` chamado de um
+    clique de verdade) — a versão anterior chamava isso dentro do
+    `onChange` do input, que às vezes não conta como gesto do usuário
+    e o convite simplesmente não aparecia.
+  - **"Montar PowerPoint"** movido pra dentro do fluxo normal —
+    depois da etapa 6/Equipamentos, antes da lista de slides — não é
+    mais um botão solto no topo da coluna.
+  - **`ModalPreviaSlide`**: fotos com altura em `vh` (`h-[42vh]
+    max-h-[420px]`) em vez de `aspect-[4/3]` fixo — em paisagem, onde
+    a largura é grande mas a altura é curta, o aspect-ratio fixo
+    fazia a foto (e o modal) ficarem mais altos que a tela.
+  - **Coluna de slides**: seta ↓ animada aparece quando a lista tem
+    mais conteúdo que a área visível (`scrollHeight` vs.
+    `clientHeight`, recalculado a cada slide criado/removido e a cada
+    scroll); some ao chegar no fim.
+  - **Sidebar principal do ERP**: agora sincroniza com a orientação
+    de verdade (`matchMedia('(orientation: landscape)')`, só no
+    evento `change`, não em todo `resize`) — entra em paisagem
+    estreita, recolhe sozinha; sai, reabre. Alças de recolher/expandir
+    viraram círculos de 32px na borda direita, sempre visíveis (antes
+    era um ícone de 14px só no hover, praticamente invisível — feedback
+    direto do David).
+- Ainda faltam: drag-and-drop também nos pontos de infraestrutura
+  (hoje só tem ▲▼), drag-and-drop na ordem de ambientes (hoje só ▲▼),
+  prévia de slide antes de montar.
+
+## Fora de escopo deste módulo — pedido em 03/09/2026, aguardando escopo
+
+David pediu: cadastro de "Parceiro EGF" (opção no cadastro de usuário,
+o parceiro se registra com e-mail/usuário/senha, tem "esqueci minha
+senha" por e-mail, e um ambiente próprio com seus projetos/relatórios
+salvos) + "Cowork" (compartilhar um relatório pra edição por mais de
+uma pessoa). Isso é auth/permissões global do ERP — território do
+Antigravity, não deste módulo. Mandei mensagem perguntando como
+login/roles/convites estão implementados hoje antes de propor
+qualquer coisa — ver `_mensagens-agentes/PARA-ANTIGRAVITY.md` (some
+depois de lida) e o histórico desta conversa. Ainda não tem plano nem
+código — só o pedido registrado aqui pra não se perder.
 - **Template real do Itaú Personnalité localizado (03/09/2026)** — o
   David tinha o `.pptx` modelo numa pasta local
   (`EGF\ITAÚ\PERSON REL FOTOGRÁFICO - MODELO.PPTX`). Staged em

@@ -178,16 +178,119 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
   );
 }
 
+/** Heurística leve de "isto é um toque, não mouse" — sem sniffar user agent. */
+function ehDispositivoMovel(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
 /**
  * Escolha explícita entre câmera e galeria — dois `<input type="file">`
  * distintos (um com `capture`, um sem). Depender só do seletor nativo do
  * Android (`accept="image/*"` sem `capture`) às vezes mostra só o Google
  * Fotos, escondendo a opção de câmera; forçar os dois botões aqui garante
- * as duas opções em qualquer aparelho.
+ * as duas opções em qualquer aparelho — mas só em celular/tablet: no PC não
+ * existe câmera nesse fluxo, então abre o explorador de arquivos direto,
+ * sem esse passo a mais.
+ *
+ * Depois de tirar foto pela câmera, oferece "salvar no aparelho" como um
+ * passo separado (botão próprio) — chamar `navigator.share` direto dentro do
+ * `onChange` do input, como a versão anterior fazia, às vezes não conta
+ * como gesto do usuário aos olhos do navegador e o convite pra salvar nem
+ * aparece; um clique novo e explícito garante o gesto.
  */
 function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: File) => void; onFechar: () => void }) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
+  const [fotoCapturada, setFotoCapturada] = useState<File | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const desktop = !ehDispositivoMovel();
+
+  useEffect(() => {
+    if (desktop) galRef.current?.click();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function salvarNoAparelho() {
+    if (!fotoCapturada) return;
+    setSalvando(true);
+    try {
+      const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+      if (nav.canShare?.({ files: [fotoCapturada] })) {
+        await nav.share?.({ files: [fotoCapturada] });
+      }
+    } catch {
+      // usuário cancelou o compartilhamento, ou o aparelho não suporta — segue normal
+    } finally {
+      setSalvando(false);
+      onEscolher(fotoCapturada);
+    }
+  }
+
+  const inputsOcultos = (
+    <>
+      <input
+        ref={camRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) setFotoCapturada(file);
+        }}
+      />
+      <input
+        ref={galRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) onEscolher(file);
+        }}
+      />
+    </>
+  );
+
+  // PC: sem passo de escolha — o clique no input já disparou no useEffect
+  // acima; só precisa manter os inputs montados no DOM.
+  if (desktop) return inputsOcultos;
+
+  if (fotoCapturada) {
+    return (
+      <div
+        className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-4"
+        onClick={() => onEscolher(fotoCapturada)}
+      >
+        <div
+          className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-xs p-4 space-y-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h4 className="text-xs font-bold text-main text-center mb-1">Foto capturada</h4>
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={salvarNoAparelho}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-brand-ocre text-white text-sm font-bold disabled:opacity-60"
+          >
+            {salvando ? 'Abrindo…' : 'Salvar no celular também'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onEscolher(fotoCapturada)}
+            className="w-full px-4 py-2 rounded-lg border border-card-border text-xs font-bold text-sub"
+          >
+            Só usar no relatório
+          </button>
+        </div>
+        {inputsOcultos}
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={onFechar}>
       <div
@@ -214,39 +317,7 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
         <button type="button" onClick={onFechar} className="w-full px-4 py-2 rounded-lg text-xs font-bold text-sub">
           Cancelar
         </button>
-        <input
-          ref={camRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (!file) return;
-            // Best-effort: não existe API web pra "salvar isso na galeria" em
-            // silêncio — o compartilhamento nativo (com "Salvar em Fotos/
-            // Arquivos" entre as opções) é o que dá pra oferecer sem bloquear
-            // o fluxo. Sem await de propósito: dispara e segue, não trava o
-            // upload esperando o usuário decidir no share sheet do sistema.
-            const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
-            if (nav.canShare?.({ files: [file] })) {
-              nav.share?.({ files: [file] }).catch(() => {});
-            }
-            onEscolher(file);
-          }}
-        />
-        <input
-          ref={galRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) onEscolher(file);
-          }}
-        />
+        {inputsOcultos}
       </div>
     </div>
   );
@@ -453,7 +524,7 @@ function SlotFoto({
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setAmpliado(false)}>
           <div className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-md p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={rotulo} className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border" />
+            <img src={src} alt={rotulo} className="w-full h-[50vh] max-h-[420px] object-cover rounded-lg border border-card-border" />
             <div className="flex gap-2">
               <button
                 type="button"
@@ -533,7 +604,11 @@ function ModalPreviaSlide({
     if (caminho) {
       return (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={urlPublicaFoto(caminho)} alt={legenda} className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border" />
+        <img
+          src={urlPublicaFoto(caminho)}
+          alt={legenda}
+          className="w-full h-[42vh] max-h-[420px] object-cover rounded-lg border border-card-border"
+        />
       );
     }
     return (
@@ -541,7 +616,7 @@ function ModalPreviaSlide({
         type="button"
         disabled={!onEscolherFoto || ocupado}
         onClick={() => setEscolhendoLado(lado)}
-        className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-amber-500/50 flex flex-col items-center justify-center gap-2 text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
+        className="w-full h-[42vh] max-h-[420px] rounded-lg border-2 border-dashed border-amber-500/50 flex flex-col items-center justify-center gap-2 text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
       >
         <Camera size={28} />
         <span className="text-xs font-bold">{ocupado ? 'Enviando…' : 'Adicionar foto'}</span>
@@ -674,6 +749,29 @@ function RelatorioFotograficoContent() {
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
   const progressoReforma = useMemo(() => progresso.filter((p) => p.servico), [progresso]);
+
+  /** Ambientes do catálogo global, na ordem salva pra ESTE relatório — os que ainda não foram ordenados caem no fim, em ordem alfabética. */
+  const ambientesOrdenados = useMemo(() => {
+    if (!estrutura) return [...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const salvos = estrutura.ambientes_ordem.filter((a) => ambientesGlobais.includes(a));
+    const resto = ambientesGlobais.filter((a) => !salvos.includes(a)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return [...salvos, ...resto];
+  }, [ambientesGlobais, estrutura]);
+
+  async function moverAmbiente(nome: string, direcao: -1 | 1) {
+    if (!estrutura) return;
+    const lista = [...ambientesOrdenados];
+    const i = lista.indexOf(nome);
+    const j = i + direcao;
+    if (i < 0 || j < 0 || j >= lista.length) return;
+    [lista[i], lista[j]] = [lista[j]!, lista[i]!];
+    try {
+      const atualizada = await atualizarEstrutura(estrutura.id, { ambientes_ordem: lista });
+      setEstrutura(atualizada);
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
 
   useEffect(() => {
     lerServicosGlobais().then(setServicosGlobais).catch(() => {});
@@ -1045,10 +1143,17 @@ function RelatorioFotograficoContent() {
     }
   }
 
-  /** Ambiente → Serviço → Antes antes de Durante — ordem alfabética até existir
-   *  ordem de ambientes por relatório (ver README.md, pendente migration). */
+  /** Ambiente → Serviço → Antes antes de Durante. Ambiente usa a ordem
+   *  escolhida na etapa 4 (`estrutura.ambientes_ordem`) — quem não está
+   *  nela cai no fim, em ordem alfabética. */
   function compararOrdemAutomatica(a: ProgressoSlide, b: ProgressoSlide): number {
-    const porAmbiente = (a.ambiente || '').localeCompare(b.ambiente || '', 'pt-BR');
+    const ordem = estrutura?.ambientes_ordem ?? [];
+    const posA = ordem.indexOf(a.ambiente || '');
+    const posB = ordem.indexOf(b.ambiente || '');
+    const porAmbiente =
+      posA === -1 && posB === -1
+        ? (a.ambiente || '').localeCompare(b.ambiente || '', 'pt-BR')
+        : (posA === -1 ? ordem.length : posA) - (posB === -1 ? ordem.length : posB);
     if (porAmbiente !== 0) return porAmbiente;
     const porServico = (a.servico || '').localeCompare(b.servico || '', 'pt-BR');
     if (porServico !== 0) return porServico;
@@ -1317,6 +1422,27 @@ function RelatorioFotograficoContent() {
 
   const somenteLeituraObra = !isAvulso && !habilitarEdicaoObra;
   const classeCampoObra = somenteLeituraObra ? inputSomenteLeitura : input;
+
+  const botaoMontarPptx = estrutura && (
+    <button
+      type="button"
+      disabled={pendencias.length > 0 || progresso.length === 0 || pendenciasFotos > 0 || montandoPptx}
+      onClick={montarPowerPoint}
+      title={
+        pendencias.length > 0
+          ? 'Resolva as pendências nos dados do relatório primeiro'
+          : progresso.length === 0
+            ? 'Crie pelo menos 1 slide primeiro'
+            : pendenciasFotos > 0
+              ? `${pendenciasFotos} slide(s) sem foto — complete antes de montar`
+              : undefined
+      }
+      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+    >
+      {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
+      {montandoPptx ? 'Montando…' : 'Montar PowerPoint'}
+    </button>
+  );
 
   return (
     <div className="space-y-6 pb-16">
@@ -1889,6 +2015,43 @@ function RelatorioFotograficoContent() {
               + adicionar
             </button>
           </div>
+
+          {estrutura && ambientesOrdenados.length > 1 && (
+            <div className="space-y-1.5 pt-2 border-t border-card-border">
+              <p className="text-[10px] font-bold text-desc uppercase tracking-wider">
+                Ordem nos slides — usada pelo &quot;organizar automaticamente&quot;
+              </p>
+              <div className="space-y-1">
+                {ambientesOrdenados.map((a, i) => (
+                  <div
+                    key={a}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-card-border bg-background text-xs font-bold text-main"
+                  >
+                    <span className="text-[10px] font-mono text-desc w-4 text-center shrink-0">{i + 1}</span>
+                    <span className="flex-1 truncate">{a}</span>
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() => moverAmbiente(a, -1)}
+                      className="text-desc hover:text-main disabled:opacity-30"
+                      title="Mover pra cima"
+                    >
+                      <ChevronUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={i === ambientesOrdenados.length - 1}
+                      onClick={() => moverAmbiente(a, 1)}
+                      className="text-desc hover:text-main disabled:opacity-30"
+                      title="Mover pra baixo"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2067,6 +2230,8 @@ function RelatorioFotograficoContent() {
           </div>
         </div>
       )}
+
+      {estrutura && tipoProjeto === 'reforma' && botaoMontarPptx}
 
       {/* lista dos slides de reforma já gerados, logo abaixo da etapa 6 —
           reordenar, pré-visualizar clicando, editar ambiente/etapa, excluir */}
@@ -2302,31 +2467,13 @@ function RelatorioFotograficoContent() {
             ))}
         </div>
       )}
+
+      {estrutura && tipoProjeto === 'infraestrutura' && botaoMontarPptx}
       </div>
 
       {/* coluna direita — miniaturas dos slides já criados, empilhadas, na
           ordem final do PowerPoint; clicar amplia (mesma ideia de painel de
           slides do próprio PowerPoint / preview de arquivo) */}
-      {estrutura && (
-        <button
-          type="button"
-          disabled={pendencias.length > 0 || progresso.length === 0 || pendenciasFotos > 0 || montandoPptx}
-          onClick={montarPowerPoint}
-          title={
-            pendencias.length > 0
-              ? 'Resolva as pendências nos dados do relatório primeiro'
-              : progresso.length === 0
-                ? 'Crie pelo menos 1 slide primeiro'
-                : pendenciasFotos > 0
-                  ? `${pendenciasFotos} slide(s) sem foto — complete antes de montar`
-                  : undefined
-          }
-          className="w-full lg:col-span-2 order-first inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-        >
-          {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
-          {montandoPptx ? 'Montando…' : 'Montar PowerPoint'}
-        </button>
-      )}
 
       {estrutura && (
         <div className="hidden lg:block lg:sticky lg:top-4 space-y-3">

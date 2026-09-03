@@ -70,6 +70,23 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
     }
   }
 
+  // Paisagem no celular cruza o breakpoint md — a sidebar (sempre visível ali)
+  // engole espaço de tela que o David quer de volta na hora. Reage só à
+  // troca de orientação de verdade (não a qualquer resize — teclado
+  // abrindo, por exemplo — pra não brigar com um "reabrir" manual do
+  // usuário no meio da mesma orientação).
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape)');
+    function aoTrocarOrientacao() {
+      const paisagemEstreita = mq.matches && window.innerWidth < 1024;
+      alternarColapso(paisagemEstreita);
+    }
+    aoTrocarOrientacao();
+    mq.addEventListener('change', aoTrocarOrientacao);
+    return () => mq.removeEventListener('change', aoTrocarOrientacao);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleGroup = (title: string) => {
     setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
   };
@@ -302,29 +319,33 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
       <aside
         className={`fixed md:relative inset-y-0 left-0 z-50 w-[280px] bg-sidebar border-sidebar-border flex flex-col transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } ${colapsada ? 'md:!w-3 md:border-r-0' : 'border-r'}`}
+        } ${colapsada ? 'md:!w-6 md:border-r-0' : 'border-r'}`}
       >
       {colapsada && (
         <button
           type="button"
           onClick={() => alternarColapso(false)}
           title="Mostrar menu"
-          className="hidden md:flex absolute inset-0 w-full items-start justify-center pt-4 hover:bg-brand-ocre/10 transition-colors group border-r border-sidebar-border bg-sidebar"
+          className="hidden md:flex absolute inset-0 w-full hover:bg-brand-ocre/5 transition-colors bg-sidebar border-r border-sidebar-border"
         >
-          <ChevronRight size={14} className="text-desc group-hover:text-brand-ocre" />
+          <span className="sr-only">Mostrar menu</span>
+          <span className="absolute top-1/2 -right-3.5 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-ocre text-white flex items-center justify-center shadow-lg shadow-brand-ocre/20 hover:scale-110 transition-transform">
+            <ChevronRight size={16} />
+          </span>
         </button>
       )}
       <div className={colapsada ? 'md:hidden flex flex-col h-full' : 'flex flex-col h-full'}>
+      {/* Botão de recolher — alça circular na borda direita, sempre visível (não só no hover) pra ser fácil de achar e tocar */}
+      <button
+        type="button"
+        onClick={() => alternarColapso(true)}
+        title="Esconder menu"
+        className="hidden md:flex absolute top-1/2 -right-3.5 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-card border border-card-border text-desc items-center justify-center shadow-md hover:bg-brand-ocre hover:text-white hover:border-brand-ocre hover:scale-110 transition-all"
+      >
+        <ChevronLeft size={16} />
+      </button>
       {/* Bloco Superior: Logo */}
       <div className="h-32 flex flex-col justify-center items-center py-2 px-4 border-b border-card-border bg-slate-500/5 dark:bg-white/[0.01] shrink-0 relative">
-        <button
-          type="button"
-          onClick={() => alternarColapso(true)}
-          title="Esconder menu"
-          className="hidden md:flex absolute top-2 right-2 w-6 h-6 items-center justify-center rounded-md text-desc hover:text-brand-ocre hover:bg-brand-ocre/10 transition-colors"
-        >
-          <ChevronLeft size={14} />
-        </button>
         {mounted && !logoError ? (
           <div className="relative h-28 w-full flex items-center justify-center">
             <img
