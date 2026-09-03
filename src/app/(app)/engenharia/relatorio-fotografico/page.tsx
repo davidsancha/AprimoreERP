@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Folder,
   Image as ImageIcon,
   List,
   Loader2,
@@ -203,6 +204,7 @@ function ehDispositivoMovel(): boolean {
 function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: File) => void; onFechar: () => void }) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
+  const filesRef = useRef<HTMLInputElement>(null);
   const [fotoCapturada, setFotoCapturada] = useState<File | null>(null);
   const [salvando, setSalvando] = useState(false);
   const desktop = !ehDispositivoMovel();
@@ -230,6 +232,7 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
 
   const inputsOcultos = (
     <>
+      {/* 1. Câmera nativa direta */}
       <input
         ref={camRef}
         type="file"
@@ -242,10 +245,23 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
           if (file) setFotoCapturada(file);
         }}
       />
+      {/* 2. Galeria local do aparelho (tipos específicos sem wildcard puro forçam a galeria/fototeca nativa no Android e iOS) */}
       <input
         ref={galRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) onEscolher(file);
+        }}
+      />
+      {/* 3. Explorador de arquivos do aparelho (DCIM / Câmera / Downloads locais) */}
+      <input
+        ref={filesRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,.webp,.heic,image/jpeg,image/png"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -298,7 +314,7 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
         className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-xs p-4 space-y-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <h4 className="text-xs font-bold text-main text-center mb-1">Escolher foto</h4>
+        <h4 className="text-xs font-bold text-main text-center mb-1">Adicionar foto</h4>
         <button
           type="button"
           onClick={() => camRef.current?.click()}
@@ -313,8 +329,19 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
           className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
         >
           <ImageIcon size={16} className="text-brand-blue" />
-          Escolher da galeria
+          Galeria do celular
         </button>
+        <button
+          type="button"
+          onClick={() => filesRef.current?.click()}
+          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
+        >
+          <Folder size={16} className="text-brand-ocre" />
+          Arquivos do aparelho (DCIM / Pastas)
+        </button>
+        <p className="text-[10px] text-desc text-center pt-1 leading-tight">
+          No Android, se abrir o seletor padrão, toque no menu (⋮) para abrir a Galeria do aparelho.
+        </p>
         <button type="button" onClick={onFechar} className="w-full px-4 py-2 rounded-lg text-xs font-bold text-sub">
           Cancelar
         </button>
