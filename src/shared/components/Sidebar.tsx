@@ -25,6 +25,7 @@ import {
   BarChart4,
   Map,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   UserCheck,
   X
@@ -45,10 +46,29 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
     'Principal': true,
     'Core Business': true
   });
+  // Colapsar o menu (md+) — útil no celular em paisagem, onde a largura já
+  // cruza o breakpoint md e o menu passa a ocupar espaço fixo o tempo todo,
+  // sem opção de escondê-lo. Não afeta o off-canvas do celular em retrato
+  // (isOpen), que já se resolve pelo hambúrguer.
+  const [colapsada, setColapsada] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    try {
+      setColapsada(localStorage.getItem('aprimore-sidebar-colapsada') === '1');
+    } catch {
+      // localStorage indisponível (ex.: modo privado) — mantém expandida
+    }
   }, []);
+
+  function alternarColapso(valor: boolean) {
+    setColapsada(valor);
+    try {
+      localStorage.setItem('aprimore-sidebar-colapsada', valor ? '1' : '0');
+    } catch {
+      // sem persistência — só não lembra na próxima visita
+    }
+  }
 
   const toggleGroup = (title: string) => {
     setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
@@ -279,15 +299,37 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
         />
       )}
 
-      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-      
+      <aside
+        className={`fixed md:relative inset-y-0 left-0 z-50 w-[280px] bg-sidebar border-sidebar-border flex flex-col transition-all duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        } ${colapsada ? 'md:!w-3 md:border-r-0' : 'border-r'}`}
+      >
+      {colapsada && (
+        <button
+          type="button"
+          onClick={() => alternarColapso(false)}
+          title="Mostrar menu"
+          className="hidden md:flex absolute inset-0 w-full items-start justify-center pt-4 hover:bg-brand-ocre/10 transition-colors group border-r border-sidebar-border bg-sidebar"
+        >
+          <ChevronRight size={14} className="text-desc group-hover:text-brand-ocre" />
+        </button>
+      )}
+      <div className={colapsada ? 'md:hidden flex flex-col h-full' : 'flex flex-col h-full'}>
       {/* Bloco Superior: Logo */}
-      <div className="h-32 flex flex-col justify-center items-center py-2 px-4 border-b border-card-border bg-slate-500/5 dark:bg-white/[0.01] shrink-0">
+      <div className="h-32 flex flex-col justify-center items-center py-2 px-4 border-b border-card-border bg-slate-500/5 dark:bg-white/[0.01] shrink-0 relative">
+        <button
+          type="button"
+          onClick={() => alternarColapso(true)}
+          title="Esconder menu"
+          className="hidden md:flex absolute top-2 right-2 w-6 h-6 items-center justify-center rounded-md text-desc hover:text-brand-ocre hover:bg-brand-ocre/10 transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
         {mounted && !logoError ? (
           <div className="relative h-28 w-full flex items-center justify-center">
-            <img 
-              src={getLogoSrc()} 
-              alt="Aprimore Construtora" 
+            <img
+              src={getLogoSrc()}
+              alt="Aprimore Construtora"
               className="h-24 w-auto object-contain transition-all duration-200"
               onError={() => setLogoError(true)}
             />
@@ -393,6 +435,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           <Settings size={12} />
           <span>APRIMORE ERP V2.0 Modular</span>
         </div>
+      </div>
       </div>
     </aside>
     </>

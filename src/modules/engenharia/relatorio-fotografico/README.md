@@ -331,6 +331,51 @@ de transitiva quebra se o Next parar de precisar dela.
     (que só aparece em desktop) — agora é `order-first` no grid,
     visível em qualquer tamanho de tela.
   - `npx tsc --noEmit` e `eslint` limpos.
+- **Quinto round (03/09/2026, Claude Code)** — feedback do David depois
+  de usar em campo, no celular:
+  - **`ModalPreviaSlide` ganhou edição inline**: agora abre pra
+    qualquer slide, completo ou pendente — o lado sem foto mostra a
+    arte de "Adicionar foto" (câmera), clicar chama o
+    `ModalEscolhaOrigemFoto` e sobe direto pra aquele slide via
+    `atualizarProgresso`, sem fechar e caçar o slide na lista de novo.
+  - **`SeletorPersonalizado`** (novo componente) — bottom sheet com
+    busca, com a cara do projeto, substituindo os `<select>` de
+    Serviço/Ambiente na etapa 6. Pedido do David: o seletor nativo do
+    celular "não tem a cara do projeto".
+  - **Sidebar principal do ERP** (`shared/components/Sidebar.tsx`,
+    fora deste módulo) ganhou colapso manual em telas `md+` — ícone
+    `‹` no topo pra esconder, tira de 3px com `›` clicável em
+    qualquer ponto pra reabrir. Motivo: no celular em paisagem a
+    largura já cruza o breakpoint `md` e a sidebar (antes sempre
+    visível ali) passava a ocupar espaço fixo sem opção de esconder.
+    Preferência salva em `localStorage`. Comportamento do celular em
+    retrato (hambúrguer/off-canvas) não muda.
+  - **Câmera → galeria**: não existe API web pra forçar "salvar a
+    foto capturada na galeria" em silêncio — nenhum navegador expõe
+    isso. Best-effort implementado: ao tirar foto pela câmera (não
+    pela galeria), dispara `navigator.share` com o arquivo, sem
+    esperar resposta — se o aparelho suportar, o usuário vê "Salvar
+    em Fotos/Arquivos" entre as opções do compartilhamento nativo do
+    sistema, sem travar o fluxo de upload. Sem suporte, não faz nada
+    (degrada bem).
+  - `npx tsc --noEmit` limpo (`eslint` só com os avisos pré-existentes
+    de `Sidebar.tsx`, não introduzidos agora).
+- **Sexto round (03/09/2026, Claude Code)** — o slide "sumido" do
+  round anterior era engano do David (a lista tem `max-h-[75vh]` com
+  scroll, o slide novo nascia fora da área visível). Pedido dele: uma
+  seta indicando que tem mais coisa pra rolar. Implementado — a
+  coluna de slides detecta `scrollHeight` vs. `clientHeight` (no
+  mount, a cada slide criado/removido, e a cada scroll) e mostra uma
+  seta ↓ (com leve animação) colada no fim visível da lista; some
+  quando chega ao final. Clicar nela rola 200px.
+  - **"Salvar na galeria" — limite real explicado**: não existe API
+    web pra escolher em qual pasta uma foto compartilhada é salva —
+    isso é decidido pelo app que o usuário escolhe no menu de
+    compartilhamento do sistema (Google Fotos, Arquivos, etc.), não
+    pela página. O `navigator.share` do round anterior já é o máximo
+    que dá pra oferecer sem depender de um app nativo/PWA instalado;
+    documentado aqui pra não tentar de novo achando que tem solução
+    melhor por engano.
 - Ainda faltam: reordenar ambientes por relatório (migration `00012`
   já proposta, falta UI de arrastar + aplicar), prévia de slide antes
   de montar, drag-and-drop também nos pontos de infraestrutura (hoje

@@ -223,7 +223,17 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
-            if (file) onEscolher(file);
+            if (!file) return;
+            // Best-effort: não existe API web pra "salvar isso na galeria" em
+            // silêncio — o compartilhamento nativo (com "Salvar em Fotos/
+            // Arquivos" entre as opções) é o que dá pra oferecer sem bloquear
+            // o fluxo. Sem await de propósito: dispara e segue, não trava o
+            // upload esperando o usuário decidir no share sheet do sistema.
+            const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+            if (nav.canShare?.({ files: [file] })) {
+              nav.share?.({ files: [file] }).catch(() => {});
+            }
+            onEscolher(file);
           }}
         />
         <input
@@ -239,6 +249,109 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Seletor de opções com a cara do projeto — bottom sheet no celular, modal
+ * centrado no desktop, busca embutida. Substitui o `<select>` nativo nos
+ * pontos em que o layout de escolha padrão do sistema operacional (menu
+ * simples do Android/iOS) destoa muito do resto da tela.
+ */
+function SeletorPersonalizado({
+  rotulo,
+  valor,
+  opcoes,
+  onEscolher,
+  placeholder,
+  desabilitado,
+  desabilitadoTitulo,
+}: {
+  rotulo: string;
+  valor: string;
+  opcoes: string[];
+  onEscolher: (v: string) => void;
+  placeholder: string;
+  desabilitado?: boolean;
+  desabilitadoTitulo?: string;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState('');
+  const filtradas = opcoes.filter((o) => o.toLowerCase().includes(busca.toLowerCase()));
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={desabilitado}
+        title={desabilitado ? desabilitadoTitulo : undefined}
+        onClick={() => setAberto(true)}
+        className="w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs font-bold text-left flex items-center justify-between gap-2 disabled:opacity-40 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all"
+      >
+        <span className={valor ? 'text-main truncate' : 'text-slate-500 truncate'}>{valor || placeholder}</span>
+        <ChevronDown size={13} className="text-desc shrink-0" />
+      </button>
+      {aberto && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center"
+          onClick={() => {
+            setAberto(false);
+            setBusca('');
+          }}
+        >
+          <div
+            className="bg-card border border-card-border w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[75vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-card-border">
+              <h4 className="text-sm font-bold text-main font-vomzom">{rotulo}</h4>
+              <button
+                type="button"
+                onClick={() => {
+                  setAberto(false);
+                  setBusca('');
+                }}
+                className="text-desc hover:text-main"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-3 border-b border-card-border">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-desc pointer-events-none" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar…"
+                  className="w-full pl-8 pr-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre font-bold"
+                />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filtradas.length === 0 && <div className="p-4 text-xs text-sub">Nada encontrado.</div>}
+              {filtradas.map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  onClick={() => {
+                    onEscolher(o);
+                    setAberto(false);
+                    setBusca('');
+                  }}
+                  className={`w-full text-left px-4 py-3 text-sm font-bold border-b border-card-border/50 last:border-0 ${
+                    o === valor ? 'text-brand-ocre bg-brand-ocre/10' : 'text-main hover:bg-background'
+                  }`}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -396,11 +509,46 @@ const SLIDE_MODELO_BASE = 3;
 
 /**
  * Lightbox de slide — antes/durante + depois lado a lado, ampliado, igual
- * ao layout final do PowerPoint. Só é aberto pelos chamadores quando
- * `slideCompleto(slide)` é verdadeiro (migration 00013 — fotos podem ser
- * `null` enquanto pendentes), daí o `!` nos caminhos abaixo.
+ * ao layout final do PowerPoint. Abre pra qualquer slide, completo ou
+ * pendente (migration 00013) — o lado sem foto mostra a arte de "adicionar
+ * foto" em vez da imagem, e `onEscolherFoto` (quando passado) permite
+ * completar ali mesmo, sem fechar e procurar o slide de novo na lista.
  */
-function ModalPreviaSlide({ slide, indice, onFechar }: { slide: ProgressoSlide; indice: number; onFechar: () => void }) {
+function ModalPreviaSlide({
+  slide,
+  indice,
+  onFechar,
+  onEscolherFoto,
+  ocupado,
+}: {
+  slide: ProgressoSlide;
+  indice: number;
+  onFechar: () => void;
+  onEscolherFoto?: (lado: 'antes' | 'depois', file: File) => void;
+  ocupado?: boolean;
+}) {
+  const [escolhendoLado, setEscolhendoLado] = useState<'antes' | 'depois' | null>(null);
+
+  function ladoFoto(caminho: string | null, legenda: string, lado: 'antes' | 'depois') {
+    if (caminho) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={urlPublicaFoto(caminho)} alt={legenda} className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border" />
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled={!onEscolherFoto || ocupado}
+        onClick={() => setEscolhendoLado(lado)}
+        className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-amber-500/50 flex flex-col items-center justify-center gap-2 text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
+      >
+        <Camera size={28} />
+        <span className="text-xs font-bold">{ocupado ? 'Enviando…' : 'Adicionar foto'}</span>
+      </button>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
       <div
@@ -415,26 +563,25 @@ function ModalPreviaSlide({ slide, indice, onFechar }: { slide: ProgressoSlide; 
         </div>
         <div className="p-4 flex flex-wrap gap-5 overflow-y-auto">
           <div className="flex-1 min-w-[280px] space-y-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={urlPublicaFoto(slide.foto_antes_path!)}
-              alt={slide.etapa1}
-              className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
-            />
+            {ladoFoto(slide.foto_antes_path, slide.etapa1, 'antes')}
             <p className="text-[11px] font-bold text-desc uppercase tracking-wide">
               Foto {pad(2 * indice + 1)} - {slide.etapa1}
             </p>
           </div>
           <div className="flex-1 min-w-[280px] space-y-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={urlPublicaFoto(slide.foto_depois_path!)}
-              alt="Depois"
-              className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
-            />
+            {ladoFoto(slide.foto_depois_path, 'Depois', 'depois')}
             <p className="text-[11px] font-bold text-desc uppercase tracking-wide">Foto {pad(2 * indice + 2)} - DEPOIS</p>
           </div>
         </div>
+        {escolhendoLado && onEscolherFoto && (
+          <ModalEscolhaOrigemFoto
+            onEscolher={(file) => {
+              onEscolherFoto(escolhendoLado, file);
+              setEscolhendoLado(null);
+            }}
+            onFechar={() => setEscolhendoLado(null)}
+          />
+        )}
         <div className="px-4 pb-4 text-xs font-bold text-main">{legendaSlide(slide)}</div>
       </div>
     </div>
@@ -495,6 +642,18 @@ function RelatorioFotograficoContent() {
   const [novoAmbiente, setNovoAmbiente] = useState('');
   const [ambienteOcupado, setAmbienteOcupado] = useState<string | null>(null);
   const [previaIndice, setPreviaIndice] = useState<number | null>(null);
+  const slidesScrollRef = useRef<HTMLDivElement>(null);
+  const [temMaisAbaixo, setTemMaisAbaixo] = useState(false);
+
+  /** Mostra a seta "tem mais slide abaixo" quando a lista rolável não está no fim. */
+  function verificarRolagem() {
+    const el = slidesScrollRef.current;
+    if (!el) {
+      setTemMaisAbaixo(false);
+      return;
+    }
+    setTemMaisAbaixo(el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+  }
   const [ordemOcupada, setOrdemOcupada] = useState(false);
   const [ordemAutomatica, setOrdemAutomatica] = useState(false);
   const [arrastandoSlide, setArrastandoSlide] = useState<string | null>(null);
@@ -530,6 +689,10 @@ function RelatorioFotograficoContent() {
     }
     listarProgresso(estrutura.id).then(setProgresso).catch(console.error);
   }, [estrutura?.id]);
+
+  useEffect(() => {
+    verificarRolagem();
+  }, [progresso]);
 
   useEffect(() => {
     if (projetoIdUrl) {
@@ -1040,6 +1203,27 @@ function RelatorioFotograficoContent() {
       setProgresso((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
     } catch (e) {
       setErro((e as Error).message);
+    }
+  }
+
+  /** Completa uma foto pendente direto pela pré-visualização (sem fechar e caçar o slide na lista). */
+  async function adicionarFotoAoSlide(slide: ProgressoSlide, lado: 'antes' | 'depois', file: File) {
+    if (!estrutura) return;
+    setFotoOcupada('previa-' + slide.id);
+    try {
+      const segmento = slide.equipamento
+        ? [slide.equipamento, slide.numero_ponto || '']
+        : [slide.servico || '', lado === 'antes' ? slide.etapa1 : 'DEPOIS'];
+      const caminho = await uploadFotoRelatorio(estrutura.id, segmento, file);
+      const atualizado = await atualizarProgresso(
+        slide.id,
+        lado === 'antes' ? { foto_antes_path: caminho } : { foto_depois_path: caminho },
+      );
+      setProgresso((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setFotoOcupada(null);
     }
   }
 
@@ -1769,22 +1953,20 @@ function RelatorioFotograficoContent() {
         <div className={secao}>
           <h3 className={tituloSecao}>{badge(6)} Criar slide</h3>
           <div className="grid grid-cols-2 gap-2">
-            <select value={novoSlideServico ?? ''} onChange={(e) => setNovoSlideServico(e.target.value || null)} className={input}>
-              <option value="">Selecione o serviço…</option>
-              {[...estrutura.servicos_habilitados].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select value={novoSlideAmbiente} onChange={(e) => setNovoSlideAmbiente(e.target.value)} className={input}>
-              <option value="">Selecione o ambiente…</option>
-              {[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+            <SeletorPersonalizado
+              rotulo="Serviço"
+              placeholder="Selecione o serviço…"
+              valor={novoSlideServico ?? ''}
+              opcoes={[...estrutura.servicos_habilitados].sort((a, b) => a.localeCompare(b, 'pt-BR'))}
+              onEscolher={(v) => setNovoSlideServico(v)}
+            />
+            <SeletorPersonalizado
+              rotulo="Ambiente"
+              placeholder="Selecione o ambiente…"
+              valor={novoSlideAmbiente}
+              opcoes={[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR'))}
+              onEscolher={(v) => setNovoSlideAmbiente(v)}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Primeira foto vem de</label>
@@ -1936,28 +2118,26 @@ function RelatorioFotograficoContent() {
                       className={`w-2 h-2 rounded-full shrink-0 ${slideCompleto(s) ? 'bg-emerald-500' : 'bg-amber-500'}`}
                       title={slideCompleto(s) ? 'Fotos completas' : 'Faltam fotos'}
                     />
-                    {slideCompleto(s) ? (
-                      <button
-                        type="button"
-                        onClick={() => setPreviaIndice(indiceGlobal)}
-                        title="Ampliar slide"
-                        className="hidden sm:flex gap-1 shrink-0 cursor-zoom-in rounded overflow-hidden"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={urlPublicaFoto(s.foto_antes_path!)} alt="" className="w-12 h-12 object-cover" />
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={urlPublicaFoto(s.foto_depois_path!)} alt="" className="w-12 h-12 object-cover" />
-                      </button>
-                    ) : (
-                      <div className="hidden sm:flex w-[104px] h-12 shrink-0 rounded border border-dashed border-amber-500/50 items-center justify-center">
-                        <span className="text-[9px] font-bold text-amber-600 uppercase">Sem foto</span>
-                      </div>
-                    )}
                     <button
                       type="button"
-                      onClick={() => slideCompleto(s) && setPreviaIndice(indiceGlobal)}
-                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setPreviaIndice(indiceGlobal)}
+                      title={slideCompleto(s) ? 'Ampliar slide' : 'Ver e completar foto pendente'}
+                      className="hidden sm:flex gap-1 shrink-0 cursor-pointer rounded overflow-hidden"
                     >
+                      {slideCompleto(s) ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={urlPublicaFoto(s.foto_antes_path!)} alt="" className="w-12 h-12 object-cover" />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={urlPublicaFoto(s.foto_depois_path!)} alt="" className="w-12 h-12 object-cover" />
+                        </>
+                      ) : (
+                        <div className="w-[104px] h-12 rounded border border-dashed border-amber-500/50 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-amber-600 uppercase">Adicionar foto</span>
+                        </div>
+                      )}
+                    </button>
+                    <button type="button" onClick={() => setPreviaIndice(indiceGlobal)} className="min-w-0 flex-1 text-left">
                       <div className="text-xs font-bold text-main truncate">
                         {posicaoNaLista + 1}. {legendaSlide(s)}
                       </div>
@@ -2159,26 +2339,33 @@ function RelatorioFotograficoContent() {
                 Nenhum slide ainda — as fotos que você enviar aparecem aqui, empilhadas na ordem final do PowerPoint.
               </p>
             ) : (
-              <div className="space-y-2 max-h-[75vh] overflow-y-auto pr-1 -mr-1">
+              <div className="relative">
+              <div
+                ref={slidesScrollRef}
+                onScroll={verificarRolagem}
+                className="space-y-2 max-h-[75vh] overflow-y-auto pr-1 -mr-1"
+              >
                 {progresso.map((s, i) => (
                   <div key={s.id} className="border border-card-border rounded-lg p-2 bg-background">
-                    {slideCompleto(s) ? (
-                      <button
-                        type="button"
-                        onClick={() => setPreviaIndice(i)}
-                        title="Ampliar slide"
-                        className="flex gap-1 w-full cursor-zoom-in rounded overflow-hidden"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={urlPublicaFoto(s.foto_antes_path!)} alt="" className="w-1/2 aspect-square object-cover" />
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={urlPublicaFoto(s.foto_depois_path!)} alt="" className="w-1/2 aspect-square object-cover" />
-                      </button>
-                    ) : (
-                      <div className="w-full aspect-[2/1] rounded border border-dashed border-amber-500/50 flex items-center justify-center">
-                        <span className="text-[9px] font-bold text-amber-600 uppercase">Sem foto</span>
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPreviaIndice(i)}
+                      title={slideCompleto(s) ? 'Ampliar slide' : 'Ver e completar foto pendente'}
+                      className="flex gap-1 w-full cursor-pointer rounded overflow-hidden"
+                    >
+                      {slideCompleto(s) ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={urlPublicaFoto(s.foto_antes_path!)} alt="" className="w-1/2 aspect-square object-cover" />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={urlPublicaFoto(s.foto_depois_path!)} alt="" className="w-1/2 aspect-square object-cover" />
+                        </>
+                      ) : (
+                        <div className="w-full aspect-[2/1] rounded border border-dashed border-amber-500/50 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-amber-600 uppercase">Adicionar foto</span>
+                        </div>
+                      )}
+                    </button>
                     <div className="min-w-0 mt-1.5">
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-main truncate">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${slideCompleto(s) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -2217,6 +2404,17 @@ function RelatorioFotograficoContent() {
                   </div>
                 ))}
               </div>
+              {temMaisAbaixo && (
+                <button
+                  type="button"
+                  onClick={() => slidesScrollRef.current?.scrollBy({ top: 200, behavior: 'smooth' })}
+                  title="Mais slides abaixo"
+                  className="absolute bottom-0 inset-x-0 flex items-center justify-center py-1.5 bg-gradient-to-t from-card via-card/90 to-transparent text-brand-ocre"
+                >
+                  <ChevronDown size={16} className="animate-bounce" />
+                </button>
+              )}
+              </div>
             )}
           </div>
         </div>
@@ -2225,7 +2423,13 @@ function RelatorioFotograficoContent() {
       )}
 
       {previaIndice !== null && progresso[previaIndice] && (
-        <ModalPreviaSlide slide={progresso[previaIndice]!} indice={previaIndice} onFechar={() => setPreviaIndice(null)} />
+        <ModalPreviaSlide
+          slide={progresso[previaIndice]!}
+          indice={previaIndice}
+          onFechar={() => setPreviaIndice(null)}
+          onEscolherFoto={(lado, file) => adicionarFotoAoSlide(progresso[previaIndice]!, lado, file)}
+          ocupado={fotoOcupada === 'previa-' + progresso[previaIndice]!.id}
+        />
       )}
     </div>
   );
