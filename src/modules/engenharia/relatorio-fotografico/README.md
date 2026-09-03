@@ -71,10 +71,33 @@ de transitiva quebra se o Next parar de precisar dela.
   quando vinculado, local quando avulso), serviços/equipamentos.
   **Sem etapa de "criar pastas"** — decisão do David, Storage não
   precisa de pasta vazia pré-criada.
-- Registrado na `Sidebar.tsx` pelo Antigravity.
+- Registrado na `Sidebar.tsx` pelo Antigravity (em dois lugares:
+  Operacional (Projetos) e Engenharia (PCM)).
+- **UX revisada (mesmo dia, pedido do David):** checkbox de avulso bem
+  discreto (não mais em destaque), busca de projeto com autocomplete
+  mais rico + modal "ver todos" com filtro por cliente final e status
+  (`buscarProjetosComFiltros`, `listarClientesFinaisUsados`), cards de
+  tipo de projeto maiores com ícone, **Banco e Modelo agora são select**
+  (nunca texto livre) — `Modelo` é filtrado pelo `Banco` escolhido e
+  pelo tipo de projeto. Datas de início/término: mostradas (só leitura)
+  a partir de `projetos.data_efetiva_*` (com fallback pra `data_prevista_*`)
+  quando vinculado a projeto; campo próprio editável quando avulso.
+- **Nova migration `00011_bancos_modelos_relatorio.sql`** (proposta,
+  ainda não aplicada) — cria `engenharia_bancos_catalogo` e
+  `engenharia_modelos_relatorio` (banco + tipo_projeto + nome +
+  `config_id`, a chave que `lib/pptx.ts`/`MODELOS_CFG` vai usar quando a
+  geração real for conectada), já com seed dos 4 bancos e nomes de
+  modelo do app de referência.
 - Ainda faltam: upload de foto (câmera/galeria) + registro em
   `engenharia_progresso_relatorio`, geração do `.pptx` de verdade
-  (conectar `lib/pptx.ts` ao Storage), reordenação/prévia de slide.
+  (conectar `lib/pptx.ts` ao Storage, usando o `config_id` do modelo
+  escolhido), reordenação/prévia de slide.
+- **Limitação conhecida, não resolvida ainda:** trocar o tipo de
+  projeto (infraestrutura ↔ reforma) depois de já ter equipamentos ou
+  serviços habilitados não apaga os dados do tipo anterior — eles ficam
+  órfãos (guardados, mas escondidos da tela). Vale travar a troca de
+  tipo depois de criado, ou avisar o usuário antes — ainda não
+  implementado.
 - `npx tsc --noEmit` limpo com essas mudanças.
 
 ## Diferença de cor de marca encontrada

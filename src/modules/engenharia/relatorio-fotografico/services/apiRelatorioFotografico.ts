@@ -157,7 +157,7 @@ export async function obterEstrutura(id: string): Promise<EstruturaFotografica |
   return data;
 }
 
-export interface DadosNovaEstrutura {
+export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {
   projetoId: string | null; // null quando avulso
   userId: string | null;
   isAvulso: boolean;
@@ -167,6 +167,8 @@ export interface DadosNovaEstrutura {
   modeloRelatorio: string | null;
   agencia?: string | null;
   programa?: string | null;
+  data_inicio_obra?: string | null;
+  data_termino_obra?: string | null;
 }
 
 export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<EstruturaFotografica> {
@@ -184,6 +186,15 @@ export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<Estrutu
         modelo_relatorio: dados.modeloRelatorio,
         agencia: dados.agencia ?? null,
         programa: dados.programa ?? null,
+        upe: dados.upe ?? null,
+        sap: dados.sap ?? null,
+        gestor: dados.gestor ?? null,
+        fiscalizacao_empresa: dados.fiscalizacao_empresa ?? null,
+        fiscal: dados.fiscal ?? null,
+        construtora: dados.construtora ?? null,
+        responsavel: dados.responsavel ?? null,
+        data_inicio_obra: dados.data_inicio_obra ?? null,
+        data_termino_obra: dados.data_termino_obra ?? null,
         equipamentos: [],
         servicos_habilitados: [],
       },
