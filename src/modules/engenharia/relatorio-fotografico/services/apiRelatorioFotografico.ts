@@ -165,6 +165,24 @@ export async function obterEstrutura(id: string): Promise<EstruturaFotografica |
   return data;
 }
 
+/**
+ * Relatórios que o usuário criou — base do "Meus Relatórios" do Parceiro
+ * EGF. Filtra por `user_id` na própria query (funciona mesmo com a RLS
+ * ainda permissiva de hoje, já que só pedimos as linhas dele); relatórios
+ * onde ele é colaborador via Cowork entram depois que
+ * `engenharia_relatorio_colaboradores` existir (ver README.md).
+ */
+export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotografica[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb
+    .from("engenharia_estrutura_fotografica")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {
   projetoId: string | null; // null quando avulso
   userId: string | null;

@@ -415,18 +415,62 @@ de transitiva quebra se o Next parar de precisar dela.
   (hoje só tem ▲▼), drag-and-drop na ordem de ambientes (hoje só ▲▼),
   prévia de slide antes de montar.
 
-## Fora de escopo deste módulo — pedido em 03/09/2026, aguardando escopo
+## Parceiro EGF + Cowork — em andamento, 03/09/2026
 
 David pediu: cadastro de "Parceiro EGF" (opção no cadastro de usuário,
-o parceiro se registra com e-mail/usuário/senha, tem "esqueci minha
-senha" por e-mail, e um ambiente próprio com seus projetos/relatórios
-salvos) + "Cowork" (compartilhar um relatório pra edição por mais de
-uma pessoa). Isso é auth/permissões global do ERP — território do
-Antigravity, não deste módulo. Mandei mensagem perguntando como
-login/roles/convites estão implementados hoje antes de propor
-qualquer coisa — ver `_mensagens-agentes/PARA-ANTIGRAVITY.md` (some
-depois de lida) e o histórico desta conversa. Ainda não tem plano nem
-código — só o pedido registrado aqui pra não se perder.
+o parceiro se registra com e-mail/usuário/senha, "esqueci minha
+senha" por e-mail, ambiente próprio com seus relatórios salvos) +
+"Cowork" (compartilhar um relatório pra edição por mais de uma
+pessoa), com acesso restrito (confirmado: "não queremos isso pra
+convidados" — nada de acesso total como um cadastro comum tem hoje).
+
+Antigravity mapeou auth/RLS atual e propôs a arquitetura (tabela
+`engenharia_relatorio_colaboradores`, RLS por dono/colaborador/role,
+trigger `handle_new_user` honrando `raw_user_meta_data->>'role'`).
+David aprovou. Dividido assim:
+
+- **Antigravity aplica** (RLS é sensível, ele tem acesso pra testar
+  contra o banco real — pedido feito, aguardando): a tabela de
+  colaboradores, a RLS restritiva em
+  `engenharia_estrutura_fotografica`/`engenharia_progresso_relatorio`
+  pra `role = 'convidado'`, e o ajuste da trigger.
+- **Claude Code já implementou** (não depende do banco, só do
+  `user_id` que já existe na tabela desde sempre):
+  - `(auth)/login/page.tsx` — checkbox "Sou Parceiro EGF" na aba
+    "Primeiro Acesso" (manda `role: 'convidado'` no metadata do
+    `signUp`); link "Esqueci minha senha" com modal próprio
+    (`resetPasswordForEmail`).
+  - `(auth)/redefinir-senha/page.tsx` (nova) — aguarda o evento
+    `PASSWORD_RECOVERY`, deixa definir senha nova (`updateUser`).
+  - `AuthProvider.tsx` — `/redefinir-senha` isenta do redirect
+    automático de rota protegida (senão o usuário ia pra "/" antes de
+    trocar a senha).
+  - `services/apiRelatorioFotografico.ts` — `listarRelatoriosDoUsuario`
+    (filtra por `user_id`, funciona mesmo com a RLS de hoje ainda
+    permissiva, já que só pedimos as linhas do próprio usuário).
+  - `page.tsx` — Parceiro EGF (`profile.role === 'convidado'`) nunca
+    vê a busca de projeto corporativo (força avulso, esconde o
+    checkbox de alternar); seção nova **"Meus relatórios"** no topo,
+    lista os relatórios avulsos que ele mesmo criou, clicar retoma
+    de onde parou.
+  - `(app)/layout.tsx` — cabeçalho mostra "Ambiente do Parceiro EGF"
+    pra esse papel, independente da rota.
+  - **Ainda falta** (depende da tabela de colaboradores existir):
+    botão "Compartilhar" (Cowork) num relatório, e "Meus relatórios"
+    passar a incluir os compartilhados com o usuário, não só os
+    próprios. Sidebar restrita ao Parceiro EGF já é suficiente hoje
+    (o item de Engenharia já lista `'convidado'` nos `roles`
+    permitidos — os outros módulos já não aparecem pra ele, por
+    padrão, já que nenhum item de menu lista essa role).
+  - **Achado à parte, fora de escopo aqui**: `Sidebar.tsx` referencia
+    roles que não existem no enum atual (`'engenheiro'`,
+    `'financeiro'`, `'comercial'`, `'rh'`, `'juridico'`,
+    `'diretoria'` — o enum real é só `god/admin/user/convidado`,
+    confirmado pelo Antigravity). Na prática, hoje um usuário comum
+    (`role = 'user'`) não vê quase nenhum módulo no menu, só
+    `god`/`admin` veem tudo. Não mexi nisso — é um problema
+    pré-existente, sistêmico, e a "role certa" pra cada módulo não é
+    uma decisão minha pra tomar sozinho.
 - **Template real do Itaú Personnalité localizado (03/09/2026)** — o
   David tinha o `.pptx` modelo numa pasta local
   (`EGF\ITAÚ\PERSON REL FOTOGRÁFICO - MODELO.PPTX`). Staged em

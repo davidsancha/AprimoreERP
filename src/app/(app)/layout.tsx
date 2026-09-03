@@ -18,9 +18,12 @@ export default function AppLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  // Define o nome do ambiente com base na rota atual
+  // Define o nome do ambiente com base na rota atual — Parceiro EGF
+  // (acesso convidado) sempre vê o próprio rótulo, independente da rota,
+  // já que ele só navega dentro do Relatório Fotográfico mesmo.
   let ambienteName = 'Ambiente de Operações';
-  if (pathname.startsWith('/crm')) ambienteName = 'Ambiente de CRM & Pós-Venda';
+  if (profile?.role === 'convidado') ambienteName = 'Ambiente do Parceiro EGF';
+  else if (pathname.startsWith('/crm')) ambienteName = 'Ambiente de CRM & Pós-Venda';
   else if (pathname.startsWith('/engenharia')) ambienteName = 'Ambiente de Engenharia (PCM)';
   else if (pathname.startsWith('/financeiro')) ambienteName = 'Ambiente Financeiro';
   else if (pathname.startsWith('/suprimentos')) ambienteName = 'Ambiente de Suprimentos';

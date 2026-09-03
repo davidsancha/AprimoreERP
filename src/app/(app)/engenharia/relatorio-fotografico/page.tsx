@@ -39,6 +39,7 @@ import {
   lerServicosGlobais,
   listarClientesFinaisUsados,
   listarProgresso,
+  listarRelatoriosDoUsuario,
   obterEstruturaPorProjeto,
   removerAmbienteGlobal,
   reordenarProgresso,
@@ -664,9 +665,17 @@ function ModalPreviaSlide({
 }
 
 function RelatorioFotograficoContent() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const searchParams = useSearchParams();
   const projetoIdUrl = searchParams.get('projetoId');
+  // Parceiro EGF — acesso convidado, restrito aos próprios relatórios
+  // avulsos (nunca vinculados a projeto corporativo); ver README.md.
+  const ehParceiroEgf = profile?.role === 'convidado';
+
+  // "Meus relatórios" — só carregado/mostrado pro Parceiro EGF, no topo,
+  // antes de decidir criar um novo
+  const [meusRelatorios, setMeusRelatorios] = useState<EstruturaFotografica[]>([]);
+  const [carregandoMeusRelatorios, setCarregandoMeusRelatorios] = useState(false);
 
   // passo 1 — vínculo com projeto (ou avulso)
   const [isAvulso, setIsAvulso] = useState(false);
@@ -778,6 +787,21 @@ function RelatorioFotograficoContent() {
     lerBancosCatalogo().then(setBancosCatalogo).catch(() => {});
     lerAmbientesGlobais().then(setAmbientesGlobais).catch(() => {});
   }, []);
+
+  // Parceiro EGF nunca vincula a projeto corporativo — força avulso e
+  // carrega os relatórios que ele mesmo já criou, pra retomar sem precisar
+  // recriar do zero
+  useEffect(() => {
+    if (!ehParceiroEgf) return;
+    setIsAvulso(true);
+    if (!user?.id) return;
+    setCarregandoMeusRelatorios(true);
+    listarRelatoriosDoUsuario(user.id)
+      .then(setMeusRelatorios)
+      .catch(console.error)
+      .finally(() => setCarregandoMeusRelatorios(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehParceiroEgf, user?.id]);
 
   useEffect(() => {
     if (!estrutura) {
@@ -895,6 +919,14 @@ function RelatorioFotograficoContent() {
     setDadosExpandido(true);
     setModoSlides(false);
     setTipoExpandido(true);
+  }
+
+  /** "Meus Relatórios" (Parceiro EGF) — retoma um relatório avulso já criado por ele. */
+  function abrirMeuRelatorio(r: EstruturaFotografica) {
+    setIsAvulso(true);
+    setObraNome(r.obra_nome || '');
+    carregarEstruturaNoFormulario(r);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function carregarEstruturaNoFormulario(e: EstruturaFotografica) {
@@ -1459,6 +1491,34 @@ function RelatorioFotograficoContent() {
         <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold rounded-lg p-3">{erro}</div>
       )}
 
+      {ehParceiroEgf && !estrutura && (
+        <div className={secao}>
+          <h3 className={tituloSecao}>Meus relatórios</h3>
+          {carregandoMeusRelatorios ? (
+            <p className="text-[10px] text-sub italic">Carregando…</p>
+          ) : meusRelatorios.length === 0 ? (
+            <p className="text-[10px] text-sub italic">Nenhum relatório seu ainda — comece um novo abaixo.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {meusRelatorios.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => abrirMeuRelatorio(r)}
+                  className="text-left px-3 py-2.5 rounded-lg border border-card-border bg-background hover:border-brand-ocre/50 transition-colors"
+                >
+                  <div className="text-xs font-bold text-main truncate">{r.obra_nome || 'Sem nome'}</div>
+                  <div className="text-[10px] text-sub">
+                    {r.tipo_projeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'} ·{' '}
+                    {new Date(r.updated_at).toLocaleDateString('pt-BR')}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {modalBuscaAberto && <ModalBuscaProjetos onSelecionar={selecionarProjeto} onFechar={() => setModalBuscaAberto(false)} />}
 
       {/* resumo compacto — some com o "abre só o item 4": depois de iniciado o
@@ -1501,26 +1561,28 @@ function RelatorioFotograficoContent() {
             <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
               {badge(1, podeCriar)} Projeto
             </h3>
-            <label className="flex items-center gap-2 text-[11px] font-semibold text-sub hover:text-brand-ocre transition-colors cursor-pointer select-none bg-background border border-card-border/80 rounded-full pl-2.5 pr-3 py-1">
-              <input
-                type="checkbox"
-                className="w-3.5 h-3.5 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
-                checked={isAvulso}
-                onChange={(e) => {
-                  setIsAvulso(e.target.checked);
-                  setEstrutura(null);
-                  setProjetoSelecionado(null);
-                  setHabilitarEdicaoObra(false);
-                  setResumoExpandido(true);
-                  setDadosExpandido(true);
-                  setModoSlides(false);
-                  setTipoExpandido(true);
-                }}
-              />
-              <span>
-                Relatório avulso <span className="font-normal text-desc">(obra de terceiro, sem vínculo)</span>
-              </span>
-            </label>
+            {!ehParceiroEgf && (
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-sub hover:text-brand-ocre transition-colors cursor-pointer select-none bg-background border border-card-border/80 rounded-full pl-2.5 pr-3 py-1">
+                <input
+                  type="checkbox"
+                  className="w-3.5 h-3.5 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
+                  checked={isAvulso}
+                  onChange={(e) => {
+                    setIsAvulso(e.target.checked);
+                    setEstrutura(null);
+                    setProjetoSelecionado(null);
+                    setHabilitarEdicaoObra(false);
+                    setResumoExpandido(true);
+                    setDadosExpandido(true);
+                    setModoSlides(false);
+                    setTipoExpandido(true);
+                  }}
+                />
+                <span>
+                  Relatório avulso <span className="font-normal text-desc">(obra de terceiro, sem vínculo)</span>
+                </span>
+              </label>
+            )}
           </div>
         </div>
 
