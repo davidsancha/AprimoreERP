@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Building2, Check, Loader2, Ruler } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
@@ -8,6 +9,7 @@ import {
   atualizarEquipamentos,
   atualizarEstrutura,
   buscarProjetos,
+  buscarProjetoPorId,
   criarEstrutura,
   desabilitarServico,
   habilitarServico,
@@ -29,8 +31,10 @@ function ajustaPontos(pontos: { numero: string; local: string }[], qtd: number) 
   return novo;
 }
 
-export default function RelatorioFotograficoPage() {
+function RelatorioFotograficoContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const projetoIdUrl = searchParams.get('projetoId');
 
   // passo 1 — vínculo com projeto (ou avulso)
   const [isAvulso, setIsAvulso] = useState(false);
@@ -70,6 +74,14 @@ export default function RelatorioFotograficoPage() {
   useEffect(() => {
     lerServicosGlobais().then(setServicosGlobais).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (projetoIdUrl) {
+      buscarProjetoPorId(projetoIdUrl).then((p) => {
+        if (p) selecionarProjeto(p);
+      }).catch(console.error);
+    }
+  }, [projetoIdUrl]);
 
   // autocomplete de projeto — mesmo padrão do FormProjeto (busca + dropdown)
   useEffect(() => {
@@ -561,5 +573,13 @@ export default function RelatorioFotograficoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RelatorioFotograficoPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-desc">Carregando relatório fotográfico...</div>}>
+      <RelatorioFotograficoContent />
+    </Suspense>
   );
 }

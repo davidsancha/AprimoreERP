@@ -31,7 +31,8 @@ import {
   Utensils,
   MoreHorizontal,
   Calculator,
-  TrendingUp
+  TrendingUp,
+  Camera
 } from 'lucide-react';
 import { fetchProjetos, fetchOrcamentosByProjeto, fetchCustosRealizadosByProjeto, deletarProjeto, salvarCustoRealizado } from '@/modules/operacional/services/apiProjetos';
 import { fetchRecebimentosByProjeto } from '@/modules/financeiro/services/apiFinanceiro';
@@ -361,6 +362,13 @@ export default function ProjetosPage() {
                     {/* Botões de Ações Rápidas */}
                     <div className="flex items-center gap-2">
                       <Link
+                        href={`/engenharia/relatorio-fotografico?projetoId=${proj.id}`}
+                        className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs cursor-pointer"
+                        title="Relatório Fotográfico da Obra"
+                      >
+                        <Camera size={13} />
+                      </Link>
+                      <Link
                         href={`/projetos/editar?id=${proj.id}`}
                         className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs cursor-pointer"
                         title="Editar Projeto"
@@ -640,6 +648,13 @@ export default function ProjetosPage() {
                         <td className="py-4 px-3 md:px-6 flex justify-between md:justify-center items-center md:table-cell" onClick={(e) => e.stopPropagation()}>
                           <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Ações Rápidas</span>
                           <div className="flex items-center justify-end md:justify-center gap-1.5">
+                            <Link
+                              href={`/engenharia/relatorio-fotografico?projetoId=${proj.id}`}
+                              className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs"
+                              title="Relatório Fotográfico da Obra"
+                            >
+                              <Camera size={12} />
+                            </Link>
                             <Link
                               href={`/projetos/editar?id=${proj.id}`}
                               className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-brand-blue hover:text-white dark:hover:bg-brand-ocre dark:hover:text-brand-dark text-desc transition-colors shadow-xs"
@@ -1025,6 +1040,12 @@ export default function ProjetosPage() {
                                   {/* Ações e Relatórios */}
                                   <div className="space-y-1.5">
                                     <span className="text-[10px] text-desc font-black uppercase tracking-wider block mb-1">Ações Rápidas</span>
+                                    <Link
+                                      href={`/engenharia/relatorio-fotografico?projetoId=${proj.id}`}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-ocre/30 bg-brand-ocre/10 hover:bg-brand-ocre/20 text-xs font-bold text-brand-ocre transition-colors shadow-2xs cursor-pointer w-full"
+                                    >
+                                      <Camera size={12} /> Criar / Abrir Relatório Fotográfico
+                                    </Link>
                                     <Link
                                       href={`/projetos/editar?id=${proj.id}`}
                                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-card-border bg-background hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-bold text-sub transition-colors shadow-2xs cursor-pointer w-full"

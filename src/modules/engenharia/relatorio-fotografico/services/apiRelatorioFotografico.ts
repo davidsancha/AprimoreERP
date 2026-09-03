@@ -196,8 +196,44 @@ export async function desabilitarServico(estruturaId: string, nome: string): Pro
   return atualizarEstrutura(estruturaId, { servicos_habilitados: atual.servicos_habilitados.filter((s) => s !== nome) });
 }
 
-/* ---------- equipamentos/pontos (infraestrutura) ---------- */
-
 export async function atualizarEquipamentos(estruturaId: string, equipamentos: Equipamento[]): Promise<EstruturaFotografica> {
   return atualizarEstrutura(estruturaId, { equipamentos });
+}
+
+export async function buscarProjetoPorId(id: string): Promise<ProjetoResumo | null> {
+  const sb = exigirSupabase();
+  const { data: p, error } = await sb
+    .from("projetos")
+    .select(
+      "id, nome, os, tipologia, data_prevista_inicio, data_prevista_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel"
+    )
+    .eq("id", id)
+    .single();
+
+  if (error || !p) return null;
+
+  let clienteFinalNome: string | null = null;
+  if (p.cliente_final_id) {
+    const { data: c } = await sb.from("crm_clientes").select("nome").eq("id", p.cliente_final_id).single();
+    if (c) clienteFinalNome = c.nome;
+  }
+
+  return {
+    id: p.id,
+    nome: p.nome,
+    os: p.os,
+    tipologia: p.tipologia,
+    data_prevista_inicio: p.data_prevista_inicio,
+    data_prevista_termino: p.data_prevista_termino,
+    cliente_final_id: p.cliente_final_id,
+    cliente_final_nome: clienteFinalNome,
+    agencia: p.agencia ?? null,
+    upe: p.upe ?? null,
+    sap: p.sap ?? null,
+    gestor: p.gestor ?? null,
+    fiscalizacao_empresa: p.fiscalizacao_empresa ?? null,
+    fiscal: p.fiscal ?? null,
+    construtora: p.construtora ?? null,
+    responsavel: p.responsavel ?? null,
+  };
 }

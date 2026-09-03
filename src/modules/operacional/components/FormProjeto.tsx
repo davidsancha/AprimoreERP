@@ -16,7 +16,8 @@ import {
   Calculator,
   ArrowRight,
   Search,
-  UserPlus
+  UserPlus,
+  Camera
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/core/auth/AuthProvider';
@@ -597,21 +598,32 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
             {projetoId ? `Editando OS ${os} - Planejamento financeiro, endereço inteligente e orçamento.` : 'Planejamento estruturado de engenharia, endereço inteligente e faturamento financeiro.'}
           </p>
         </div>
-        <button
-          type="submit"
-          disabled={loading || !cronogramaValido}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" size={18} /> Salvando...
-            </>
-          ) : (
-            <>
-              <Check size={18} /> {projetoId ? 'Salvar Alterações' : 'Salvar Projeto Integrado'}
-            </>
+        <div className="flex items-center gap-2">
+          {projetoId && (
+            <Link
+              href={`/engenharia/relatorio-fotografico?projetoId=${projetoId}`}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-brand-ocre/30 bg-brand-ocre/10 hover:bg-brand-ocre/20 text-brand-ocre text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="Abrir ou cadastrar o Relatório Fotográfico deste projeto"
+            >
+              <Camera size={15} /> Relatório Fotográfico
+            </Link>
           )}
-        </button>
+          <button
+            type="submit"
+            disabled={loading || !cronogramaValido}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" size={18} /> Salvando...
+              </>
+            ) : (
+              <>
+                <Check size={18} /> {projetoId ? 'Salvar Alterações' : 'Salvar Projeto Integrado'}
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
@@ -677,10 +689,10 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 )}
               </div>
 
-              {/* Cliente Final / Beneficiário (Opcional) */}
+              {/* Cliente Final / Banco (Opcional) */}
               <div className="space-y-1 relative">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cliente Final / Beneficiário <span className="text-[9px] lowercase font-normal">(opcional)</span></label>
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cliente Final / Banco <span className="text-[9px] lowercase font-normal">(opcional)</span></label>
                   {podeCadastrarCliente && (
                     <Link href="/crm/clientes/novo" className="text-[10px] font-bold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1">
                       <UserPlus size={10} /> Novo
@@ -726,11 +738,11 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto *</label>
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto / Agência *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Residencial Aurora"
+                  placeholder="Ex: Residencial Aurora ou Agência 1234"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
@@ -750,11 +762,11 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Tipologia *</label>
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Tipologia / Programa *</label>
                   <input
                     type="text"
                     required
-                    placeholder="Residencial"
+                    placeholder="Residencial ou Programa"
                     value={tipologia}
                     onChange={(e) => setTipologia(e.target.value)}
                     className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold"
@@ -762,36 +774,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Valor Total do Contrato (R$) *</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-desc">
-                    <DollarSign size={14} className="text-brand-blue" />
-                  </div>
-                  <MoneyInput
-                    value={valorTotalContrato}
-                    onChange={setValorTotalContrato}
-                    required
-                    placeholder="0,00"
-                    className="w-full bg-background border border-card-border rounded-lg pl-8 pr-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Status do Projeto</label>
-                <select
-                  value={status}
-                  onChange={(e: any) => setStatus(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold"
-                >
-                  <option value="planejado">Planejado</option>
-                  <option value="em_andamento">Em Andamento</option>
-                  <option value="concluido">Concluído</option>
-                  <option value="suspenso">Suspenso</option>
-                </select>
-              </div>
-
+              {/* Datas Previstas */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Previsão Início *</label>
@@ -803,7 +786,19 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 </div>
               </div>
 
-              {/* Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia) — opcional */}
+              {/* Datas Efetivas (logo abaixo das previstas) */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Início Efetivo</label>
+                  <input type="date" value={dataEfetivaInicio} onChange={(e) => setDataEfetivaInicio(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Término Efetivo</label>
+                  <input type="date" value={dataEfetivaTermino} onChange={(e) => setDataEfetivaTermino(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+                </div>
+              </div>
+
+              {/* Dados de engenharia (opcional) */}
               <div className="pt-2 border-t border-card-border/60 space-y-2">
                 <p className="text-[9px] font-bold text-desc uppercase tracking-wider">Dados de engenharia (opcional)</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -842,14 +837,35 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Início Efetivo</label>
-                  <input type="date" value={dataEfetivaInicio} onChange={(e) => setDataEfetivaInicio(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Término Efetivo</label>
-                  <input type="date" value={dataEfetivaTermino} onChange={(e) => setDataEfetivaTermino(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-main focus:outline-none focus:border-brand-blue transition-all" />
+              {/* Status do Projeto (logo abaixo de Responsável) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Status do Projeto</label>
+                <select
+                  value={status}
+                  onChange={(e: any) => setStatus(e.target.value)}
+                  className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold"
+                >
+                  <option value="planejado">Planejado</option>
+                  <option value="em_andamento">Em Andamento</option>
+                  <option value="concluido">Concluído</option>
+                  <option value="suspenso">Suspenso</option>
+                </select>
+              </div>
+
+              {/* Valor Total do Contrato (logo abaixo de Status) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Valor Total do Contrato (R$) *</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-desc">
+                    <DollarSign size={14} className="text-brand-blue" />
+                  </div>
+                  <MoneyInput
+                    value={valorTotalContrato}
+                    onChange={setValorTotalContrato}
+                    required
+                    placeholder="0,00"
+                    className="w-full bg-background border border-card-border rounded-lg pl-8 pr-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold"
+                  />
                 </div>
               </div>
             </div>
