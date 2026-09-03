@@ -130,7 +130,10 @@ export async function lerModelosPorBanco(banco: string): Promise<ModeloRelatorio
  * a um projeto oficial. Só usada quando NÃO é avulso (avulso não tem
  * projeto_id, guarda esses campos na própria engenharia_estrutura_fotografica).
  */
-export async function atualizarCamposProjeto(projetoId: string, campos: CamposObraProjeto): Promise<void> {
+export async function atualizarCamposProjeto(
+  projetoId: string,
+  campos: CamposObraProjeto & { data_efetiva_inicio?: string | null; data_efetiva_termino?: string | null }
+): Promise<void> {
   await atualizarCamposEngenharia(projetoId, {
     agencia: campos.agencia,
     upe: campos.upe,
@@ -140,6 +143,8 @@ export async function atualizarCamposProjeto(projetoId: string, campos: CamposOb
     fiscal: campos.fiscal,
     construtora: campos.construtora,
     responsavel: campos.responsavel,
+    ...(campos.data_efetiva_inicio !== undefined ? { data_efetiva_inicio: campos.data_efetiva_inicio } : {}),
+    ...(campos.data_efetiva_termino !== undefined ? { data_efetiva_termino: campos.data_efetiva_termino } : {}),
   });
 }
 

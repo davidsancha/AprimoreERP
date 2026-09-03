@@ -185,6 +185,7 @@ function RelatorioFotograficoContent() {
   const [responsavel, setResponsavel] = useState('');
   const [dataInicioObra, setDataInicioObra] = useState('');
   const [dataTerminoObra, setDataTerminoObra] = useState('');
+  const [habilitarEdicaoObra, setHabilitarEdicaoObra] = useState(false);
 
   const [estrutura, setEstrutura] = useState<EstruturaFotografica | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -245,9 +246,11 @@ function RelatorioFotograficoContent() {
     [modelosDoBanco, tipoProjeto],
   );
 
-  // se o modelo selecionado deixar de valer (trocou banco/tipo), limpa
+  // se o modelo selecionado deixar de valer (trocou banco/tipo), limpa; se houver apenas 1 disponível, auto-seleciona por padrão
   useEffect(() => {
-    if (modeloRelatorio && !modelosFiltrados.some((m) => m.nome === modeloRelatorio)) {
+    if (modelosFiltrados.length === 1) {
+      setModeloRelatorio(modelosFiltrados[0].nome);
+    } else if (modeloRelatorio && !modelosFiltrados.some((m) => m.nome === modeloRelatorio)) {
       setModeloRelatorio('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,6 +271,11 @@ function RelatorioFotograficoContent() {
     setFiscal(p.fiscal || '');
     setConstrutora(p.construtora || '');
     setResponsavel(p.responsavel || '');
+    // datas de início e término herdadas da obra (efetivas com fallback para previstas)
+    setDataInicioObra(p.data_efetiva_inicio || p.data_prevista_inicio || '');
+    setDataTerminoObra(p.data_efetiva_termino || p.data_prevista_termino || '');
+    setHabilitarEdicaoObra(false);
+
     // banco: se o cliente final do projeto bater com um banco conhecido, pré-seleciona
     if (p.cliente_final_nome && bancosCatalogo.includes(p.cliente_final_nome)) {
       setBanco(p.cliente_final_nome);
@@ -283,6 +291,9 @@ function RelatorioFotograficoContent() {
     setProjetoSelecionado(null);
     setProjetoBusca('');
     setEstrutura(null);
+    setHabilitarEdicaoObra(false);
+    setDataInicioObra('');
+    setDataTerminoObra('');
   }
 
   function carregarEstruturaNoFormulario(e: EstruturaFotografica) {
@@ -367,7 +378,7 @@ function RelatorioFotograficoContent() {
           ...camposObra,
         });
         setEstrutura(nova);
-        if (!isAvulso) {
+        if (!isAvulso && habilitarEdicaoObra) {
           await atualizarCamposProjeto(projetoSelecionado!.id, {
             agencia: agencia || null,
             upe: upe || null,
@@ -377,6 +388,8 @@ function RelatorioFotograficoContent() {
             fiscal: fiscal || null,
             construtora: construtora || null,
             responsavel: responsavel || null,
+            data_efetiva_inicio: dataInicioObra || null,
+            data_efetiva_termino: dataTerminoObra || null,
           });
         }
         return nova;
@@ -390,7 +403,7 @@ function RelatorioFotograficoContent() {
         ...camposObra,
       });
       setEstrutura(atualizada);
-      if (!isAvulso && projetoSelecionado) {
+      if (!isAvulso && projetoSelecionado && habilitarEdicaoObra) {
         await atualizarCamposProjeto(projetoSelecionado.id, {
           agencia: agencia || null,
           upe: upe || null,
@@ -400,6 +413,8 @@ function RelatorioFotograficoContent() {
           fiscal: fiscal || null,
           construtora: construtora || null,
           responsavel: responsavel || null,
+          data_efetiva_inicio: dataInicioObra || null,
+          data_efetiva_termino: dataTerminoObra || null,
         });
       }
       return atualizada;
@@ -463,7 +478,11 @@ function RelatorioFotograficoContent() {
   const label = 'text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre';
   const input =
     'w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-bold';
-  const inputSomenteLeitura = 'w-full px-3 py-2 bg-card-border/20 border border-card-border rounded-lg text-xs text-desc font-bold';
+  const inputSomenteLeitura =
+    'w-full px-3 py-2 bg-slate-100 dark:bg-zinc-800/70 border border-card-border/80 rounded-lg text-xs text-main font-semibold cursor-not-allowed opacity-90 transition-all';
+
+  const somenteLeituraObra = !isAvulso && !habilitarEdicaoObra;
+  const classeCampoObra = somenteLeituraObra ? inputSomenteLeitura : input;
 
   return (
     <div className="space-y-6 pb-16">
@@ -484,23 +503,26 @@ function RelatorioFotograficoContent() {
 
       {/* 1 — vínculo com projeto ou avulso */}
       <div className={secao}>
-        <div className="flex items-center justify-between gap-2 border-b border-card-border pb-2">
-          <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
-            {badge(1)} Projeto
-          </h3>
-          <label className="flex items-center gap-1.5 text-[10px] text-desc cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="scale-90"
-              checked={isAvulso}
-              onChange={(e) => {
-                setIsAvulso(e.target.checked);
-                setEstrutura(null);
-                setProjetoSelecionado(null);
-              }}
-            />
-            Relatório avulso (obra de terceiro, sem vínculo)
-          </label>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border pb-2">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
+              {badge(1)} Projeto
+            </h3>
+            <label className="flex items-center gap-2 text-xs font-semibold text-main/90 hover:text-brand-ocre transition-colors cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="w-4 h-4 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
+                checked={isAvulso}
+                onChange={(e) => {
+                  setIsAvulso(e.target.checked);
+                  setEstrutura(null);
+                  setProjetoSelecionado(null);
+                  setHabilitarEdicaoObra(false);
+                }}
+              />
+              <span>Relatório avulso (obra de terceiro, sem vínculo)</span>
+            </label>
+          </div>
         </div>
 
         {!isAvulso ? (
@@ -612,7 +634,42 @@ function RelatorioFotograficoContent() {
 
       {/* 3 — dados de cabeçalho */}
       <div className={secao}>
-        <h3 className={tituloSecao}>{badge(3)} Dados do relatório</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-card-border pb-2">
+          <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
+            {badge(3)} Dados do relatório
+          </h3>
+        </div>
+
+        {/* Legenda importante e controle de edição para projeto vinculado */}
+        {!isAvulso && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-amber-800 dark:text-amber-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-400 cursor-pointer accent-amber-600"
+                  checked={habilitarEdicaoObra}
+                  disabled={!projetoSelecionado}
+                  onChange={(e) => setHabilitarEdicaoObra(e.target.checked)}
+                />
+                <span>Habilitar edição dos dados cadastrais da obra</span>
+              </label>
+              <span
+                className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                  habilitarEdicaoObra
+                    ? 'bg-amber-500 text-brand-dark font-black'
+                    : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                }`}
+              >
+                {habilitarEdicaoObra ? 'Modo Edição Ativo' : 'Somente Leitura'}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-900/90 dark:text-amber-200/90 font-medium leading-relaxed">
+              ⚠️ <strong>Importante:</strong> Estes dados pertencem ao cadastro da obra no AprimoreERP. Qualquer alteração salva aqui será aplicada diretamente a todo o projeto no sistema.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className={label}>Banco</label>
@@ -638,66 +695,138 @@ function RelatorioFotograficoContent() {
           </div>
           <div className="space-y-1">
             <label className={label}>Agência</label>
-            <input type="text" value={agencia} onChange={(e) => setAgencia(e.target.value)} className={input} placeholder="ex.: 8647PERSONNALITE RJ-CAMPOS" />
+            <input
+              type="text"
+              value={agencia}
+              onChange={(e) => setAgencia(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+              placeholder="ex.: 8647PERSONNALITE RJ-CAMPOS"
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Programa</label>
-            <input type="text" value={programa} onChange={(e) => setPrograma(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={programa}
+              onChange={(e) => setPrograma(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Cód UPE</label>
-            <input type="text" value={upe} onChange={(e) => setUpe(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={upe}
+              onChange={(e) => setUpe(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Cód SAP</label>
-            <input type="text" value={sap} onChange={(e) => setSap(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={sap}
+              onChange={(e) => setSap(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Gestor de obras</label>
-            <input type="text" value={gestor} onChange={(e) => setGestor(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={gestor}
+              onChange={(e) => setGestor(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Fiscalização — empresa</label>
-            <input type="text" value={fiscEmpresa} onChange={(e) => setFiscEmpresa(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={fiscEmpresa}
+              onChange={(e) => setFiscEmpresa(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Fiscal</label>
-            <input type="text" value={fiscal} onChange={(e) => setFiscal(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={fiscal}
+              onChange={(e) => setFiscal(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Construtora — empresa</label>
-            <input type="text" value={construtora} onChange={(e) => setConstrutora(e.target.value)} className={input} placeholder="ex.: EGF CONSTRUTORA" />
+            <input
+              type="text"
+              value={construtora}
+              onChange={(e) => setConstrutora(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+              placeholder="ex.: EGF CONSTRUTORA"
+            />
           </div>
           <div className="space-y-1">
             <label className={label}>Responsável</label>
-            <input type="text" value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className={input} />
+            <input
+              type="text"
+              value={responsavel}
+              onChange={(e) => setResponsavel(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+            />
           </div>
 
-          {isAvulso ? (
-            <>
-              <div className="space-y-1">
-                <label className={label}>Início da obra</label>
-                <input type="date" value={dataInicioObra} onChange={(e) => setDataInicioObra(e.target.value)} className={input} />
-              </div>
-              <div className="space-y-1">
-                <label className={label}>Término da obra</label>
-                <input type="date" value={dataTerminoObra} onChange={(e) => setDataTerminoObra(e.target.value)} className={input} />
-              </div>
-            </>
-          ) : (
-            projetoSelecionado && (
-              <>
-                <div className="space-y-1">
-                  <label className={label}>Início da obra</label>
-                  <input type="text" readOnly value={formatarData(inicioExibido)} className={inputSomenteLeitura} />
-                </div>
-                <div className="space-y-1">
-                  <label className={label}>Término da obra</label>
-                  <input type="text" readOnly value={formatarData(terminoExibido)} className={inputSomenteLeitura} />
-                </div>
-              </>
-            )
-          )}
+          <div className="space-y-1">
+            <label className={label}>Início da obra (Efetivo)</label>
+            <input
+              type={isAvulso || habilitarEdicaoObra ? "date" : "text"}
+              value={
+                isAvulso || habilitarEdicaoObra
+                  ? dataInicioObra
+                  : (dataInicioObra ? formatarData(dataInicioObra) : '—')
+              }
+              onChange={(e) => setDataInicioObra(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+              placeholder="Não informado"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className={label}>Término da obra (Efetivo)</label>
+            <input
+              type={isAvulso || habilitarEdicaoObra ? "date" : "text"}
+              value={
+                isAvulso || habilitarEdicaoObra
+                  ? dataTerminoObra
+                  : (dataTerminoObra ? formatarData(dataTerminoObra) : '—')
+              }
+              onChange={(e) => setDataTerminoObra(e.target.value)}
+              readOnly={somenteLeituraObra}
+              disabled={!isAvulso && !projetoSelecionado}
+              className={classeCampoObra}
+              placeholder="Não informado"
+            />
+          </div>
         </div>
         {projetoSelecionado && (
           <p className="text-[10px] text-sub">Datas vêm do cadastro do projeto (efetiva, ou prevista se ainda não iniciou) — edite lá se precisar mudar.</p>

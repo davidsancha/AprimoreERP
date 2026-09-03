@@ -302,7 +302,7 @@ export async function salvarCustoRealizado(custo: CustoRealizado): Promise<Custo
  */
 export async function atualizarCamposEngenharia(
   projetoId: string,
-  campos: Pick<Projeto, 'agencia' | 'upe' | 'sap' | 'gestor' | 'fiscalizacao_empresa' | 'fiscal' | 'construtora' | 'responsavel'>
+  campos: Partial<Pick<Projeto, 'agencia' | 'upe' | 'sap' | 'gestor' | 'fiscalizacao_empresa' | 'fiscal' | 'construtora' | 'responsavel' | 'data_efetiva_inicio' | 'data_efetiva_termino'>>
 ): Promise<void> {
   if (!supabase) {
     throw new Error('Supabase client not initialized');
