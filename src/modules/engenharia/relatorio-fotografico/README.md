@@ -128,6 +128,40 @@ de transitiva quebra se o Next parar de precisar dela.
   - `page.tsx` ganhou o componente `SlotFoto` (miniatura clicável que
     vira preview assim que há uma foto salva) usado tanto em
     equipamentos/pontos quanto nos slides de reforma.
+- **Reformulação da tela pós-criação (03/09/2026, Claude Code, a pedido do
+  David)** — ele testou o upload de fotos e achou a experiência pobre
+  comparada ao app de referência local. Portado mais fielmente de
+  `web/src/pages/Relatorio.tsx` daquele app:
+  - **Ambientes**: catálogo global com grid de chips (criar/remover),
+    igual ao original — qualquer ambiente criado já fica disponível
+    pra qualquer relatório futuro. Usa `lerAmbientesGlobais`/
+    `adicionarAmbienteGlobal`/`removerAmbienteGlobal` (já existiam no
+    serviço, só faltava a UI).
+  - **Serviços**: trocado o grid de checkboxes por um fluxo em duas
+    etapas como o original — select "conhecido, ainda não habilitado"
+    + botão "habilitar aqui", e input "+ novo serviço" + botão "criar
+    e habilitar" (cria no catálogo global E habilita neste relatório
+    numa ação só). Habilitados aparecem como chips removíveis.
+  - **Coluna de slides à direita**: diferente do original (que listava
+    tudo empilhado numa coluna só, sem preview de foto de verdade) —
+    aqui é uma coluna fixa (`lg:sticky`) com miniaturas reais (usa
+    `urlPublicaFoto`, não só nome de arquivo como no app de
+    referência), empilhadas na ordem final do PowerPoint. Clicar abre
+    `ModalPreviaSlide` — lightbox com as duas fotos lado a lado em
+    tamanho grande + legenda (mesma regra do PowerPoint,
+    `descricaoDe`/`descricaoReforma` de `calc.ts`).
+  - **Reordenar**: setas ▲/▼ por slide (usa `reordenarProgresso`, já
+    existia no serviço). **Simplificação consciente**: o app de
+    referência tinha arrastar-e-soltar nativo (HTML5 drag-and-drop);
+    aqui ficou só as setas — mesmo resultado final, mais simples e
+    sem os bugs comuns de drag-and-drop em mobile/touch. Se o David
+    quiser o arrastar de verdade depois, é uma adição isolada.
+  - `npx tsc --noEmit` e `eslint` limpos (só os avisos
+    `set-state-in-effect` pré-existentes no arquivo, não introduzidos
+    por esta mudança).
+  - **Ainda não verificado visualmente** — o login da aplicação pede
+    e-mail/senha e por política o Claude Code não pode digitar
+    credenciais; aguardando o David logar na aba aberta.
 - Ainda faltam: geração do `.pptx` de verdade (conectar `lib/pptx.ts`
   ao Storage, usando o `config_id` do modelo escolhido — este é o
   próximo passo natural, já que agora existem fotos pra consumir),

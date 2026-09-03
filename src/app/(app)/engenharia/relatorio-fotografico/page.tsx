@@ -2,9 +2,10 @@
 
 import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Building2, Camera, Check, List, Loader2, Ruler, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Building2, Camera, Check, ChevronDown, ChevronUp, List, Loader2, Ruler, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
+  adicionarAmbienteGlobal,
   atualizarCamposProjeto,
   atualizarEquipamentos,
   atualizarEstrutura,
@@ -17,16 +18,19 @@ import {
   desabilitarServico,
   excluirProgresso,
   habilitarServico,
+  lerAmbientesGlobais,
   lerBancosCatalogo,
   lerModelosPorBanco,
   lerServicosGlobais,
   listarClientesFinaisUsados,
   listarProgresso,
   obterEstruturaPorProjeto,
+  removerAmbienteGlobal,
+  reordenarProgresso,
   uploadFotoRelatorio,
   urlPublicaFoto,
 } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotografico';
-import { limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
+import { descricaoDe, descricaoReforma, limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
 import type {
   Equipamento,
   EstruturaFotografica,
@@ -229,6 +233,52 @@ function SlotFoto({
   );
 }
 
+/** Legenda do slide (mesma regra usada no PowerPoint) — infra: equipamento+ponto; reforma: serviço+ambiente. */
+function legendaSlide(s: ProgressoSlide): string {
+  if (s.equipamento) return descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'normal');
+  return descricaoReforma(s.servico || '', s.ambiente || '', 'normal');
+}
+
+/** Lightbox de slide — antes/durante + depois lado a lado, ampliado, igual ao layout final do PowerPoint. */
+function ModalPreviaSlide({ slide, indice, onFechar }: { slide: ProgressoSlide; indice: number; onFechar: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
+      <div
+        className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-card-border">
+          <h3 className="text-sm font-bold text-main font-vomzom">Slide {indice + 1}</h3>
+          <button onClick={onFechar} className="text-desc hover:text-main">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 flex flex-wrap gap-4 overflow-y-auto">
+          <div className="flex-1 min-w-[240px] space-y-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={urlPublicaFoto(slide.foto_antes_path)}
+              alt={slide.etapa1}
+              className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
+            />
+            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">{slide.etapa1 === 'ANTES' ? 'Antes' : 'Durante'}</p>
+          </div>
+          <div className="flex-1 min-w-[240px] space-y-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={urlPublicaFoto(slide.foto_depois_path)}
+              alt="Depois"
+              className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
+            />
+            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">Depois</p>
+          </div>
+        </div>
+        <div className="px-4 pb-4 text-xs font-bold text-main">{legendaSlide(slide)}</div>
+      </div>
+    </div>
+  );
+}
+
 function RelatorioFotograficoContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -271,11 +321,17 @@ function RelatorioFotograficoContent() {
   const [resumoExpandido, setResumoExpandido] = useState(true);
   const proximaEtapaRef = useRef<HTMLDivElement | null>(null);
 
-  // passo 4 — equipamentos (infra) / serviços (reforma)
+  // passo 4 — equipamentos (infra) / serviços e ambientes (reforma)
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [servicosGlobais, setServicosGlobais] = useState<string[]>([]);
   const [novoServico, setNovoServico] = useState('');
+  const [servicoDisponivelEscolhido, setServicoDisponivelEscolhido] = useState('');
   const [servicoOcupado, setServicoOcupado] = useState<string | null>(null);
+  const [ambientesGlobais, setAmbientesGlobais] = useState<string[]>([]);
+  const [novoAmbiente, setNovoAmbiente] = useState('');
+  const [ambienteOcupado, setAmbienteOcupado] = useState<string | null>(null);
+  const [previaIndice, setPreviaIndice] = useState<number | null>(null);
+  const [ordemOcupada, setOrdemOcupada] = useState(false);
 
   // fotos/progresso (slides antes/depois) — passo 5
   const [progresso, setProgresso] = useState<ProgressoSlide[]>([]);
@@ -291,6 +347,7 @@ function RelatorioFotograficoContent() {
   useEffect(() => {
     lerServicosGlobais().then(setServicosGlobais).catch(() => {});
     lerBancosCatalogo().then(setBancosCatalogo).catch(() => {});
+    lerAmbientesGlobais().then(setAmbientesGlobais).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -579,6 +636,52 @@ function RelatorioFotograficoContent() {
       setEstrutura(await desabilitarServico(estrutura.id, nome));
     } finally {
       setServicoOcupado(null);
+    }
+  }
+
+  /** Ambientes são um catálogo global (igual serviços), mas sem etapa de "habilitar por relatório" — qualquer um cadastrado já vale pra qualquer slide. */
+  async function criarAmbiente(nome: string) {
+    const limpo = nome.trim();
+    if (!limpo) return;
+    setAmbienteOcupado(limpo);
+    try {
+      await adicionarAmbienteGlobal(limpo);
+      setAmbientesGlobais(await lerAmbientesGlobais());
+      setNovoAmbiente('');
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setAmbienteOcupado(null);
+    }
+  }
+
+  async function removerAmbiente(nome: string) {
+    setAmbienteOcupado(nome);
+    try {
+      await removerAmbienteGlobal(nome);
+      setAmbientesGlobais((prev) => prev.filter((a) => a !== nome));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setAmbienteOcupado(null);
+    }
+  }
+
+  /** Move um slide uma posição pra cima/baixo na lista — grava a nova ordem inteira (mais simples e confiável que arrastar). */
+  async function moverSlide(id: string, direcao: -1 | 1) {
+    const i = progresso.findIndex((p) => p.id === id);
+    const j = i + direcao;
+    if (i < 0 || j < 0 || j >= progresso.length) return;
+    const novaOrdem = [...progresso];
+    [novaOrdem[i], novaOrdem[j]] = [novaOrdem[j]!, novaOrdem[i]!];
+    setProgresso(novaOrdem);
+    setOrdemOcupada(true);
+    try {
+      await reordenarProgresso(novaOrdem.map((p) => p.id));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setOrdemOcupada(false);
     }
   }
 
@@ -1099,9 +1202,12 @@ function RelatorioFotograficoContent() {
         </button>
       </div>
 
-      {/* continuação após "Iniciar relatório" — pendências + serviços/equipamentos,
-          tudo junto pra ficar claro que é a sequência natural, não um item isolado */}
-      <div ref={proximaEtapaRef} className="space-y-6">
+      {/* continuação após "Iniciar relatório" — dados de apoio (serviços/ambientes/
+          equipamentos) à esquerda, slides já criados numa coluna fixa à direita
+          (como um painel de miniaturas do PowerPoint) — mostra a sequência real
+          em vez de deixar tudo empilhado e sem preview */}
+      <div ref={proximaEtapaRef} className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+      <div className="space-y-6 min-w-0">
       {estrutura && pendencias.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-start gap-2.5">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
@@ -1115,33 +1221,98 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
+      {/* Ambientes — catálogo global, reaproveitado em qualquer relatório futuro */}
+      {estrutura && tipoProjeto === 'reforma' && (
+        <div className={secao}>
+          <h3 className={tituloSecao}>Ambientes</h3>
+          <p className="text-[10px] text-sub">
+            Lista global — um ambiente criado aqui já fica disponível pra qualquer relatório futuro, não só este.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={novoAmbiente}
+              onChange={(e) => setNovoAmbiente(e.target.value.toUpperCase())}
+              className={input}
+              placeholder="Nome de um ambiente novo"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && novoAmbiente.trim()) criarAmbiente(novoAmbiente);
+              }}
+            />
+            <button
+              type="button"
+              disabled={!novoAmbiente.trim()}
+              onClick={() => criarAmbiente(novoAmbiente)}
+              className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40 whitespace-nowrap"
+            >
+              + adicionar
+            </button>
+          </div>
+          {ambientesGlobais.length === 0 ? (
+            <p className="text-[10px] text-sub italic">Nenhum ambiente cadastrado ainda.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ambientesGlobais.map((a) => (
+                <div
+                  key={a}
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-card-border bg-background text-xs font-bold text-main"
+                  style={{ opacity: ambienteOcupado === a ? 0.5 : 1 }}
+                >
+                  <span className="truncate">{a}</span>
+                  <button
+                    type="button"
+                    disabled={ambienteOcupado === a}
+                    onClick={() => removerAmbiente(a)}
+                    className="text-desc hover:text-red-500 shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 4 — serviços (reforma) */}
       {estrutura && tipoProjeto === 'reforma' && (
         <div className={secao}>
           <h3 className={tituloSecao}>{badge(4)} Serviços</h3>
           <p className="text-[10px] text-sub">
-            Os nomes ficam guardados centralmente — marque os que valem para esta obra. Desmarcar não apaga nada, só
-            tira da lista daqui.
+            Selecione um serviço já conhecido pra habilitar nesta obra, ou crie um novo — nos dois casos ele já sai
+            habilitado, pronto pra receber slides.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {servicosGlobais.map((nome) => {
-              const habilitado = estrutura.servicos_habilitados.includes(nome);
-              return (
-                <label
-                  key={nome}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold ${habilitado ? 'border-brand-ocre bg-brand-ocre/10 text-main' : 'border-card-border bg-background text-sub'}`}
-                  style={{ opacity: servicoOcupado === nome ? 0.6 : 1, cursor: servicoOcupado === nome ? 'wait' : 'pointer' }}
+
+          <div className="flex flex-wrap gap-2 items-center">
+            {servicosGlobais.filter((s) => !estrutura.servicos_habilitados.includes(s)).length > 0 && (
+              <>
+                <select
+                  value={servicoDisponivelEscolhido}
+                  onChange={(e) => setServicoDisponivelEscolhido(e.target.value)}
+                  className={input + ' w-auto min-w-[200px]'}
                 >
-                  <input
-                    type="checkbox"
-                    checked={habilitado}
-                    disabled={servicoOcupado === nome}
-                    onChange={() => (habilitado ? desabilitarServicoAqui(nome) : habilitarServicoAqui(nome))}
-                  />
-                  {nome}
-                </label>
-              );
-            })}
+                  <option value="">Serviço conhecido, ainda não habilitado…</option>
+                  {servicosGlobais
+                    .filter((s) => !estrutura.servicos_habilitados.includes(s))
+                    .map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!servicoDisponivelEscolhido || servicoOcupado === servicoDisponivelEscolhido}
+                  onClick={() => {
+                    habilitarServicoAqui(servicoDisponivelEscolhido);
+                    setServicoDisponivelEscolhido('');
+                  }}
+                  className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40 whitespace-nowrap"
+                >
+                  habilitar aqui
+                </button>
+              </>
+            )}
           </div>
           <div className="flex gap-2">
             <input
@@ -1158,16 +1329,38 @@ function RelatorioFotograficoContent() {
               type="button"
               disabled={!novoServico.trim()}
               onClick={() => habilitarServicoAqui(novoServico)}
-              className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40"
+              className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40 whitespace-nowrap"
             >
-              + novo serviço
+              criar e habilitar
             </button>
           </div>
 
           {estrutura.servicos_habilitados.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-card-border">
+              {estrutura.servicos_habilitados.map((nome) => (
+                <div
+                  key={nome}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-brand-ocre/40 bg-brand-ocre/10 text-xs font-bold text-main"
+                  style={{ opacity: servicoOcupado === nome ? 0.5 : 1 }}
+                >
+                  {nome}
+                  <button
+                    type="button"
+                    disabled={servicoOcupado === nome}
+                    onClick={() => desabilitarServicoAqui(nome)}
+                    title="Desabilitar (não apaga o catálogo global)"
+                    className="text-brand-ocre/70 hover:text-red-500"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {estrutura.servicos_habilitados.length > 0 && (
             <div className="space-y-3 pt-2 border-t border-card-border">
               {estrutura.servicos_habilitados.map((servico) => {
-                const slides = progresso.filter((p) => p.servico === servico);
                 return (
                   <div key={servico} className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -1178,30 +1371,10 @@ function RelatorioFotograficoContent() {
                           onClick={() => setNovoSlideServico(servico)}
                           className="text-[10px] font-bold text-brand-blue hover:underline"
                         >
-                          + adicionar foto
+                          + novo slide
                         </button>
                       )}
                     </div>
-
-                    {slides.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {slides.map((s) => (
-                          <div key={s.id} className="relative flex gap-1">
-                            <SlotFoto rotulo={s.etapa1 === 'ANTES' ? 'Antes' : 'Durante'} caminho={s.foto_antes_path} somenteLeitura onSelecionar={() => {}} />
-                            <SlotFoto rotulo="Depois" caminho={s.foto_depois_path} somenteLeitura onSelecionar={() => {}} />
-                            <button
-                              type="button"
-                              disabled={fotoOcupada === 'remover-' + s.id}
-                              onClick={() => removerSlide(s.id)}
-                              title="Remover slide"
-                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center disabled:opacity-40"
-                            >
-                              <Trash2 size={9} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
                     {novoSlideServico === servico && (
                       <div className="bg-background border border-card-border rounded-lg p-3 space-y-2">
@@ -1214,13 +1387,14 @@ function RelatorioFotograficoContent() {
                             <option value="ANTES">Antes</option>
                             <option value="DURANTE">Durante</option>
                           </select>
-                          <input
-                            type="text"
-                            value={novoSlideAmbiente}
-                            onChange={(e) => setNovoSlideAmbiente(e.target.value)}
-                            className={input}
-                            placeholder="Ambiente (opcional)"
-                          />
+                          <select value={novoSlideAmbiente} onChange={(e) => setNovoSlideAmbiente(e.target.value)} className={input}>
+                            <option value="">Ambiente (opcional)</option>
+                            {ambientesGlobais.map((a) => (
+                              <option key={a} value={a}>
+                                {a}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div className="flex items-center gap-2">
                           <SlotFoto
@@ -1353,6 +1527,81 @@ function RelatorioFotograficoContent() {
         </div>
       )}
       </div>
+
+      {/* coluna direita — miniaturas dos slides já criados, empilhadas, na
+          ordem final do PowerPoint; clicar amplia (mesma ideia de painel de
+          slides do próprio PowerPoint / preview de arquivo) */}
+      {estrutura && (
+        <div className="lg:sticky lg:top-4 space-y-3">
+          <div className={secao}>
+            <h3 className={tituloSecao}>
+              Slides {progresso.length > 0 && <span className="text-desc normal-case font-semibold">({progresso.length})</span>}
+            </h3>
+            {progresso.length === 0 ? (
+              <p className="text-[10px] text-sub italic">
+                Nenhum slide ainda — as fotos que você enviar aparecem aqui, empilhadas na ordem final do PowerPoint.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-[75vh] overflow-y-auto pr-1 -mr-1">
+                {progresso.map((s, i) => (
+                  <div key={s.id} className="flex gap-2 border border-card-border rounded-lg p-2 bg-background">
+                    <button
+                      type="button"
+                      onClick={() => setPreviaIndice(i)}
+                      title="Ampliar slide"
+                      className="flex gap-1 shrink-0 cursor-zoom-in rounded overflow-hidden"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urlPublicaFoto(s.foto_antes_path)} alt="" className="w-10 h-10 object-cover" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urlPublicaFoto(s.foto_depois_path)} alt="" className="w-10 h-10 object-cover" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-bold text-main truncate">
+                        {i + 1}. {legendaSlide(s)}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          type="button"
+                          disabled={i === 0 || ordemOcupada}
+                          onClick={() => moverSlide(s.id, -1)}
+                          className="text-desc hover:text-main disabled:opacity-30"
+                          title="Mover pra cima"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={i === progresso.length - 1 || ordemOcupada}
+                          onClick={() => moverSlide(s.id, 1)}
+                          className="text-desc hover:text-main disabled:opacity-30"
+                          title="Mover pra baixo"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={fotoOcupada === 'remover-' + s.id}
+                          onClick={() => removerSlide(s.id)}
+                          className="ml-auto text-desc hover:text-red-500 disabled:opacity-30"
+                          title="Remover slide"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
+
+      {previaIndice !== null && progresso[previaIndice] && (
+        <ModalPreviaSlide slide={progresso[previaIndice]!} indice={previaIndice} onFechar={() => setPreviaIndice(null)} />
+      )}
     </div>
   );
 }
