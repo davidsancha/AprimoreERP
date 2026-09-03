@@ -75,10 +75,30 @@ export interface ProjetoResumo extends CamposObraProjeto {
   nome: string;
   os: string;
   tipologia: string;
+  status: string;
   data_prevista_inicio: string | null;
   data_prevista_termino: string | null;
+  data_efetiva_inicio: string | null;
+  data_efetiva_termino: string | null;
   cliente_final_id: string | null;
   cliente_final_nome: string | null;
+}
+
+/** Filtros da busca ampliada de projetos (lista completa, não só autocomplete). */
+export interface FiltrosBuscaProjeto {
+  texto?: string;
+  clienteFinalId?: string;
+  status?: string;
+}
+
+/** Linha de `engenharia_modelos_relatorio` (migration 00011). */
+export interface ModeloRelatorioOpcao {
+  id: string;
+  banco: string;
+  tipo_projeto: TipoProjetoFotografico | null;
+  nome: string;
+  config_id: string | null;
+  storage_template_path: string | null;
 }
 
 /** Campos que alimentam os slides 1 e 2 do PowerPoint — mesmo formato usado por lib/pptx.ts. */

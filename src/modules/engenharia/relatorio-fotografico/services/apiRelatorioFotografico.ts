@@ -1,7 +1,52 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { atualizarCamposEngenharia } from "@/modules/operacional/services/apiProjetos";
 import { limpaNome } from "../calc";
-import type { CamposObraProjeto, Equipamento, EstruturaFotografica, ProjetoResumo, TipoProjetoFotografico } from "../types";
+import type {
+  CamposObraProjeto,
+  Equipamento,
+  EstruturaFotografica,
+  FiltrosBuscaProjeto,
+  ModeloRelatorioOpcao,
+  ProjetoResumo,
+  TipoProjetoFotografico,
+} from "../types";
+
+const CAMPOS_PROJETO_RESUMO =
+  "id, nome, os, tipologia, status, data_prevista_inicio, data_prevista_termino, data_efetiva_inicio, data_efetiva_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel";
+
+async function resolverNomesClientes(sb: ReturnType<typeof exigirSupabase>, ids: (string | null)[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids.filter(Boolean))] as string[];
+  const nomesPorId = new Map<string, string>();
+  if (!unicos.length) return nomesPorId;
+  const { data, error } = await sb.from("crm_clientes").select("id, nome").in("id", unicos);
+  if (error) throw error;
+  for (const c of data || []) nomesPorId.set(c.id, c.nome);
+  return nomesPorId;
+}
+
+function paraProjetoResumo(p: any, nomesPorId: Map<string, string>): ProjetoResumo {
+  return {
+    id: p.id,
+    nome: p.nome,
+    os: p.os,
+    tipologia: p.tipologia,
+    status: p.status,
+    data_prevista_inicio: p.data_prevista_inicio,
+    data_prevista_termino: p.data_prevista_termino,
+    data_efetiva_inicio: p.data_efetiva_inicio,
+    data_efetiva_termino: p.data_efetiva_termino,
+    cliente_final_id: p.cliente_final_id,
+    cliente_final_nome: p.cliente_final_id ? nomesPorId.get(p.cliente_final_id) ?? null : null,
+    agencia: p.agencia ?? null,
+    upe: p.upe ?? null,
+    sap: p.sap ?? null,
+    gestor: p.gestor ?? null,
+    fiscalizacao_empresa: p.fiscalizacao_empresa ?? null,
+    fiscal: p.fiscal ?? null,
+    construtora: p.construtora ?? null,
+    responsavel: p.responsavel ?? null,
+  };
+}
 
 function exigirSupabase() {
   if (!supabase) throw new Error("Supabase client não inicializado.");
@@ -19,44 +64,63 @@ function exigirSupabase() {
  */
 export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
   const sb = exigirSupabase();
-  const query = sb
-    .from("projetos")
-    .select(
-      "id, nome, os, tipologia, data_prevista_inicio, data_prevista_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel",
-    )
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const query = sb.from("projetos").select(CAMPOS_PROJETO_RESUMO).order("created_at", { ascending: false }).limit(20);
 
   const { data, error } = termo.trim() ? await query.or(`nome.ilike.%${termo}%,os.ilike.%${termo}%`) : await query;
   if (error) throw error;
 
   const projetos = data || [];
-  const idsClientesFinais = [...new Set(projetos.map((p) => p.cliente_final_id).filter(Boolean))] as string[];
-  const nomesPorId = new Map<string, string>();
-  if (idsClientesFinais.length) {
-    const { data: clientes, error: errClientes } = await sb.from("crm_clientes").select("id, nome").in("id", idsClientesFinais);
-    if (errClientes) throw errClientes;
-    for (const c of clientes || []) nomesPorId.set(c.id, c.nome);
-  }
+  const nomesPorId = await resolverNomesClientes(sb, projetos.map((p) => p.cliente_final_id));
+  return projetos.map((p) => paraProjetoResumo(p, nomesPorId));
+}
 
-  return projetos.map((p) => ({
-    id: p.id,
-    nome: p.nome,
-    os: p.os,
-    tipologia: p.tipologia,
-    data_prevista_inicio: p.data_prevista_inicio,
-    data_prevista_termino: p.data_prevista_termino,
-    cliente_final_id: p.cliente_final_id,
-    cliente_final_nome: p.cliente_final_id ? nomesPorId.get(p.cliente_final_id) ?? null : null,
-    agencia: p.agencia ?? null,
-    upe: p.upe ?? null,
-    sap: p.sap ?? null,
-    gestor: p.gestor ?? null,
-    fiscalizacao_empresa: p.fiscalizacao_empresa ?? null,
-    fiscal: p.fiscal ?? null,
-    construtora: p.construtora ?? null,
-    responsavel: p.responsavel ?? null,
-  }));
+/**
+ * Lista ampliada para o modal "ver todos os projetos" — filtra por texto,
+ * cliente final e/ou status, sem o limite de 20 do autocomplete.
+ */
+export async function buscarProjetosComFiltros(filtros: FiltrosBuscaProjeto): Promise<ProjetoResumo[]> {
+  const sb = exigirSupabase();
+  let query = sb.from("projetos").select(CAMPOS_PROJETO_RESUMO).order("nome", { ascending: true }).limit(200);
+
+  if (filtros.texto?.trim()) query = query.or(`nome.ilike.%${filtros.texto}%,os.ilike.%${filtros.texto}%`);
+  if (filtros.clienteFinalId) query = query.eq("cliente_final_id", filtros.clienteFinalId);
+  if (filtros.status) query = query.eq("status", filtros.status);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const projetos = data || [];
+  const nomesPorId = await resolverNomesClientes(sb, projetos.map((p) => p.cliente_final_id));
+  return projetos.map((p) => paraProjetoResumo(p, nomesPorId));
+}
+
+/** Clientes finais distintos já usados em projetos — para o filtro "Banco/Cliente final" do modal de busca. */
+export async function listarClientesFinaisUsados(): Promise<{ id: string; nome: string }[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("projetos").select("cliente_final_id").not("cliente_final_id", "is", null);
+  if (error) throw error;
+  const ids = [...new Set((data || []).map((p) => p.cliente_final_id))] as string[];
+  if (!ids.length) return [];
+  const { data: clientes, error: errClientes } = await sb.from("crm_clientes").select("id, nome").in("id", ids).order("nome");
+  if (errClientes) throw errClientes;
+  return clientes || [];
+}
+
+/* ---------- catálogo de bancos e modelos de relatório (migration 00011) ---------- */
+
+export async function lerBancosCatalogo(): Promise<string[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("engenharia_bancos_catalogo").select("nome").order("nome");
+  if (error) throw error;
+  return (data || []).map((r) => r.nome);
+}
+
+/** Modelos disponíveis para um banco — a tela filtra também por tipo de projeto (infra/reforma) no cliente. */
+export async function lerModelosPorBanco(banco: string): Promise<ModeloRelatorioOpcao[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("engenharia_modelos_relatorio").select("*").eq("banco", banco).order("nome");
+  if (error) throw error;
+  return data || [];
 }
 
 /**
@@ -202,38 +266,8 @@ export async function atualizarEquipamentos(estruturaId: string, equipamentos: E
 
 export async function buscarProjetoPorId(id: string): Promise<ProjetoResumo | null> {
   const sb = exigirSupabase();
-  const { data: p, error } = await sb
-    .from("projetos")
-    .select(
-      "id, nome, os, tipologia, data_prevista_inicio, data_prevista_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel"
-    )
-    .eq("id", id)
-    .single();
-
+  const { data: p, error } = await sb.from("projetos").select(CAMPOS_PROJETO_RESUMO).eq("id", id).single();
   if (error || !p) return null;
-
-  let clienteFinalNome: string | null = null;
-  if (p.cliente_final_id) {
-    const { data: c } = await sb.from("crm_clientes").select("nome").eq("id", p.cliente_final_id).single();
-    if (c) clienteFinalNome = c.nome;
-  }
-
-  return {
-    id: p.id,
-    nome: p.nome,
-    os: p.os,
-    tipologia: p.tipologia,
-    data_prevista_inicio: p.data_prevista_inicio,
-    data_prevista_termino: p.data_prevista_termino,
-    cliente_final_id: p.cliente_final_id,
-    cliente_final_nome: clienteFinalNome,
-    agencia: p.agencia ?? null,
-    upe: p.upe ?? null,
-    sap: p.sap ?? null,
-    gestor: p.gestor ?? null,
-    fiscalizacao_empresa: p.fiscalizacao_empresa ?? null,
-    fiscal: p.fiscal ?? null,
-    construtora: p.construtora ?? null,
-    responsavel: p.responsavel ?? null,
-  };
+  const nomesPorId = await resolverNomesClientes(sb, [p.cliente_final_id]);
+  return paraProjetoResumo(p, nomesPorId);
 }
