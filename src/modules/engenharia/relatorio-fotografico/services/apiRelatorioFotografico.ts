@@ -338,8 +338,10 @@ export interface DadosNovoProgresso {
   numeroPonto?: string | null;
   local?: string | null;
   etapa1: "ANTES" | "DURANTE";
-  fotoAntesPath: string;
-  fotoDepoisPath: string;
+  // null = pendente (migration 00013) — serviço/ambiente valem sozinhos, a
+  // foto pode ser enviada depois; só bloqueia montar o PowerPoint.
+  fotoAntesPath: string | null;
+  fotoDepoisPath: string | null;
 }
 
 /** Adiciona ao fim da lista — `ordem` é sempre o próximo índice livre. */

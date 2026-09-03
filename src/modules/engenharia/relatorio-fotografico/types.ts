@@ -137,8 +137,11 @@ export interface ProgressoSlide {
   numero_ponto: string | null;
   local: string | null;
   etapa1: "ANTES" | "DURANTE";
-  foto_antes_path: string;
-  foto_depois_path: string;
+  // NULL = foto ainda não enviada (pendência — migration 00013). Bloqueia a
+  // montagem do PowerPoint, não a criação do slide (serviço/ambiente valem
+  // sozinhos).
+  foto_antes_path: string | null;
+  foto_depois_path: string | null;
   created_at: string;
 }
 

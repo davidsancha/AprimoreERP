@@ -62,6 +62,10 @@ export async function POST(req: Request) {
     if (!corpo.slides.length) {
       return NextResponse.json({ erro: 'Nenhum slide para montar.' }, { status: 400 });
     }
+    // defesa em profundidade — o client já bloqueia isso, mas a rota não confia cegamente no corpo
+    if (corpo.slides.some((s) => !s.fotoAntesPath || !s.fotoDepoisPath)) {
+      return NextResponse.json({ erro: 'Há slide(s) sem as duas fotos — complete antes de montar.' }, { status: 400 });
+    }
 
     const bufferModelo = await baixar(corpo.templatePath);
 

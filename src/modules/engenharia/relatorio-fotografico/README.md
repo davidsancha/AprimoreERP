@@ -304,6 +304,33 @@ de transitiva quebra se o Next parar de precisar dela.
     breakpoint `lg` (só a lista aparece); miniaturas da lista
     escondidas abaixo do `sm` (só texto, clicável pra ampliar).
   - `npx tsc --noEmit` limpo.
+- **Quarto round de testes reais (03/09/2026, Claude Code)** — dois
+  pedidos do David:
+  - **Câmera/galeria no celular**: `accept="image/*"` sem `capture`
+    dependia do seletor nativo do Android, que às vezes mostra só o
+    Google Fotos e esconde a câmera. Trocado por escolha explícita —
+    `ModalEscolhaOrigemFoto` (novo componente) com dois botões ("Tirar
+    foto agora" / "Escolher da galeria"), cada um com seu próprio
+    `<input>` (um com `capture="environment"`, um sem). Efeito
+    colateral bom: como é um modal nosso, não um seletor nativo
+    encadeado, reabrir pra escolher a segunda foto (antes→depois) não
+    esbarra mais na restrição de navegador que gerava o bug do
+    "Inserir fotos" não funcionar.
+  - **Slide com pendência de foto**: agora dá pra criar um slide só
+    com serviço+ambiente (os dois viraram obrigatórios — antes
+    ambiente era opcional) e completar as fotos depois. Bolinha âmbar
+    = falta alguma foto, verde = completo, em ambas as listas (coluna
+    lateral e "Slides gerados"). "Montar PowerPoint" bloqueia com
+    qualquer pendência — de dados OU de foto — validado no client E
+    de novo na rota (`slides.some(s => !s.fotoAntesPath ||
+    !s.fotoDepoisPath)`, defesa em profundidade). **Precisa da
+    migration `00013_fotos_progresso_opcionais.sql`** (nova, handoff
+    feito) — sem ela, criar slide sem foto falha com erro de
+    `NOT NULL` no banco.
+  - Botão "Montar PowerPoint" movido pra fora da coluna lateral
+    (que só aparece em desktop) — agora é `order-first` no grid,
+    visível em qualquer tamanho de tela.
+  - `npx tsc --noEmit` e `eslint` limpos.
 - Ainda faltam: reordenar ambientes por relatório (migration `00012`
   já proposta, falta UI de arrastar + aplicar), prévia de slide antes
   de montar, drag-and-drop também nos pontos de infraestrutura (hoje
