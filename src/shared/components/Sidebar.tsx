@@ -86,6 +86,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           subItems: [
             { label: 'Dashboard Operacional', href: '/operacional', active: true },
             { label: 'Projetos', href: '/projetos', active: true },
+            { label: 'Relatório Fotográfico', href: '/engenharia/relatorio-fotografico', active: true },
             { label: 'Diário de Projeto', href: '#', active: false, badge: 'Breve' },
             { label: 'Medição Física', href: '#', active: false, badge: 'Breve' }
           ]
