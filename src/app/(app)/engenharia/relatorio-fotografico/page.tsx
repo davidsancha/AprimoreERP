@@ -1,30 +1,37 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Building2, Check, Loader2, Ruler, Search, X } from 'lucide-react';
+import { AlertTriangle, Building2, Camera, Check, List, Loader2, Ruler, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
   atualizarCamposProjeto,
   atualizarEquipamentos,
   atualizarEstrutura,
+  atualizarProgresso,
   buscarProjetoPorId,
   buscarProjetos,
   buscarProjetosComFiltros,
   criarEstrutura,
+  criarProgresso,
   desabilitarServico,
+  excluirProgresso,
   habilitarServico,
   lerBancosCatalogo,
   lerModelosPorBanco,
   lerServicosGlobais,
   listarClientesFinaisUsados,
+  listarProgresso,
   obterEstruturaPorProjeto,
+  uploadFotoRelatorio,
+  urlPublicaFoto,
 } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotografico';
 import { limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
 import type {
   Equipamento,
   EstruturaFotografica,
   ModeloRelatorioOpcao,
+  ProgressoSlide,
   ProjetoResumo,
   TipoProjetoFotografico,
 } from '@/modules/engenharia/relatorio-fotografico/types';
@@ -151,6 +158,77 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
   );
 }
 
+/** Slot de foto único (antes ou depois) — botão vira miniatura assim que há um caminho salvo. */
+function SlotFoto({
+  rotulo,
+  caminho,
+  ocupado,
+  somenteLeitura,
+  onSelecionar,
+}: {
+  rotulo: string;
+  caminho: string | null | undefined;
+  ocupado?: boolean;
+  somenteLeitura?: boolean;
+  onSelecionar: (file: File) => void;
+}) {
+  const inputId = useId();
+  const miolo = (
+    <>
+      {caminho ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={urlPublicaFoto(caminho)} alt={rotulo} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <>
+          <Camera size={16} className="text-desc" />
+          <span className="text-[9px] font-bold text-desc uppercase">{rotulo}</span>
+        </>
+      )}
+      {caminho && (
+        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] font-bold uppercase text-center py-0.5">
+          {rotulo}
+        </span>
+      )}
+    </>
+  );
+
+  if (somenteLeitura) {
+    return (
+      <div
+        className={`relative flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-lg border-2 overflow-hidden shrink-0 ${
+          caminho ? 'border-brand-ocre/40' : 'border-dashed border-card-border'
+        }`}
+      >
+        {miolo}
+      </div>
+    );
+  }
+
+  return (
+    <label
+      htmlFor={inputId}
+      className={`relative flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-lg border-2 border-dashed overflow-hidden shrink-0 ${
+        caminho ? 'border-brand-ocre/40' : 'border-card-border'
+      } ${ocupado ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-brand-ocre/60'}`}
+    >
+      {miolo}
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        disabled={ocupado}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onSelecionar(file);
+          e.target.value = '';
+        }}
+      />
+    </label>
+  );
+}
+
 function RelatorioFotograficoContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -190,6 +268,8 @@ function RelatorioFotograficoContent() {
   const [estrutura, setEstrutura] = useState<EstruturaFotografica | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [resumoExpandido, setResumoExpandido] = useState(true);
+  const proximaEtapaRef = useRef<HTMLDivElement | null>(null);
 
   // passo 4 — equipamentos (infra) / serviços (reforma)
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
@@ -197,10 +277,30 @@ function RelatorioFotograficoContent() {
   const [novoServico, setNovoServico] = useState('');
   const [servicoOcupado, setServicoOcupado] = useState<string | null>(null);
 
+  // fotos/progresso (slides antes/depois) — passo 5
+  const [progresso, setProgresso] = useState<ProgressoSlide[]>([]);
+  const [fotoOcupada, setFotoOcupada] = useState<string | null>(null);
+  const rascunhosFotoRef = useRef<Record<string, { antes?: string; depois?: string }>>({});
+  const [, forcarAtualizacao] = useState(0);
+  const [novoSlideServico, setNovoSlideServico] = useState<string | null>(null);
+  const [novoSlideEtapa, setNovoSlideEtapa] = useState<'ANTES' | 'DURANTE'>('ANTES');
+  const [novoSlideAmbiente, setNovoSlideAmbiente] = useState('');
+  const [novoSlideAntes, setNovoSlideAntes] = useState<File | null>(null);
+  const [novoSlideDepois, setNovoSlideDepois] = useState<File | null>(null);
+
   useEffect(() => {
     lerServicosGlobais().then(setServicosGlobais).catch(() => {});
     lerBancosCatalogo().then(setBancosCatalogo).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!estrutura) {
+      setProgresso([]);
+      rascunhosFotoRef.current = {};
+      return;
+    }
+    listarProgresso(estrutura.id).then(setProgresso).catch(console.error);
+  }, [estrutura?.id]);
 
   useEffect(() => {
     if (projetoIdUrl) {
@@ -271,10 +371,14 @@ function RelatorioFotograficoContent() {
     setFiscal(p.fiscal || '');
     setConstrutora(p.construtora || '');
     setResponsavel(p.responsavel || '');
-    // datas de início e término herdadas da obra (efetivas com fallback para previstas)
-    setDataInicioObra(p.data_efetiva_inicio || p.data_prevista_inicio || '');
-    setDataTerminoObra(p.data_efetiva_termino || p.data_prevista_termino || '');
+    // datas de início/término = SEMPRE a efetiva do projeto (o rótulo diz "Efetivo" —
+    // nunca substituir silenciosamente pela prevista aqui; ver docs/decisoes.md).
+    // Se a efetiva ainda não existe, o campo fica vazio e vira pendência (a prevista
+    // aparece só como dica abaixo do campo).
+    setDataInicioObra(p.data_efetiva_inicio || '');
+    setDataTerminoObra(p.data_efetiva_termino || '');
     setHabilitarEdicaoObra(false);
+    setResumoExpandido(true);
 
     // banco: se o cliente final do projeto bater com um banco conhecido, pré-seleciona
     if (p.cliente_final_nome && bancosCatalogo.includes(p.cliente_final_nome)) {
@@ -294,6 +398,7 @@ function RelatorioFotograficoContent() {
     setHabilitarEdicaoObra(false);
     setDataInicioObra('');
     setDataTerminoObra('');
+    setResumoExpandido(true);
   }
 
   function carregarEstruturaNoFormulario(e: EstruturaFotografica) {
@@ -323,9 +428,26 @@ function RelatorioFotograficoContent() {
 
   const podeCriar = isAvulso ? obraNome.trim().length > 0 : !!projetoSelecionado;
 
-  // datas: vinculado -> vem do projeto (efetiva, com fallback pra prevista); avulso -> campo próprio
-  const inicioExibido = projetoSelecionado ? projetoSelecionado.data_efetiva_inicio || projetoSelecionado.data_prevista_inicio : null;
-  const terminoExibido = projetoSelecionado ? projetoSelecionado.data_efetiva_termino || projetoSelecionado.data_prevista_termino : null;
+  // Pendências dos dados do relatório — não bloqueiam o preenchimento, mas devem
+  // impedir a montagem do PowerPoint (chamado de atenção explícito do David).
+  const pendencias = useMemo(() => {
+    const campos: { label: string; valor: string }[] = [
+      { label: 'Banco', valor: banco },
+      { label: 'Modelo de relatório', valor: modeloRelatorio },
+      { label: 'Agência', valor: agencia },
+      { label: 'Programa', valor: programa },
+      { label: 'Cód UPE', valor: upe },
+      { label: 'Cód SAP', valor: sap },
+      { label: 'Gestor de obras', valor: gestor },
+      { label: 'Fiscalização — empresa', valor: fiscEmpresa },
+      { label: 'Fiscal', valor: fiscal },
+      { label: 'Construtora — empresa', valor: construtora },
+      { label: 'Responsável', valor: responsavel },
+      { label: 'Início da obra (Efetivo)', valor: dataInicioObra },
+      { label: 'Término da obra (Efetivo)', valor: dataTerminoObra },
+    ];
+    return campos.filter((c) => !c.valor || !c.valor.trim()).map((c) => c.label);
+  }, [banco, modeloRelatorio, agencia, programa, upe, sap, gestor, fiscEmpresa, fiscal, construtora, responsavel, dataInicioObra, dataTerminoObra]);
 
   /**
    * Dados de obra (agência/UPE/SAP/gestor/fiscalização/construtora/
@@ -378,6 +500,11 @@ function RelatorioFotograficoContent() {
           ...camposObra,
         });
         setEstrutura(nova);
+        // depois de criado, recolhe projeto/tipo num resumo compacto e leva o
+        // usuário direto pra continuação (equipamentos/serviços) — antes disso
+        // a seção 4 nascia fora da tela e parecia que só "abria o item 4".
+        setResumoExpandido(false);
+        setTimeout(() => proximaEtapaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
         if (!isAvulso && habilitarEdicaoObra) {
           await atualizarCamposProjeto(projetoSelecionado!.id, {
             agencia: agencia || null,
@@ -467,12 +594,93 @@ function RelatorioFotograficoContent() {
     }
   }
 
+  /** Infraestrutura: cada ponto vira 1 slide (antes+depois). Sem os dois, fica em rascunho local até completar o par. */
+  async function definirFotoPonto(equipNome: string, numero: string, local: string, lado: 'antes' | 'depois', file: File) {
+    if (!estrutura) return;
+    const chave = `${equipNome}|${numero}`;
+    setFotoOcupada(chave + lado);
+    try {
+      const caminho = await uploadFotoRelatorio(estrutura.id, [equipNome, numero], file);
+      const existente = progresso.find((p) => p.equipamento === equipNome && p.numero_ponto === numero);
+      if (existente) {
+        const atualizado = await atualizarProgresso(existente.id, lado === 'antes' ? { foto_antes_path: caminho } : { foto_depois_path: caminho });
+        setProgresso((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
+        return;
+      }
+      const rascunho = { ...rascunhosFotoRef.current[chave], [lado]: caminho };
+      rascunhosFotoRef.current[chave] = rascunho;
+      if (rascunho.antes && rascunho.depois) {
+        const novo = await criarProgresso(estrutura.id, {
+          equipamento: equipNome,
+          numeroPonto: numero,
+          local,
+          etapa1: 'ANTES',
+          fotoAntesPath: rascunho.antes,
+          fotoDepoisPath: rascunho.depois,
+        });
+        delete rascunhosFotoRef.current[chave];
+        setProgresso((prev) => [...prev, novo]);
+      } else {
+        forcarAtualizacao((n) => n + 1);
+      }
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setFotoOcupada(null);
+    }
+  }
+
+  /** Reforma: slide completo (antes/durante + depois) é montado no formulário e salvo de uma vez. */
+  async function salvarNovoSlideReforma() {
+    if (!estrutura || !novoSlideServico || !novoSlideAntes || !novoSlideDepois) return;
+    setFotoOcupada('novo-slide');
+    try {
+      const [caminhoAntes, caminhoDepois] = await Promise.all([
+        uploadFotoRelatorio(estrutura.id, [novoSlideServico, novoSlideEtapa], novoSlideAntes),
+        uploadFotoRelatorio(estrutura.id, [novoSlideServico, 'DEPOIS'], novoSlideDepois),
+      ]);
+      const novo = await criarProgresso(estrutura.id, {
+        servico: novoSlideServico,
+        ambiente: novoSlideAmbiente.trim() || null,
+        etapa1: novoSlideEtapa,
+        fotoAntesPath: caminhoAntes,
+        fotoDepoisPath: caminhoDepois,
+      });
+      setProgresso((prev) => [...prev, novo]);
+      setNovoSlideServico(null);
+      setNovoSlideAmbiente('');
+      setNovoSlideEtapa('ANTES');
+      setNovoSlideAntes(null);
+      setNovoSlideDepois(null);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setFotoOcupada(null);
+    }
+  }
+
+  async function removerSlide(id: string) {
+    setFotoOcupada('remover-' + id);
+    try {
+      await excluirProgresso(id);
+      setProgresso((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setFotoOcupada(null);
+    }
+  }
+
   const secao = 'bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm';
   const tituloSecao =
     'text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom';
-  const badge = (n: number) => (
-    <span className="flex items-center justify-center h-5 w-5 rounded-md bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue font-black text-[10px]">
-      {n}
+  const badge = (n: number, feito?: boolean) => (
+    <span
+      className={`flex items-center justify-center h-5 w-5 rounded-md font-black text-[10px] ${
+        feito ? 'bg-emerald-500/15 text-emerald-600' : 'bg-brand-blue/10 dark:bg-brand-blue/15 text-brand-blue'
+      }`}
+    >
+      {feito ? <Check size={12} /> : n}
     </span>
   );
   const label = 'text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre';
@@ -501,26 +709,62 @@ function RelatorioFotograficoContent() {
 
       {modalBuscaAberto && <ModalBuscaProjetos onSelecionar={selecionarProjeto} onFechar={() => setModalBuscaAberto(false)} />}
 
+      {/* resumo compacto — some com o "abre só o item 4": depois de iniciado o
+          relatório, projeto e tipo já estão resolvidos, então recolhem aqui e
+          dão lugar pra continuação (dados do relatório + equipamentos/serviços) */}
+      {estrutura && !resumoExpandido && (
+        <div className="bg-card border border-card-border rounded-xl p-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex items-center justify-center h-7 w-7 rounded-md bg-emerald-500/10 text-emerald-600 shrink-0">
+              <Check size={14} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-main truncate">
+                {isAvulso ? obraNome : projetoSelecionado?.nome}
+                <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-desc">
+                  {tipoProjeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'}
+                </span>
+              </div>
+              <div className="text-[10px] text-sub truncate">
+                {isAvulso ? 'Relatório avulso' : `OS ${projetoSelecionado?.os ?? ''}`}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResumoExpandido(true)}
+            className="text-[10px] font-bold text-brand-blue hover:underline whitespace-nowrap shrink-0"
+          >
+            Editar
+          </button>
+        </div>
+      )}
+
+      {(!estrutura || resumoExpandido) && (
+        <>
       {/* 1 — vínculo com projeto ou avulso */}
       <div className={secao}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border pb-2">
           <div className="flex items-center gap-4">
             <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
-              {badge(1)} Projeto
+              {badge(1, podeCriar)} Projeto
             </h3>
-            <label className="flex items-center gap-2 text-xs font-semibold text-main/90 hover:text-brand-ocre transition-colors cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-[11px] font-semibold text-sub hover:text-brand-ocre transition-colors cursor-pointer select-none bg-background border border-card-border/80 rounded-full pl-2.5 pr-3 py-1">
               <input
                 type="checkbox"
-                className="w-4 h-4 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
+                className="w-3.5 h-3.5 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
                 checked={isAvulso}
                 onChange={(e) => {
                   setIsAvulso(e.target.checked);
                   setEstrutura(null);
                   setProjetoSelecionado(null);
                   setHabilitarEdicaoObra(false);
+                  setResumoExpandido(true);
                 }}
               />
-              <span>Relatório avulso (obra de terceiro, sem vínculo)</span>
+              <span>
+                Relatório avulso <span className="font-normal text-desc">(obra de terceiro, sem vínculo)</span>
+              </span>
             </label>
           </div>
         </div>
@@ -582,8 +826,9 @@ function RelatorioFotograficoContent() {
                 <button
                   type="button"
                   onClick={() => setModalBuscaAberto(true)}
-                  className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main hover:bg-slate-100 dark:hover:bg-zinc-800 whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-card-border bg-background text-xs font-bold text-brand-blue hover:bg-brand-blue/10 hover:border-brand-blue/40 whitespace-nowrap transition-colors"
                 >
+                  <List size={13} />
                   Ver todos
                 </button>
               </div>
@@ -631,12 +876,14 @@ function RelatorioFotograficoContent() {
           </button>
         </div>
       </div>
+        </>
+      )}
 
       {/* 3 — dados de cabeçalho */}
       <div className={secao}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-card-border pb-2">
           <h3 className="text-xs font-bold text-brand-ocre flex items-center gap-2 uppercase tracking-wider font-vomzom">
-            {badge(3)} Dados do relatório
+            {badge(3, !!estrutura && pendencias.length === 0)} Dados do relatório
           </h3>
         </div>
 
@@ -802,7 +1049,7 @@ function RelatorioFotograficoContent() {
               value={
                 isAvulso || habilitarEdicaoObra
                   ? dataInicioObra
-                  : (dataInicioObra ? formatarData(dataInicioObra) : '—')
+                  : (dataInicioObra ? formatarData(dataInicioObra) : 'Ainda não iniciado')
               }
               onChange={(e) => setDataInicioObra(e.target.value)}
               readOnly={somenteLeituraObra}
@@ -810,6 +1057,9 @@ function RelatorioFotograficoContent() {
               className={classeCampoObra}
               placeholder="Não informado"
             />
+            {!isAvulso && !dataInicioObra && projetoSelecionado?.data_prevista_inicio && (
+              <p className="text-[10px] text-sub">Previsto: {formatarData(projetoSelecionado.data_prevista_inicio)}</p>
+            )}
           </div>
           <div className="space-y-1">
             <label className={label}>Término da obra (Efetivo)</label>
@@ -818,7 +1068,7 @@ function RelatorioFotograficoContent() {
               value={
                 isAvulso || habilitarEdicaoObra
                   ? dataTerminoObra
-                  : (dataTerminoObra ? formatarData(dataTerminoObra) : '—')
+                  : (dataTerminoObra ? formatarData(dataTerminoObra) : 'Ainda não concluído')
               }
               onChange={(e) => setDataTerminoObra(e.target.value)}
               readOnly={somenteLeituraObra}
@@ -826,10 +1076,16 @@ function RelatorioFotograficoContent() {
               className={classeCampoObra}
               placeholder="Não informado"
             />
+            {!isAvulso && !dataTerminoObra && projetoSelecionado?.data_prevista_termino && (
+              <p className="text-[10px] text-sub">Previsto: {formatarData(projetoSelecionado.data_prevista_termino)}</p>
+            )}
           </div>
         </div>
         {projetoSelecionado && (
-          <p className="text-[10px] text-sub">Datas vêm do cadastro do projeto (efetiva, ou prevista se ainda não iniciou) — edite lá se precisar mudar.</p>
+          <p className="text-[10px] text-sub">
+            Estas são as datas <strong>efetivas</strong> do cadastro do projeto — se ainda não foram lançadas lá,
+            aparecem vazias aqui (e como pendência abaixo). Habilite a edição acima pra lançar direto por aqui.
+          </p>
         )}
 
         <button
@@ -842,6 +1098,22 @@ function RelatorioFotograficoContent() {
           {estrutura ? 'Salvar dados' : 'Iniciar relatório'}
         </button>
       </div>
+
+      {/* continuação após "Iniciar relatório" — pendências + serviços/equipamentos,
+          tudo junto pra ficar claro que é a sequência natural, não um item isolado */}
+      <div ref={proximaEtapaRef} className="space-y-6">
+      {estrutura && pendencias.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-start gap-2.5">
+          <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900 dark:text-amber-200">
+            <strong className="font-bold">Pendências nos dados do relatório:</strong> {pendencias.join(', ')}.
+            <span className="block mt-1 text-[11px] opacity-90 font-medium">
+              Pode continuar preenchendo abaixo — mas o PowerPoint só poderá ser montado depois que esses campos
+              estiverem completos.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* 4 — serviços (reforma) */}
       {estrutura && tipoProjeto === 'reforma' && (
@@ -891,6 +1163,105 @@ function RelatorioFotograficoContent() {
               + novo serviço
             </button>
           </div>
+
+          {estrutura.servicos_habilitados.length > 0 && (
+            <div className="space-y-3 pt-2 border-t border-card-border">
+              {estrutura.servicos_habilitados.map((servico) => {
+                const slides = progresso.filter((p) => p.servico === servico);
+                return (
+                  <div key={servico} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-main uppercase tracking-wide">{servico}</span>
+                      {novoSlideServico !== servico && (
+                        <button
+                          type="button"
+                          onClick={() => setNovoSlideServico(servico)}
+                          className="text-[10px] font-bold text-brand-blue hover:underline"
+                        >
+                          + adicionar foto
+                        </button>
+                      )}
+                    </div>
+
+                    {slides.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {slides.map((s) => (
+                          <div key={s.id} className="relative flex gap-1">
+                            <SlotFoto rotulo={s.etapa1 === 'ANTES' ? 'Antes' : 'Durante'} caminho={s.foto_antes_path} somenteLeitura onSelecionar={() => {}} />
+                            <SlotFoto rotulo="Depois" caminho={s.foto_depois_path} somenteLeitura onSelecionar={() => {}} />
+                            <button
+                              type="button"
+                              disabled={fotoOcupada === 'remover-' + s.id}
+                              onClick={() => removerSlide(s.id)}
+                              title="Remover slide"
+                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center disabled:opacity-40"
+                            >
+                              <Trash2 size={9} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {novoSlideServico === servico && (
+                      <div className="bg-background border border-card-border rounded-lg p-3 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={novoSlideEtapa}
+                            onChange={(e) => setNovoSlideEtapa(e.target.value as 'ANTES' | 'DURANTE')}
+                            className={input}
+                          >
+                            <option value="ANTES">Antes</option>
+                            <option value="DURANTE">Durante</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={novoSlideAmbiente}
+                            onChange={(e) => setNovoSlideAmbiente(e.target.value)}
+                            className={input}
+                            placeholder="Ambiente (opcional)"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <SlotFoto
+                            rotulo={novoSlideEtapa === 'ANTES' ? 'Antes' : 'Durante'}
+                            caminho={null}
+                            ocupado={fotoOcupada === 'novo-slide'}
+                            onSelecionar={setNovoSlideAntes}
+                          />
+                          {novoSlideAntes && <span className="text-[10px] text-emerald-600 font-bold">{novoSlideAntes.name}</span>}
+                          <SlotFoto rotulo="Depois" caminho={null} ocupado={fotoOcupada === 'novo-slide'} onSelecionar={setNovoSlideDepois} />
+                          {novoSlideDepois && <span className="text-[10px] text-emerald-600 font-bold">{novoSlideDepois.name}</span>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={!novoSlideAntes || !novoSlideDepois || fotoOcupada === 'novo-slide'}
+                            onClick={salvarNovoSlideReforma}
+                            className="px-3 py-1.5 rounded-lg bg-brand-ocre text-white text-[10px] font-bold disabled:opacity-40"
+                          >
+                            {fotoOcupada === 'novo-slide' ? 'Enviando…' : 'Salvar slide'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNovoSlideServico(null);
+                              setNovoSlideAntes(null);
+                              setNovoSlideDepois(null);
+                              setNovoSlideAmbiente('');
+                            }}
+                            className="px-3 py-1.5 rounded-lg border border-card-border text-[10px] font-bold text-sub"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -942,28 +1313,46 @@ function RelatorioFotograficoContent() {
                   {eq.nome} — {eq.pontos.length} {eq.pontos.length === 1 ? 'ponto' : 'pontos'}
                 </div>
                 <div className="p-3 space-y-2">
-                  {eq.pontos.map((p, iP) => (
-                    <div key={iP} className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono bg-card-border/40 rounded px-2 py-1">{p.numero}</span>
-                      <input
-                        type="text"
-                        value={p.local}
-                        onChange={(e) => {
-                          const novos = equipamentos.map((x) =>
-                            x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: e.target.value } : pp)) } : x,
-                          );
-                          salvarEquipamentos(novos);
-                        }}
-                        className={input}
-                        placeholder="Local — ex.: Salão, Tesouraria"
-                      />
-                    </div>
-                  ))}
+                  {eq.pontos.map((p, iP) => {
+                    const chave = `${eq.nome}|${p.numero}`;
+                    const slide = progresso.find((pr) => pr.equipamento === eq.nome && pr.numero_ponto === p.numero);
+                    const rascunho = rascunhosFotoRef.current[chave];
+                    return (
+                      <div key={iP} className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono bg-card-border/40 rounded px-2 py-1">{p.numero}</span>
+                        <input
+                          type="text"
+                          value={p.local}
+                          onChange={(e) => {
+                            const novos = equipamentos.map((x) =>
+                              x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: e.target.value } : pp)) } : x,
+                            );
+                            salvarEquipamentos(novos);
+                          }}
+                          className={input}
+                          placeholder="Local — ex.: Salão, Tesouraria"
+                        />
+                        <SlotFoto
+                          rotulo="Antes"
+                          caminho={slide?.foto_antes_path ?? rascunho?.antes}
+                          ocupado={fotoOcupada === chave + 'antes'}
+                          onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'antes', file)}
+                        />
+                        <SlotFoto
+                          rotulo="Depois"
+                          caminho={slide?.foto_depois_path ?? rascunho?.depois}
+                          ocupado={fotoOcupada === chave + 'depois'}
+                          onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'depois', file)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,15 +1,18 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { atualizarCamposEngenharia } from "@/modules/operacional/services/apiProjetos";
-import { limpaNome } from "../calc";
+import { caminhoStorage, limpaNome } from "../calc";
 import type {
   CamposObraProjeto,
   Equipamento,
   EstruturaFotografica,
   FiltrosBuscaProjeto,
   ModeloRelatorioOpcao,
+  ProgressoSlide,
   ProjetoResumo,
   TipoProjetoFotografico,
 } from "../types";
+
+const BUCKET_FOTOS = "relatorios-fotograficos";
 
 const CAMPOS_PROJETO_RESUMO =
   "id, nome, os, tipologia, status, data_prevista_inicio, data_prevista_termino, data_efetiva_inicio, data_efetiva_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel";
@@ -286,4 +289,104 @@ export async function buscarProjetoPorId(id: string): Promise<ProjetoResumo | nu
   if (error || !p) return null;
   const nomesPorId = await resolverNomesClientes(sb, [p.cliente_final_id]);
   return paraProjetoResumo(p, nomesPorId);
+}
+
+/* ---------- fotos e progresso (slides antes/depois) ---------- */
+
+/**
+ * Normalização/corte/compressão real da foto acontece só na hora de montar
+ * o PowerPoint (lib/imagem.ts), igual ao app de referência — aqui é upload
+ * puro do arquivo original pro Storage, sem reprocessar.
+ */
+export async function uploadFotoRelatorio(relatorioId: string, segmento: string[], file: File): Promise<string> {
+  const sb = exigirSupabase();
+  const extensao = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const nomeArquivo = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensao}`;
+  const caminho = caminhoStorage(relatorioId, segmento, nomeArquivo);
+  const { error } = await sb.storage.from(BUCKET_FOTOS).upload(caminho, file, { contentType: file.type || undefined });
+  if (error) throw error;
+  return caminho;
+}
+
+/** Bucket é público (migration 00008) — resolve o caminho salvo pra uma URL exibível. */
+export function urlPublicaFoto(caminho: string): string {
+  const sb = exigirSupabase();
+  return sb.storage.from(BUCKET_FOTOS).getPublicUrl(caminho).data.publicUrl;
+}
+
+export async function excluirFotoRelatorio(caminho: string): Promise<void> {
+  const sb = exigirSupabase();
+  const { error } = await sb.storage.from(BUCKET_FOTOS).remove([caminho]);
+  if (error) throw error;
+}
+
+export async function listarProgresso(relatorioId: string): Promise<ProgressoSlide[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb
+    .from("engenharia_progresso_relatorio")
+    .select("*")
+    .eq("relatorio_id", relatorioId)
+    .order("ordem", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export interface DadosNovoProgresso {
+  servico?: string | null;
+  ambiente?: string | null;
+  equipamento?: string | null;
+  numeroPonto?: string | null;
+  local?: string | null;
+  etapa1: "ANTES" | "DURANTE";
+  fotoAntesPath: string;
+  fotoDepoisPath: string;
+}
+
+/** Adiciona ao fim da lista — `ordem` é sempre o próximo índice livre. */
+export async function criarProgresso(relatorioId: string, dados: DadosNovoProgresso): Promise<ProgressoSlide> {
+  const sb = exigirSupabase();
+  const atuais = await listarProgresso(relatorioId);
+  const proximaOrdem = atuais.length ? Math.max(...atuais.map((p) => p.ordem)) + 1 : 0;
+  const { data, error } = await sb
+    .from("engenharia_progresso_relatorio")
+    .insert([
+      {
+        relatorio_id: relatorioId,
+        ordem: proximaOrdem,
+        servico: dados.servico ?? null,
+        ambiente: dados.ambiente ?? null,
+        equipamento: dados.equipamento ?? null,
+        numero_ponto: dados.numeroPonto ?? null,
+        local: dados.local ?? null,
+        etapa1: dados.etapa1,
+        foto_antes_path: dados.fotoAntesPath,
+        foto_depois_path: dados.fotoDepoisPath,
+      },
+    ])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function atualizarProgresso(
+  id: string,
+  patch: Partial<Pick<ProgressoSlide, "servico" | "ambiente" | "equipamento" | "numero_ponto" | "local" | "etapa1" | "foto_antes_path" | "foto_depois_path">>,
+): Promise<ProgressoSlide> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("engenharia_progresso_relatorio").update(patch).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function excluirProgresso(id: string): Promise<void> {
+  const sb = exigirSupabase();
+  const { error } = await sb.from("engenharia_progresso_relatorio").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Grava a nova ordem (0..n-1) na sequência exata dos ids recebidos — usado no reordenar por arrastar/mover. */
+export async function reordenarProgresso(ids: string[]): Promise<void> {
+  const sb = exigirSupabase();
+  await Promise.all(ids.map((id, ordem) => sb.from("engenharia_progresso_relatorio").update({ ordem }).eq("id", id)));
 }
