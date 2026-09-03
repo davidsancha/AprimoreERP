@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Building2, Camera, Check, ChevronDown, ChevronUp, List, Loader2, Ruler, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Building2, Camera, Check, ChevronDown, ChevronUp, List, Loader2, Pencil, Ruler, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
   adicionarAmbienteGlobal,
@@ -32,6 +32,7 @@ import {
 } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotografico';
 import { descricaoDe, descricaoReforma, limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
 import type {
+  CamposRelatorio,
   Equipamento,
   EstruturaFotografica,
   ModeloRelatorioOpcao,
@@ -162,33 +163,60 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
   );
 }
 
-/** Slot de foto único (antes ou depois) — botão vira miniatura assim que há um caminho salvo. */
+/**
+ * Slot de foto único (antes ou depois) — vira miniatura assim que há um
+ * caminho salvo ou um arquivo local ainda não enviado. Vazio: clicar abre o
+ * seletor de arquivo direto. Preenchido: clicar amplia com opções de Trocar
+ * (reabre o seletor) e Excluir (quando `onExcluir` é passado) — evita trocar
+ * a foto sem querer com um toque errado.
+ */
 function SlotFoto({
   rotulo,
   caminho,
+  arquivoLocal,
   ocupado,
   somenteLeitura,
   onSelecionar,
+  onExcluir,
 }: {
   rotulo: string;
   caminho: string | null | undefined;
+  arquivoLocal?: File | null;
   ocupado?: boolean;
   somenteLeitura?: boolean;
   onSelecionar: (file: File) => void;
+  onExcluir?: () => void;
 }) {
-  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [ampliado, setAmpliado] = useState(false);
+
+  // preview de arquivo ainda não enviado (antes de existir caminho no Storage) —
+  // URL local descartada assim que o arquivo muda ou o componente desmonta
+  const [previaLocal, setPreviaLocal] = useState<string | null>(null);
+  useEffect(() => {
+    if (!arquivoLocal) {
+      setPreviaLocal(null);
+      return;
+    }
+    const url = URL.createObjectURL(arquivoLocal);
+    setPreviaLocal(url);
+    return () => URL.revokeObjectURL(url);
+  }, [arquivoLocal]);
+
+  const src = caminho ? urlPublicaFoto(caminho) : previaLocal;
+
   const miolo = (
     <>
-      {caminho ? (
+      {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={urlPublicaFoto(caminho)} alt={rotulo} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={src} alt={rotulo} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <>
           <Camera size={16} className="text-desc" />
           <span className="text-[9px] font-bold text-desc uppercase">{rotulo}</span>
         </>
       )}
-      {caminho && (
+      {src && (
         <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] font-bold uppercase text-center py-0.5">
           {rotulo}
         </span>
@@ -200,7 +228,7 @@ function SlotFoto({
     return (
       <div
         className={`relative flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-lg border-2 overflow-hidden shrink-0 ${
-          caminho ? 'border-brand-ocre/40' : 'border-dashed border-card-border'
+          src ? 'border-brand-ocre/40' : 'border-dashed border-card-border'
         }`}
       >
         {miolo}
@@ -209,18 +237,21 @@ function SlotFoto({
   }
 
   return (
-    <label
-      htmlFor={inputId}
-      className={`relative flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-lg border-2 border-dashed overflow-hidden shrink-0 ${
-        caminho ? 'border-brand-ocre/40' : 'border-card-border'
-      } ${ocupado ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-brand-ocre/60'}`}
-    >
-      {miolo}
+    <>
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => (src ? setAmpliado(true) : inputRef.current?.click())}
+        className={`relative flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-lg border-2 border-dashed overflow-hidden shrink-0 ${
+          src ? 'border-brand-ocre/40' : 'border-card-border'
+        } ${ocupado ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-brand-ocre/60'}`}
+      >
+        {miolo}
+      </button>
       <input
-        id={inputId}
+        ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         disabled={ocupado}
         className="hidden"
         onChange={(e) => {
@@ -229,7 +260,42 @@ function SlotFoto({
           e.target.value = '';
         }}
       />
-    </label>
+      {ampliado && src && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setAmpliado(false)}>
+          <div className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-md p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={rotulo} className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border" />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAmpliado(false);
+                  inputRef.current?.click();
+                }}
+                className="flex-1 px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main"
+              >
+                Trocar
+              </button>
+              {onExcluir && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onExcluir();
+                    setAmpliado(false);
+                  }}
+                  className="flex-1 px-3 py-2 rounded-lg border border-red-500/40 text-xs font-bold text-red-500 hover:bg-red-500/10"
+                >
+                  Excluir
+                </button>
+              )}
+              <button type="button" onClick={() => setAmpliado(false)} className="px-3 py-2 rounded-lg text-xs font-bold text-sub">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -239,38 +305,48 @@ function legendaSlide(s: ProgressoSlide): string {
   return descricaoReforma(s.servico || '', s.ambiente || '', 'normal');
 }
 
+/**
+ * Os 2 primeiros slides do modelo são sempre a capa/dados do projeto — o
+ * primeiro slide de foto de verdade nasce no 3 (ver `slideModelo` em
+ * `lib/pptx.ts`, hoje sempre 3 nos dois configs com marcadores reais). Cada
+ * slide consome 2 números de foto (a numeração de "Foto NN" nunca reinicia).
+ */
+const SLIDE_MODELO_BASE = 3;
+
 /** Lightbox de slide — antes/durante + depois lado a lado, ampliado, igual ao layout final do PowerPoint. */
 function ModalPreviaSlide({ slide, indice, onFechar }: { slide: ProgressoSlide; indice: number; onFechar: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
       <div
-        className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-card border border-card-border rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-card-border">
-          <h3 className="text-sm font-bold text-main font-vomzom">Slide {indice + 1}</h3>
+          <h3 className="text-sm font-bold text-main font-vomzom">Slide {SLIDE_MODELO_BASE + indice}</h3>
           <button onClick={onFechar} className="text-desc hover:text-main">
             <X size={18} />
           </button>
         </div>
-        <div className="p-4 flex flex-wrap gap-4 overflow-y-auto">
-          <div className="flex-1 min-w-[240px] space-y-1.5">
+        <div className="p-4 flex flex-wrap gap-5 overflow-y-auto">
+          <div className="flex-1 min-w-[280px] space-y-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={urlPublicaFoto(slide.foto_antes_path)}
               alt={slide.etapa1}
               className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
             />
-            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">{slide.etapa1 === 'ANTES' ? 'Antes' : 'Durante'}</p>
+            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">
+              Foto {pad(2 * indice + 1)} - {slide.etapa1}
+            </p>
           </div>
-          <div className="flex-1 min-w-[240px] space-y-1.5">
+          <div className="flex-1 min-w-[280px] space-y-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={urlPublicaFoto(slide.foto_depois_path)}
               alt="Depois"
               className="w-full aspect-[4/3] object-cover rounded-lg border border-card-border"
             />
-            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">Depois</p>
+            <p className="text-[11px] font-bold text-desc uppercase tracking-wide">Foto {pad(2 * indice + 2)} - DEPOIS</p>
           </div>
         </div>
         <div className="px-4 pb-4 text-xs font-bold text-main">{legendaSlide(slide)}</div>
@@ -319,19 +395,24 @@ function RelatorioFotograficoContent() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resumoExpandido, setResumoExpandido] = useState(true);
+  const [dadosExpandido, setDadosExpandido] = useState(true);
+  const [tipoExpandido, setTipoExpandido] = useState(true);
+  const [modoSlides, setModoSlides] = useState(false);
   const proximaEtapaRef = useRef<HTMLDivElement | null>(null);
 
   // passo 4 — equipamentos (infra) / serviços e ambientes (reforma)
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [servicosGlobais, setServicosGlobais] = useState<string[]>([]);
   const [novoServico, setNovoServico] = useState('');
-  const [servicoDisponivelEscolhido, setServicoDisponivelEscolhido] = useState('');
   const [servicoOcupado, setServicoOcupado] = useState<string | null>(null);
   const [ambientesGlobais, setAmbientesGlobais] = useState<string[]>([]);
   const [novoAmbiente, setNovoAmbiente] = useState('');
   const [ambienteOcupado, setAmbienteOcupado] = useState<string | null>(null);
   const [previaIndice, setPreviaIndice] = useState<number | null>(null);
   const [ordemOcupada, setOrdemOcupada] = useState(false);
+  const [ordemAutomatica, setOrdemAutomatica] = useState(false);
+  const [arrastandoSlide, setArrastandoSlide] = useState<string | null>(null);
+  const [alvoDrag, setAlvoDrag] = useState<string | null>(null);
 
   // fotos/progresso (slides antes/depois) — passo 5
   const [progresso, setProgresso] = useState<ProgressoSlide[]>([]);
@@ -343,6 +424,12 @@ function RelatorioFotograficoContent() {
   const [novoSlideAmbiente, setNovoSlideAmbiente] = useState('');
   const [novoSlideAntes, setNovoSlideAntes] = useState<File | null>(null);
   const [novoSlideDepois, setNovoSlideDepois] = useState<File | null>(null);
+  const inputAntesRef = useRef<HTMLInputElement>(null);
+  const inputDepoisRef = useRef<HTMLInputElement>(null);
+  const [montandoPptx, setMontandoPptx] = useState(false);
+  const [slideEditando, setSlideEditando] = useState<string | null>(null);
+
+  const progressoReforma = useMemo(() => progresso.filter((p) => p.servico), [progresso]);
 
   useEffect(() => {
     lerServicosGlobais().then(setServicosGlobais).catch(() => {});
@@ -436,6 +523,9 @@ function RelatorioFotograficoContent() {
     setDataTerminoObra(p.data_efetiva_termino || '');
     setHabilitarEdicaoObra(false);
     setResumoExpandido(true);
+    setDadosExpandido(true);
+    setModoSlides(false);
+    setTipoExpandido(true);
 
     // banco: se o cliente final do projeto bater com um banco conhecido, pré-seleciona
     if (p.cliente_final_nome && bancosCatalogo.includes(p.cliente_final_nome)) {
@@ -456,10 +546,17 @@ function RelatorioFotograficoContent() {
     setDataInicioObra('');
     setDataTerminoObra('');
     setResumoExpandido(true);
+    setDadosExpandido(true);
+    setModoSlides(false);
+    setTipoExpandido(true);
   }
 
   function carregarEstruturaNoFormulario(e: EstruturaFotografica) {
     setEstrutura(e);
+    // já tinha tipo definido — mostra compacto (o David ainda pode "Alterar")
+    setTipoExpandido(false);
+    // dados do relatório ficam expandidos pra revisão — o David quer poder ver
+    // e resolver pendências antes de decidir seguir pra "Criar slides"
     setTipoProjeto(e.tipo_projeto);
     setBanco(e.banco || '');
     setModeloRelatorio(e.modelo_relatorio || '');
@@ -685,6 +782,46 @@ function RelatorioFotograficoContent() {
     }
   }
 
+  async function persistirOrdem(lista: ProgressoSlide[]) {
+    setProgresso(lista);
+    setOrdemOcupada(true);
+    try {
+      await reordenarProgresso(lista.map((p) => p.id));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setOrdemOcupada(false);
+    }
+  }
+
+  /** Ambiente → Serviço → Antes antes de Durante — ordem alfabética até existir
+   *  ordem de ambientes por relatório (ver README.md, pendente migration). */
+  function compararOrdemAutomatica(a: ProgressoSlide, b: ProgressoSlide): number {
+    const porAmbiente = (a.ambiente || '').localeCompare(b.ambiente || '', 'pt-BR');
+    if (porAmbiente !== 0) return porAmbiente;
+    const porServico = (a.servico || '').localeCompare(b.servico || '', 'pt-BR');
+    if (porServico !== 0) return porServico;
+    if (a.etapa1 !== b.etapa1) return a.etapa1 === 'ANTES' ? -1 : 1;
+    return 0;
+  }
+
+  function onSoltarSlide(idAlvo: string) {
+    if (!arrastandoSlide || arrastandoSlide === idAlvo) {
+      setArrastandoSlide(null);
+      setAlvoDrag(null);
+      return;
+    }
+    const lista = [...progresso];
+    const origem = lista.findIndex((p) => p.id === arrastandoSlide);
+    const destino = lista.findIndex((p) => p.id === idAlvo);
+    setArrastandoSlide(null);
+    setAlvoDrag(null);
+    if (origem < 0 || destino < 0) return;
+    const [item] = lista.splice(origem, 1);
+    lista.splice(destino, 0, item!);
+    persistirOrdem(lista);
+  }
+
   async function salvarEquipamentos(novos: Equipamento[]) {
     setEquipamentos(novos);
     let alvo = estrutura;
@@ -749,9 +886,15 @@ function RelatorioFotograficoContent() {
         fotoAntesPath: caminhoAntes,
         fotoDepoisPath: caminhoDepois,
       });
-      setProgresso((prev) => [...prev, novo]);
-      setNovoSlideServico(null);
-      setNovoSlideAmbiente('');
+      if (ordemAutomatica) {
+        const ordenada = [...progresso, novo].sort(compararOrdemAutomatica);
+        persistirOrdem(ordenada);
+      } else {
+        setProgresso((prev) => [...prev, novo]);
+      }
+      // herda serviço e ambiente pro próximo slide (igual ao app original) — só
+      // fotos e etapa voltam ao padrão, já que normalmente vários slides seguidos
+      // são do mesmo serviço/ambiente
       setNovoSlideEtapa('ANTES');
       setNovoSlideAntes(null);
       setNovoSlideDepois(null);
@@ -760,6 +903,46 @@ function RelatorioFotograficoContent() {
     } finally {
       setFotoOcupada(null);
     }
+  }
+
+  /**
+   * Um botão só, dois picks em sequência: primeiro Antes/Durante, depois
+   * Depois — igual ao app original. Se as duas já estiverem escolhidas, o
+   * mesmo botão vira "Excluir fotos" (limpa as duas de uma vez).
+   *
+   * Dois `<input type="file">` distintos (não um só reaberto) — reabrir o
+   * MESMO input dentro do handler de `change` dele mesmo é bloqueado sem
+   * aviso em vários navegadores (a segunda chamada de `.click()` não conta
+   * mais como gesto do usuário); dois inputs separados, cada um clicado só
+   * uma vez, não esbarra nessa restrição.
+   */
+  function iniciarOuLimparFotosSlide() {
+    if (novoSlideAntes && novoSlideDepois) {
+      setNovoSlideAntes(null);
+      setNovoSlideDepois(null);
+      return;
+    }
+    inputAntesRef.current?.click();
+  }
+
+  function onEscolherArquivoAntes(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setNovoSlideAntes(file);
+    inputDepoisRef.current?.click();
+  }
+
+  function onEscolherArquivoDepois(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) setNovoSlideDepois(file);
+  }
+
+  /** Escolha manual direto na miniatura (fora do fluxo do botão "Inserir fotos"). */
+  function definirFotoSlideManual(lado: 'antes' | 'depois', file: File | null) {
+    if (lado === 'antes') setNovoSlideAntes(file);
+    else setNovoSlideDepois(file);
   }
 
   async function removerSlide(id: string) {
@@ -771,6 +954,85 @@ function RelatorioFotograficoContent() {
       setErro((e as Error).message);
     } finally {
       setFotoOcupada(null);
+    }
+  }
+
+  async function editarSlide(id: string, patch: { ambiente?: string | null; etapa1?: 'ANTES' | 'DURANTE' }) {
+    try {
+      const atualizado = await atualizarProgresso(id, patch);
+      setProgresso((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
+
+  /** Geração roda no servidor (precisa de `sharp`) — o client só manda os dados já carregados e recebe o .pptx pronto. */
+  async function montarPowerPoint() {
+    if (!estrutura) return;
+    const modeloEscolhido = modelosDoBanco.find((m) => m.nome === modeloRelatorio);
+    if (!modeloEscolhido?.config_id || !modeloEscolhido.storage_template_path) {
+      setErro('Este modelo ainda não tem um template configurado no Storage — avise o Antigravity.');
+      return;
+    }
+    setMontandoPptx(true);
+    setErro(null);
+    try {
+      const campos: CamposRelatorio = {
+        agencia,
+        programa,
+        upe,
+        sap,
+        gestor,
+        fiscEmpresa,
+        fiscal,
+        construtora,
+        responsavel,
+        inicio: formatarData(dataInicioObra),
+        termino: formatarData(dataTerminoObra),
+      };
+      const slides = progresso.map((s) => ({
+        descricao: s.equipamento
+          ? descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'alta')
+          : descricaoReforma(s.servico || '', s.ambiente || '', 'alta'),
+        etapa1: s.etapa1,
+        fotoAntesPath: s.foto_antes_path,
+        fotoDepoisPath: s.foto_depois_path,
+      }));
+
+      const resp = await fetch('/api/relatorio-fotografico/gerar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          configId: modeloEscolhido.config_id,
+          templatePath: modeloEscolhido.storage_template_path,
+          campos,
+          slides,
+          banco,
+          agencia,
+          nomeFallback: isAvulso ? obraNome : projetoSelecionado?.nome || 'projeto',
+        }),
+      });
+      if (!resp.ok) {
+        const dados = await resp.json().catch(() => ({}) as { erro?: string });
+        throw new Error(dados.erro || 'Falha ao montar o PowerPoint.');
+      }
+      const blob = await resp.blob();
+      const nomeCabecalho = resp.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1];
+      const nomeArquivo = nomeCabecalho ? decodeURIComponent(nomeCabecalho) : 'relatorio.pptx';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // revoga só depois de dar tempo do navegador iniciar o download —
+      // revogar na hora podia invalidar o blob antes do download começar
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setMontandoPptx(false);
     }
   }
 
@@ -863,6 +1125,9 @@ function RelatorioFotograficoContent() {
                   setProjetoSelecionado(null);
                   setHabilitarEdicaoObra(false);
                   setResumoExpandido(true);
+                  setDadosExpandido(true);
+                  setModoSlides(false);
+                  setTipoExpandido(true);
                 }}
               />
               <span>
@@ -954,30 +1219,60 @@ function RelatorioFotograficoContent() {
       {/* 2 — tipo de projeto */}
       <div className={secao}>
         <h3 className={tituloSecao}>{badge(2)} Tipo de projeto</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => setTipoProjeto('infraestrutura')}
-            className={`text-left p-5 rounded-xl border-2 transition-all ${tipoProjeto === 'infraestrutura' ? 'border-brand-ocre bg-brand-ocre/10 shadow-sm' : 'border-card-border bg-background hover:border-brand-ocre/40'}`}
-          >
-            <div className="w-11 h-11 rounded-lg bg-brand-ocre/10 border border-brand-ocre/30 flex items-center justify-center mb-3">
-              <Ruler size={20} className="text-brand-ocre" />
+        {!tipoExpandido ? (
+          <div className="flex items-center justify-between gap-3 bg-background border border-card-border rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              {tipoProjeto === 'infraestrutura' ? (
+                <Ruler size={14} className="text-brand-ocre" />
+              ) : (
+                <Building2 size={14} className="text-brand-blue" />
+              )}
+              <span className="text-xs font-bold text-main">{tipoProjeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'}</span>
             </div>
-            <div className="font-bold text-sm text-main">Infraestrutura</div>
-            <p className="text-xs text-sub mt-1">Equipamento → pontos numerados. Um slide por ponto.</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTipoProjeto('reforma')}
-            className={`text-left p-5 rounded-xl border-2 transition-all ${tipoProjeto === 'reforma' ? 'border-brand-blue bg-brand-blue/10 shadow-sm' : 'border-card-border bg-background hover:border-brand-blue/40'}`}
-          >
-            <div className="w-11 h-11 rounded-lg bg-brand-blue/10 border border-brand-blue/30 flex items-center justify-center mb-3">
-              <Building2 size={20} className="text-brand-blue" />
-            </div>
-            <div className="font-bold text-sm text-main">Reforma</div>
-            <p className="text-xs text-sub mt-1">Serviço → antes, durante e depois. Várias fotos por etapa.</p>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setTipoExpandido(true)}
+              className="text-[10px] font-bold text-brand-blue hover:underline whitespace-nowrap"
+            >
+              Alterar
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setTipoProjeto('infraestrutura');
+                setTipoExpandido(false);
+              }}
+              className={`text-left p-3 rounded-lg border-2 transition-all ${tipoProjeto === 'infraestrutura' ? 'border-brand-ocre bg-brand-ocre/10' : 'border-card-border bg-background hover:border-brand-ocre/40'}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-brand-ocre/10 border border-brand-ocre/30 flex items-center justify-center shrink-0">
+                  <Ruler size={14} className="text-brand-ocre" />
+                </div>
+                <div className="font-bold text-xs text-main">Infraestrutura</div>
+              </div>
+              <p className="text-[10px] text-sub mt-1">Equipamento → pontos numerados. Um slide por ponto.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTipoProjeto('reforma');
+                setTipoExpandido(false);
+              }}
+              className={`text-left p-3 rounded-lg border-2 transition-all ${tipoProjeto === 'reforma' ? 'border-brand-blue bg-brand-blue/10' : 'border-card-border bg-background hover:border-brand-blue/40'}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-brand-blue/10 border border-brand-blue/30 flex items-center justify-center shrink-0">
+                  <Building2 size={14} className="text-brand-blue" />
+                </div>
+                <div className="font-bold text-xs text-main">Reforma</div>
+              </div>
+              <p className="text-[10px] text-sub mt-1">Serviço → antes, durante e depois. Várias fotos por etapa.</p>
+            </button>
+          </div>
+        )}
       </div>
         </>
       )}
@@ -990,6 +1285,25 @@ function RelatorioFotograficoContent() {
           </h3>
         </div>
 
+        {estrutura && !dadosExpandido ? (
+          <div className="flex items-center justify-between gap-3 bg-background border border-card-border rounded-lg px-3 py-2.5">
+            <span className="text-xs text-sub">
+              {pendencias.length > 0 ? (
+                <span className="text-amber-600 font-bold">{pendencias.length} pendência(s) nos dados do relatório</span>
+              ) : (
+                'Dados do relatório completos.'
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDadosExpandido(true)}
+              className="text-[10px] font-bold text-brand-blue hover:underline whitespace-nowrap"
+            >
+              Editar
+            </button>
+          </div>
+        ) : (
+          <>
         {/* Legenda importante e controle de edição para projeto vinculado */}
         {!isAvulso && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 space-y-2">
@@ -1190,25 +1504,58 @@ function RelatorioFotograficoContent() {
             aparecem vazias aqui (e como pendência abaixo). Habilite a edição acima pra lançar direto por aqui.
           </p>
         )}
+          </>
+        )}
 
-        <button
-          type="button"
-          disabled={!podeCriar || salvando}
-          onClick={criarOuAtualizarCabecalho}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-ocre text-white text-xs font-bold disabled:opacity-40"
-        >
-          {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
-          {estrutura ? 'Salvar dados' : 'Iniciar relatório'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {!estrutura && (
+            <button
+              type="button"
+              disabled={!podeCriar || salvando}
+              onClick={criarOuAtualizarCabecalho}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-ocre text-white text-xs font-bold disabled:opacity-40"
+            >
+              {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+              Iniciar relatório
+            </button>
+          )}
+          {estrutura && (isAvulso || habilitarEdicaoObra) && dadosExpandido && (
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={criarOuAtualizarCabecalho}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-card-border text-main text-xs font-bold disabled:opacity-40"
+            >
+              {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+              Salvar dados
+            </button>
+          )}
+          {estrutura && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (isAvulso || habilitarEdicaoObra) await criarOuAtualizarCabecalho();
+                setModoSlides(true);
+                setDadosExpandido(false);
+                setTimeout(() => proximaEtapaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+              }}
+              disabled={salvando}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-ocre text-white text-xs font-bold disabled:opacity-40"
+            >
+              {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+              {modoSlides ? 'Slides' : 'Criar slides'}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* continuação após "Iniciar relatório" — dados de apoio (serviços/ambientes/
-          equipamentos) à esquerda, slides já criados numa coluna fixa à direita
-          (como um painel de miniaturas do PowerPoint) — mostra a sequência real
-          em vez de deixar tudo empilhado e sem preview */}
+      {/* continuação — só aparece depois de "Criar slides": dados de apoio
+          (ambientes/serviços/equipamentos) à esquerda, slides já criados numa
+          coluna fixa à direita (como um painel de miniaturas do PowerPoint) */}
+      {estrutura && modoSlides && (
       <div ref={proximaEtapaRef} className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
       <div className="space-y-6 min-w-0">
-      {estrutura && pendencias.length > 0 && (
+      {pendencias.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-start gap-2.5">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-900 dark:text-amber-200">
@@ -1221,13 +1568,36 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
-      {/* Ambientes — catálogo global, reaproveitado em qualquer relatório futuro */}
-      {estrutura && tipoProjeto === 'reforma' && (
+      {/* 4 — ambientes (catálogo global, reaproveitado em qualquer relatório futuro) */}
+      {tipoProjeto === 'reforma' && (
         <div className={secao}>
-          <h3 className={tituloSecao}>Ambientes</h3>
+          <h3 className={tituloSecao}>{badge(4)} Ambientes</h3>
           <p className="text-[10px] text-sub">
             Lista global — um ambiente criado aqui já fica disponível pra qualquer relatório futuro, não só este.
           </p>
+          {ambientesGlobais.length === 0 ? (
+            <p className="text-[10px] text-sub italic">Nenhum ambiente cadastrado ainda.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((a) => (
+                <div
+                  key={a}
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-card-border bg-background text-xs font-bold text-main"
+                  style={{ opacity: ambienteOcupado === a ? 0.5 : 1 }}
+                >
+                  <span className="truncate">{a}</span>
+                  <button
+                    type="button"
+                    disabled={ambienteOcupado === a}
+                    onClick={() => removerAmbiente(a)}
+                    className="text-desc hover:text-red-500 shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -1248,72 +1618,41 @@ function RelatorioFotograficoContent() {
               + adicionar
             </button>
           </div>
-          {ambientesGlobais.length === 0 ? (
-            <p className="text-[10px] text-sub italic">Nenhum ambiente cadastrado ainda.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ambientesGlobais.map((a) => (
-                <div
-                  key={a}
-                  className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-card-border bg-background text-xs font-bold text-main"
-                  style={{ opacity: ambienteOcupado === a ? 0.5 : 1 }}
-                >
-                  <span className="truncate">{a}</span>
-                  <button
-                    type="button"
-                    disabled={ambienteOcupado === a}
-                    onClick={() => removerAmbiente(a)}
-                    className="text-desc hover:text-red-500 shrink-0"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* 4 — serviços (reforma) */}
+      {/* 5 — serviços: catálogo global inteiro à vista, cinza = conhecido mas não
+          habilitado nesta obra, colorido = habilitado. Clicar alterna. */}
       {estrutura && tipoProjeto === 'reforma' && (
         <div className={secao}>
-          <h3 className={tituloSecao}>{badge(4)} Serviços</h3>
+          <h3 className={tituloSecao}>{badge(5)} Serviços</h3>
           <p className="text-[10px] text-sub">
-            Selecione um serviço já conhecido pra habilitar nesta obra, ou crie um novo — nos dois casos ele já sai
-            habilitado, pronto pra receber slides.
+            Cinza = já existe no catálogo, mas não vale pra esta obra ainda. Toque pra habilitar (fica colorido) —
+            toque de novo pra tirar da lista desta obra, sem apagar do catálogo.
           </p>
-
-          <div className="flex flex-wrap gap-2 items-center">
-            {servicosGlobais.filter((s) => !estrutura.servicos_habilitados.includes(s)).length > 0 && (
-              <>
-                <select
-                  value={servicoDisponivelEscolhido}
-                  onChange={(e) => setServicoDisponivelEscolhido(e.target.value)}
-                  className={input + ' w-auto min-w-[200px]'}
-                >
-                  <option value="">Serviço conhecido, ainda não habilitado…</option>
-                  {servicosGlobais
-                    .filter((s) => !estrutura.servicos_habilitados.includes(s))
-                    .map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!servicoDisponivelEscolhido || servicoOcupado === servicoDisponivelEscolhido}
-                  onClick={() => {
-                    habilitarServicoAqui(servicoDisponivelEscolhido);
-                    setServicoDisponivelEscolhido('');
-                  }}
-                  className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40 whitespace-nowrap"
-                >
-                  habilitar aqui
-                </button>
-              </>
-            )}
-          </div>
+          {servicosGlobais.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[...servicosGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((nome) => {
+                const habilitado = estrutura.servicos_habilitados.includes(nome);
+                return (
+                  <button
+                    key={nome}
+                    type="button"
+                    disabled={servicoOcupado === nome}
+                    onClick={() => (habilitado ? desabilitarServicoAqui(nome) : habilitarServicoAqui(nome))}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold truncate transition-colors ${
+                      habilitado
+                        ? 'border-brand-ocre bg-brand-ocre/10 text-main'
+                        : 'border-card-border bg-slate-100 dark:bg-zinc-800/60 text-desc opacity-70 hover:opacity-100'
+                    }`}
+                    style={{ opacity: servicoOcupado === nome ? 0.5 : undefined }}
+                  >
+                    {nome}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -1331,111 +1670,256 @@ function RelatorioFotograficoContent() {
               onClick={() => habilitarServicoAqui(novoServico)}
               className="px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40 whitespace-nowrap"
             >
-              criar e habilitar
+              + novo serviço
             </button>
           </div>
+        </div>
+      )}
 
-          {estrutura.servicos_habilitados.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-card-border">
-              {estrutura.servicos_habilitados.map((nome) => (
-                <div
-                  key={nome}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-brand-ocre/40 bg-brand-ocre/10 text-xs font-bold text-main"
-                  style={{ opacity: servicoOcupado === nome ? 0.5 : 1 }}
-                >
-                  {nome}
-                  <button
-                    type="button"
-                    disabled={servicoOcupado === nome}
-                    onClick={() => desabilitarServicoAqui(nome)}
-                    title="Desabilitar (não apaga o catálogo global)"
-                    className="text-brand-ocre/70 hover:text-red-500"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
+      {/* 6 — criar slide: uma etapa única (não mais um link por serviço) —
+          escolhe serviço + ambiente, monta o par antes/depois, salva */}
+      {estrutura && tipoProjeto === 'reforma' && estrutura.servicos_habilitados.length > 0 && (
+        <div className={secao}>
+          <h3 className={tituloSecao}>{badge(6)} Criar slide</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <select value={novoSlideServico ?? ''} onChange={(e) => setNovoSlideServico(e.target.value || null)} className={input}>
+              <option value="">Selecione o serviço…</option>
+              {[...estrutura.servicos_habilitados].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
+            </select>
+            <select value={novoSlideAmbiente} onChange={(e) => setNovoSlideAmbiente(e.target.value)} className={input}>
+              <option value="">Ambiente (opcional)</option>
+              {[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className={label}>Primeira foto vem de</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNovoSlideEtapa('ANTES')}
+                className={`px-4 py-1.5 rounded-lg border-2 text-xs font-bold ${novoSlideEtapa === 'ANTES' ? 'border-brand-ocre bg-brand-ocre/10 text-main' : 'border-card-border text-sub'}`}
+              >
+                Antes
+              </button>
+              <button
+                type="button"
+                onClick={() => setNovoSlideEtapa('DURANTE')}
+                className={`px-4 py-1.5 rounded-lg border-2 text-xs font-bold ${novoSlideEtapa === 'DURANTE' ? 'border-brand-ocre bg-brand-ocre/10 text-main' : 'border-card-border text-sub'}`}
+              >
+                Durante
+              </button>
             </div>
-          )}
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex flex-col items-center gap-1">
+              <SlotFoto
+                rotulo={novoSlideEtapa === 'ANTES' ? 'Antes' : 'Durante'}
+                caminho={null}
+                arquivoLocal={novoSlideAntes}
+                ocupado={fotoOcupada === 'novo-slide'}
+                onSelecionar={(f) => definirFotoSlideManual('antes', f)}
+                onExcluir={() => definirFotoSlideManual('antes', null)}
+              />
+              {novoSlideAntes && (
+                <span className="text-[9px] text-emerald-600 font-bold text-center max-w-[80px] truncate">{novoSlideAntes.name}</span>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <SlotFoto
+                rotulo="Depois"
+                caminho={null}
+                arquivoLocal={novoSlideDepois}
+                ocupado={fotoOcupada === 'novo-slide'}
+                onSelecionar={(f) => definirFotoSlideManual('depois', f)}
+                onExcluir={() => definirFotoSlideManual('depois', null)}
+              />
+              {novoSlideDepois && (
+                <span className="text-[9px] text-emerald-600 font-bold text-center max-w-[80px] truncate">{novoSlideDepois.name}</span>
+              )}
+            </div>
+            <input ref={inputAntesRef} type="file" accept="image/*" className="hidden" onChange={onEscolherArquivoAntes} />
+            <input ref={inputDepoisRef} type="file" accept="image/*" className="hidden" onChange={onEscolherArquivoDepois} />
+            <button
+              type="button"
+              onClick={iniciarOuLimparFotosSlide}
+              disabled={fotoOcupada === 'novo-slide'}
+              className={`h-20 inline-flex flex-col items-center justify-center gap-1 px-5 rounded-xl text-xs font-bold disabled:opacity-40 shadow-sm transition-colors ${
+                novoSlideAntes && novoSlideDepois
+                  ? 'bg-red-500/10 border-2 border-red-500/40 text-red-500 hover:bg-red-500/20'
+                  : 'bg-brand-ocre text-white hover:bg-brand-ocre/90'
+              }`}
+            >
+              <Camera size={18} />
+              {novoSlideAntes && novoSlideDepois ? 'Excluir fotos' : 'Inserir fotos'}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!novoSlideServico || !novoSlideAntes || !novoSlideDepois || fotoOcupada === 'novo-slide'}
+              onClick={salvarNovoSlideReforma}
+              className="px-4 py-2 rounded-lg bg-brand-ocre text-white text-xs font-bold disabled:opacity-40"
+            >
+              {fotoOcupada === 'novo-slide' ? 'Enviando…' : 'Gerar slide'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNovoSlideServico(null);
+                setNovoSlideAntes(null);
+                setNovoSlideDepois(null);
+                setNovoSlideAmbiente('');
+                setNovoSlideEtapa('ANTES');
+              }}
+              className="px-4 py-2 rounded-lg border border-card-border text-xs font-bold text-sub"
+            >
+              Limpar campos
+            </button>
+          </div>
+        </div>
+      )}
 
-          {estrutura.servicos_habilitados.length > 0 && (
-            <div className="space-y-3 pt-2 border-t border-card-border">
-              {estrutura.servicos_habilitados.map((servico) => {
-                return (
-                  <div key={servico} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-main uppercase tracking-wide">{servico}</span>
-                      {novoSlideServico !== servico && (
-                        <button
-                          type="button"
-                          onClick={() => setNovoSlideServico(servico)}
-                          className="text-[10px] font-bold text-brand-blue hover:underline"
-                        >
-                          + novo slide
-                        </button>
-                      )}
-                    </div>
-
-                    {novoSlideServico === servico && (
-                      <div className="bg-background border border-card-border rounded-lg p-3 space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            value={novoSlideEtapa}
-                            onChange={(e) => setNovoSlideEtapa(e.target.value as 'ANTES' | 'DURANTE')}
-                            className={input}
-                          >
-                            <option value="ANTES">Antes</option>
-                            <option value="DURANTE">Durante</option>
-                          </select>
-                          <select value={novoSlideAmbiente} onChange={(e) => setNovoSlideAmbiente(e.target.value)} className={input}>
-                            <option value="">Ambiente (opcional)</option>
-                            {ambientesGlobais.map((a) => (
-                              <option key={a} value={a}>
-                                {a}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <SlotFoto
-                            rotulo={novoSlideEtapa === 'ANTES' ? 'Antes' : 'Durante'}
-                            caminho={null}
-                            ocupado={fotoOcupada === 'novo-slide'}
-                            onSelecionar={setNovoSlideAntes}
-                          />
-                          {novoSlideAntes && <span className="text-[10px] text-emerald-600 font-bold">{novoSlideAntes.name}</span>}
-                          <SlotFoto rotulo="Depois" caminho={null} ocupado={fotoOcupada === 'novo-slide'} onSelecionar={setNovoSlideDepois} />
-                          {novoSlideDepois && <span className="text-[10px] text-emerald-600 font-bold">{novoSlideDepois.name}</span>}
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={!novoSlideAntes || !novoSlideDepois || fotoOcupada === 'novo-slide'}
-                            onClick={salvarNovoSlideReforma}
-                            className="px-3 py-1.5 rounded-lg bg-brand-ocre text-white text-[10px] font-bold disabled:opacity-40"
-                          >
-                            {fotoOcupada === 'novo-slide' ? 'Enviando…' : 'Salvar slide'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNovoSlideServico(null);
-                              setNovoSlideAntes(null);
-                              setNovoSlideDepois(null);
-                              setNovoSlideAmbiente('');
-                            }}
-                            className="px-3 py-1.5 rounded-lg border border-card-border text-[10px] font-bold text-sub"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
+      {/* lista dos slides de reforma já gerados, logo abaixo da etapa 6 —
+          reordenar, pré-visualizar clicando, editar ambiente/etapa, excluir */}
+      {estrutura && tipoProjeto === 'reforma' && progressoReforma.length > 0 && (
+        <div className={secao}>
+          <h3 className={tituloSecao}>Slides gerados ({progressoReforma.length})</h3>
+          <label className="flex items-center gap-2 text-[11px] font-semibold text-main cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-3.5 h-3.5 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre"
+              checked={ordemAutomatica}
+              onChange={(e) => {
+                setOrdemAutomatica(e.target.checked);
+                if (e.target.checked) persistirOrdem([...progresso].sort(compararOrdemAutomatica));
+              }}
+            />
+            Organizar automaticamente (Ambiente → Serviço → Antes/Durante)
+          </label>
+          <div className="space-y-2">
+            {progressoReforma.map((s) => {
+              const indiceGlobal = progresso.findIndex((p) => p.id === s.id);
+              const posicaoNaLista = progressoReforma.findIndex((p) => p.id === s.id);
+              return (
+                <div
+                  key={s.id}
+                  draggable
+                  onDragStart={() => setArrastandoSlide(s.id)}
+                  onDragEnd={() => {
+                    setArrastandoSlide(null);
+                    setAlvoDrag(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (alvoDrag !== s.id) setAlvoDrag(s.id);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    onSoltarSlide(s.id);
+                  }}
+                  className={`border rounded-lg bg-background transition-opacity ${
+                    arrastandoSlide === s.id ? 'opacity-40' : ''
+                  } ${alvoDrag === s.id && arrastandoSlide && arrastandoSlide !== s.id ? 'border-brand-ocre ring-1 ring-brand-ocre' : 'border-card-border'}`}
+                >
+                  <div className="flex items-center gap-3 p-2.5">
+                    <span className="cursor-grab active:cursor-grabbing text-desc shrink-0 select-none" title="Arrastar para reordenar">
+                      ⠿
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviaIndice(indiceGlobal)}
+                      title="Ampliar slide"
+                      className="hidden sm:flex gap-1 shrink-0 cursor-zoom-in rounded overflow-hidden"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urlPublicaFoto(s.foto_antes_path)} alt="" className="w-12 h-12 object-cover" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urlPublicaFoto(s.foto_depois_path)} alt="" className="w-12 h-12 object-cover" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviaIndice(indiceGlobal)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="text-xs font-bold text-main truncate">
+                        {posicaoNaLista + 1}. {legendaSlide(s)}
                       </div>
-                    )}
+                      <div className="text-[10px] text-sub">{s.etapa1 === 'ANTES' ? 'Antes' : 'Durante'} → Depois</div>
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        disabled={posicaoNaLista === 0 || ordemOcupada}
+                        onClick={() => moverSlide(s.id, -1)}
+                        className="text-desc hover:text-main disabled:opacity-30"
+                        title="Mover pra cima"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={posicaoNaLista === progressoReforma.length - 1 || ordemOcupada}
+                        onClick={() => moverSlide(s.id, 1)}
+                        className="text-desc hover:text-main disabled:opacity-30"
+                        title="Mover pra baixo"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSlideEditando(slideEditando === s.id ? null : s.id)}
+                        className="text-desc hover:text-brand-blue"
+                        title="Editar ambiente/etapa"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={fotoOcupada === 'remover-' + s.id}
+                        onClick={() => removerSlide(s.id)}
+                        className="text-desc hover:text-red-500 disabled:opacity-30"
+                        title="Remover slide"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  {slideEditando === s.id && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 pt-0">
+                      <select
+                        value={s.ambiente ?? ''}
+                        onChange={(e) => editarSlide(s.id, { ambiente: e.target.value || null })}
+                        className={input}
+                      >
+                        <option value="">Ambiente (opcional)</option>
+                        {[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={s.etapa1}
+                        onChange={(e) => editarSlide(s.id, { etapa1: e.target.value as 'ANTES' | 'DURANTE' })}
+                        className={input}
+                      >
+                        <option value="ANTES">Antes</option>
+                        <option value="DURANTE">Durante</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1532,7 +2016,23 @@ function RelatorioFotograficoContent() {
           ordem final do PowerPoint; clicar amplia (mesma ideia de painel de
           slides do próprio PowerPoint / preview de arquivo) */}
       {estrutura && (
-        <div className="lg:sticky lg:top-4 space-y-3">
+        <div className="hidden lg:block lg:sticky lg:top-4 space-y-3">
+          <button
+            type="button"
+            disabled={pendencias.length > 0 || progresso.length === 0 || montandoPptx}
+            onClick={montarPowerPoint}
+            title={
+              pendencias.length > 0
+                ? 'Resolva as pendências nos dados do relatório primeiro'
+                : progresso.length === 0
+                  ? 'Crie pelo menos 1 slide primeiro'
+                  : undefined
+            }
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
+            {montandoPptx ? 'Montando…' : 'Montar PowerPoint'}
+          </button>
           <div className={secao}>
             <h3 className={tituloSecao}>
               Slides {progresso.length > 0 && <span className="text-desc normal-case font-semibold">({progresso.length})</span>}
@@ -1544,19 +2044,19 @@ function RelatorioFotograficoContent() {
             ) : (
               <div className="space-y-2 max-h-[75vh] overflow-y-auto pr-1 -mr-1">
                 {progresso.map((s, i) => (
-                  <div key={s.id} className="flex gap-2 border border-card-border rounded-lg p-2 bg-background">
+                  <div key={s.id} className="border border-card-border rounded-lg p-2 bg-background">
                     <button
                       type="button"
                       onClick={() => setPreviaIndice(i)}
                       title="Ampliar slide"
-                      className="flex gap-1 shrink-0 cursor-zoom-in rounded overflow-hidden"
+                      className="flex gap-1 w-full cursor-zoom-in rounded overflow-hidden"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={urlPublicaFoto(s.foto_antes_path)} alt="" className="w-10 h-10 object-cover" />
+                      <img src={urlPublicaFoto(s.foto_antes_path)} alt="" className="w-1/2 aspect-square object-cover" />
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={urlPublicaFoto(s.foto_depois_path)} alt="" className="w-10 h-10 object-cover" />
+                      <img src={urlPublicaFoto(s.foto_depois_path)} alt="" className="w-1/2 aspect-square object-cover" />
                     </button>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 mt-1.5">
                       <div className="text-[10px] font-bold text-main truncate">
                         {i + 1}. {legendaSlide(s)}
                       </div>
@@ -1598,6 +2098,7 @@ function RelatorioFotograficoContent() {
         </div>
       )}
       </div>
+      )}
 
       {previaIndice !== null && progresso[previaIndice] && (
         <ModalPreviaSlide slide={progresso[previaIndice]!} indice={previaIndice} onFechar={() => setPreviaIndice(null)} />

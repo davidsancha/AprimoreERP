@@ -389,26 +389,39 @@ export async function montarRelatorio(
 // remoção de <p:custDataLst> de cada clone + exclusão da parte órfã no fim.
 
 export const MODELOS_CFG: Record<string, ModeloCfg> = {
+  /*
+   * Confirmado por inspeção direta do arquivo em
+   * Storage (relatorios-fotograficos/_templates/itau-personnalite.pptx,
+   * baixado e analisado em 03/09/2026): o slide-molde (slide 3), os
+   * marcadores dos slides 1-2 e os nomes das formas de foto são os MESMOS
+   * pra infra e reforma — é o mesmo arquivo físico (confirmado pelo David),
+   * a diferença entre os dois tipos está só na descrição que cada slide
+   * recebe (equipamento+ponto vs. serviço+ambiente), não no template. O
+   * config antigo daqui (formaAntes "object 11", marcadores "TROCA DE
+   * ATM'S...") vinha de outro arquivo histórico que nunca foi enviado pro
+   * Storage — dava erro "Forma não encontrada" na hora de gerar.
+   */
   "itau-personnalite-reforma": {
     nome: "Itaú Personnalité — Reforma",
     slideModelo: 3,
-    marcadorFoto1: "Foto 01 – ",
-    marcadorFoto2: "Foto 02 – ",
-    marcadorDescricao: "TROCA DE ATM’S (MANUTENÇÃO)",
-    formaAntes: "object 11",
+    marcadorFoto1: "Foto 01 - ANTES",
+    marcadorFoto2: "Foto 02 - DEPOIS",
+    marcadorRotuloAntes: "ANTES",
+    marcadorDescricao: "SENSOR DE PRESENÇA 01 (SANITÁRIO MASCULINO)",
+    formaAntes: "Retângulo 14",
     formaDepois: "Retângulo 17",
     campos: [
-      { id: "agencia", slide: 1, marcador: "9653 PERSONNALITE BELEM" },
-      { id: "programa", slide: 1, marcador: "TRANSFORMAÇÃO ESPAÇO PERSON" },
-      { id: "upe", slide: 1, marcador: "230554" },
-      { id: "sap", slide: 1, marcador: "XXXX" },
-      { id: "gestor", slide: 2, marcador: "GESTOR DE OBRAS : Bruno Pinheiro", prefixo: "GESTOR DE OBRAS : " },
-      { id: "fiscEmpresa", slide: 2, marcador: "EMPRESA: Afine ", prefixo: "EMPRESA: " },
-      { id: "fiscal", slide: 2, marcador: "FISCAL: Bruno Pinheiro", prefixo: "FISCAL: " },
+      { id: "agencia", slide: 1, marcador: "8647PERSONNALITE RJ-CAMPOS" },
+      { id: "programa", slide: 1, marcador: " UNIFICADAS – MODERNIZAÇÃO DO SISTEMA DE ALARME", prefixo: " " },
+      { id: "upe", slide: 1, marcador: "226816" },
+      { id: "sap", slide: 1, marcador: "CÓDIGO SAP:", prefixo: "CÓDIGO SAP: " },
+      { id: "gestor", slide: 2, marcador: "GESTOR DE OBRAS : RITA DE CASSIA N. PINHEIRO", prefixo: "GESTOR DE OBRAS : " },
+      { id: "fiscEmpresa", slide: 2, marcador: "EMPRESA: METROLL", prefixo: "EMPRESA: " },
+      { id: "fiscal", slide: 2, marcador: "FISCAL: RITA DE CASSIA N. PINHEIRO", prefixo: "FISCAL: " },
       { id: "construtora", slide: 2, marcador: "EMPRESA: EGF CONSTRUTORA", prefixo: "EMPRESA: " },
       { id: "responsavel", slide: 2, marcador: "RESPONSÁVEL: JULIANA SINASTRO", prefixo: "RESPONSÁVEL: " },
-      { id: "inicio", slide: 2, marcador: "INÍCIO: 31/07/2028", prefixo: "INÍCIO: " },
-      { id: "termino", slide: 2, marcador: "TÉRMINO:13/08/2028", prefixo: "TÉRMINO:" },
+      { id: "inicio", slide: 2, marcador: "INÍCIO: 28/08/2026", prefixo: "INÍCIO: " },
+      { id: "termino", slide: 2, marcador: "TÉRMINO: 31/08/2026", prefixo: "TÉRMINO: " },
     ],
   },
   "itau-personnalite": {

@@ -161,12 +161,153 @@ de transitiva quebra se o Next parar de precisar dela.
     por esta mudança).
   - **Ainda não verificado visualmente** — o login da aplicação pede
     e-mail/senha e por política o Claude Code não pode digitar
-    credenciais; aguardando o David logar na aba aberta.
-- Ainda faltam: geração do `.pptx` de verdade (conectar `lib/pptx.ts`
-  ao Storage, usando o `config_id` do modelo escolhido — este é o
-  próximo passo natural, já que agora existem fotos pra consumir),
-  reordenação de slide por arrastar (a função `reordenarProgresso` já
-  existe no serviço, falta UI), prévia de slide antes de montar.
+    credenciais (nem quando o David oferece a senha diretamente — é
+    uma regra fixa, sem exceção); aguardando o David logar na aba
+    aberta.
+- **Fluxo em etapas reorganizado (03/09/2026, Claude Code, feedback do
+  David depois de ver o resultado)** — comparado com
+  `EGF\ITAÚ\relatorio-fotografico.html` (protótipo original,
+  autoritativo pra esse fluxo):
+  - **"Criar slides" é o gatilho**, ao lado de "Salvar dados", em vez
+    de tudo aparecer junto depois de "Iniciar relatório". "Salvar
+    dados" só aparece quando os dados do projeto estão editáveis
+    (avulso ou `habilitarEdicaoObra`) — não faz sentido mostrá-lo em
+    modo leitura.
+  - Clicar em **"Criar slides"** recolhe a seção 3 (Dados do
+    relatório) num resumo compacto (com "Editar" pra reabrir) e só
+    então revela as etapas seguintes — mais espaço pra tela de slides.
+  - Numeração retomada: **4 = Ambientes**, **5 = Serviços**,
+    **6 = Criar slide** (reforma). Infraestrutura continua com
+    **4 = Equipamentos e pontos** (não tem ambientes/serviços).
+  - **Ambientes**: chips em ordem alfabética (antes vinham na ordem
+    de criação).
+  - **Serviços**: virou um grid único com TODOS os serviços do
+    catálogo global sempre visíveis — cinza/opaco = conhecido mas não
+    habilitado nesta obra, colorido = habilitado. Um toque alterna
+    (substituiu o fluxo anterior de select + botão "habilitar aqui").
+    Também em ordem alfabética.
+  - **Criar slide** deixou de ser um link por serviço (o que ficava
+    "pobre", nas palavras do David) e virou uma etapa única: select de
+    serviço (só os habilitados) + select de ambiente + toggle
+    Antes/Durante + par de fotos + "Gerar slide" — mesmo desenho do
+    grupo "Gerar slides" do protótipo original.
+  - `npx tsc --noEmit` e `eslint` limpos (mesmos avisos pré-existentes
+    de `set-state-in-effect`, não novos).
+- **Geração real do PowerPoint conectada (03/09/2026, Claude Code) —
+  o módulo deixa de ser um protótipo.** Novidades desta rodada:
+  - **`src/app/api/relatorio-fotografico/gerar/route.ts`** (novo,
+    `runtime = 'nodejs'`) — só roda no servidor porque `sharp`
+    (recorte/compressão real da foto) é binário nativo, não existe em
+    browser. O client já manda os dados prontos (campos, lista de
+    slides com os caminhos do Storage) no corpo da requisição — a rota
+    só baixa template + fotos (bucket é público, não precisa de sessão)
+    e chama `montarRelatorio`. `sharp` virou dependência direta do
+    `package.json` (antes só transitiva via `next`).
+  - Botão **"Montar PowerPoint"** no topo da coluna de slides —
+    desabilitado enquanto houver pendência nos dados do relatório ou
+    nenhum slide criado. Dispara a rota, recebe o `.pptx` pronto e
+    acsiona o download no navegador.
+  - **Bug corrigido**: selecionar um projeto que já tinha relatório
+    pulava direto pra etapa de slides, escondendo os dados do projeto
+    — o David queria poder revisar/editar antes de decidir seguir.
+    Agora "Dados do relatório" só recolhe quando o usuário clica em
+    "Criar slides" (nunca automaticamente).
+  - **Etapa 2 (Tipo de projeto)**: cards menores (menos destaque) e
+    recolhem pra um resumo compacto ("Alterar") assim que um tipo é
+    escolhido — antes ficavam grandes o tempo todo.
+  - **Etapa 6 (Criar slide)**: miniatura de verdade do arquivo local
+    escolhido (não mais câmera+texto) — `SlotFoto` ganhou suporte a
+    preview de `File` antes do upload (`URL.createObjectURL`, com
+    `revoke` no cleanup). Nome do arquivo aparece embaixo da miniatura,
+    não mais do lado. Novo botão **"Inserir fotos"** replica o fluxo
+    do app original: um clique só, primeira escolha vai pro
+    Antes/Durante, segunda escolha vai pro Depois automaticamente (via
+    um único `<input type="file">` reaberto programaticamente entre as
+    duas escolhas). Ao salvar um slide, serviço e ambiente são
+    mantidos pro próximo (só fotos e etapa voltam ao padrão) — igual
+    ao comentário original (`/* herda serviço e ambiente */`).
+  - **Lista de slides de reforma** logo abaixo da etapa 6 (antes só
+    existia na coluna direita) — reordenar (▲▼), pré-visualizar
+    clicando, **editar** ambiente/etapa inline, excluir.
+  - **`ModalPreviaSlide` corrigido**: o número do slide mostrado agora
+    soma a base do modelo (`SLIDE_MODELO_BASE = 3` — os 2 primeiros
+    slides do `.pptx` são sempre a capa/dados do projeto, os slides de
+    foto começam no 3; hoje é o único valor real que existe no
+    sistema). As legendas de cada foto viraram "Foto 01 - ANTES" /
+    "Foto 02 - DEPOIS" (numeração que nunca reinicia, incrementa 2 por
+    slide — igual à regra real do `lib/pptx.ts`), fotos maiores.
+  - `npx tsc --noEmit` e `eslint` limpos.
+  - **Ainda não testado de ponta a ponta** — só o David consegue (é
+    quem está logado); depende de um relatório real com pelo menos 1
+    slide e dados completos pra testar o "Montar PowerPoint".
+- **Correções depois do primeiro teste real (03/09/2026, Claude Code)**
+  — o David testou e reportou: "Montar PowerPoint" executava mas não
+  baixava nada, e o fluxo de inserir fotos ainda não batia com o
+  original. Achados e corrigidos:
+  - **Bug real, confirmado no log do servidor** (`POST
+    /api/relatorio-fotografico/gerar 500`): nomes de serviço com espaço
+    (ex.: "TROCA DE ATMS") viram segmento de pasta no Storage
+    (`TROCA DE ATMS/ANTES/arquivo.jpg`) — a rota montava a URL de
+    download por concatenação de string, sem `encodeURIComponent` por
+    segmento, e o `fetch` falhava. Corrigido em
+    `src/app/api/relatorio-fotografico/gerar/route.ts`. Também
+    adicionado `console.error` no catch pra aparecer no terminal do
+    servidor da próxima vez.
+  - Revoke do blob URL do download adiado (`setTimeout` de 4s) —
+    revogar na hora podia invalidar o link antes do navegador
+    realmente iniciar o download.
+  - **"Inserir fotos"**: reabertura do seletor de arquivo agora usa
+    `setTimeout(...,0)` antes do `.click()` programático — reabrir
+    síncrono dentro do próprio handler de `change` falhava
+    silenciosamente em alguns casos. Quando as duas fotos (antes e
+    depois) já estão escolhidas, o mesmo botão vira **"Excluir fotos"**
+    (limpa as duas de uma vez). Ficou ao lado de "Primeira foto vem
+    de", acima das miniaturas — não mais do lado delas.
+  - **`SlotFoto`**: clicar numa miniatura vazia abre o seletor de
+    arquivo direto (como antes); clicar numa que já tem foto agora
+    **amplia** com as opções "Trocar" / "Excluir" / "Fechar" — antes
+    qualquer toque reabria o seletor sem aviso, arriscando trocar a
+    foto sem querer.
+  - Painel lateral de slides (coluna direita): descrição e ações
+    ficam **abaixo** das duas miniaturas, não mais do lado — miniaturas
+    maiores (metade da largura do card cada, antes eram só 40px).
+  - `npx tsc --noEmit` e `eslint` limpos.
+- **Terceiro round de testes reais (03/09/2026, Claude Code)** — o
+  David bateu no erro `Forma "object 11" não encontrada no slide
+  modelo` ao tentar montar de verdade. Causa raiz confirmada (não
+  hipótese): baixei o `.pptx` do Storage e inspecionei o XML — o
+  config `itau-personnalite-reforma` em `lib/pptx.ts` tinha nomes de
+  forma e marcadores de um arquivo histórico que nunca foi enviado.
+  Corrigido: os dois configs (infra/reforma) agora usam os mesmos
+  marcadores/formas do arquivo real (é fisicamente o mesmo `.pptx`,
+  confirmado pelo David) — só a descrição de cada slide muda conforme
+  o tipo. Handoff da migration `00012_ordem_ambientes_relatorio.sql`
+  feito pro Antigravity (`_mensagens-agentes/PARA-ANTIGRAVITY.md`).
+  - "Inserir fotos" trocado pra **dois `<input type="file">`
+    dedicados** (não mais um só reaberto via `.click()` programático)
+    — reabrir o mesmo input dentro do próprio handler de `change` é
+    bloqueado sem aviso em vários navegadores; provavelmente a causa
+    do "não está funcionando" reportado. Botão virou visual primário
+    (fundo `brand-ocre`, ícone, mais alto), voltou pra ao lado das
+    miniaturas (não mais alinhado à direita), vira "Excluir fotos"
+    quando as duas já estão escolhidas. `capture="environment"`
+    removido de todos os inputs de foto — no celular isso forçava a
+    câmera direto e escondia a opção de galeria.
+  - Lista "Slides gerados" (reforma) ganhou **arrastar-e-soltar**
+    nativo (alça `⠿`) e checkbox **"Organizar automaticamente"**
+    (Ambiente → Serviço → Antes/Durante) — liga e já reordena os
+    existentes; ligado, cada slide novo já nasce na posição certa.
+    Critério de ambiente é alfabético por enquanto — ordem
+    customizada por relatório depende da migration `00012` (UI de
+    reordenar ambientes em si ainda não construída).
+  - **Layout mobile**: coluna lateral de slides escondida abaixo do
+    breakpoint `lg` (só a lista aparece); miniaturas da lista
+    escondidas abaixo do `sm` (só texto, clicável pra ampliar).
+  - `npx tsc --noEmit` limpo.
+- Ainda faltam: reordenar ambientes por relatório (migration `00012`
+  já proposta, falta UI de arrastar + aplicar), prévia de slide antes
+  de montar, drag-and-drop também nos pontos de infraestrutura (hoje
+  só tem ▲▼).
 - **Template real do Itaú Personnalité localizado (03/09/2026)** — o
   David tinha o `.pptx` modelo numa pasta local
   (`EGF\ITAÚ\PERSON REL FOTOGRÁFICO - MODELO.PPTX`). Staged em
