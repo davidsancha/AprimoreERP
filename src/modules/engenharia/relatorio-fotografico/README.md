@@ -493,6 +493,42 @@ David aprovou. Dividido assim:
   implementado.
 - `npx tsc --noEmit` limpo com essas mudanças.
 
+## App Android — indicador de conectividade, biometria, cache de projetos, ícone (2026-09-04)
+
+- **Bug corrigido**: APK instalado ficava tela preta → branca → nada.
+  Causa: `AndroidManifest.xml` sem `android:usesCleartextTraffic="true"`
+  — o Android bloqueia silenciosamente tráfego HTTP puro (o app aponta
+  pro servidor de dev via `http://IP:3010`) desde a versão 9. Corrigido.
+- **Ícone/splash com a marca Aprimore**: glifo (só o prédio) recortado
+  de `public/brand/Logo1.png` via `sharp`, aplicado em todas as
+  densidades — ver `android/README-BUILD.md`.
+- **Indicador de conectividade no cabeçalho fixo** (`src/shared/hooks/useConectividade.ts`,
+  usado em `(app)/layout.tsx`) — bolinha discreta (quase invisível
+  online, âmbar pulsando quando offline), visível em qualquer tela do
+  sistema, não só no relatório fotográfico.
+- **Login por biometria** (`src/shared/lib/biometria.ts`,
+  `capacitor-native-biometric`) — só no app nativo; guarda o
+  `refresh_token` da sessão atrás da biometria do aparelho, nunca a
+  senha.
+- **Cache de projetos vinculados + religação automática offline**: até
+  aqui o modo offline só cobria relatório avulso. Agora
+  `buscarProjetos`/`buscarProjetosComFiltros`/`buscarProjetoPorId`/
+  `obterEstruturaPorProjeto` (em `apiRelatorioFotograficoOffline.ts`)
+  gravam cache toda vez que rodam online (write-through) e caem pro
+  cache quando offline. Três caminhos na criação do relatório:
+  1. Online → cria de verdade, como sempre.
+  2. Offline + projeto já em cache → cria local já vinculado a ele,
+     sincroniza a vinculação junto quando a rede voltar.
+  3. Offline + projeto não estava em cache → cria avulso mesmo (pra não
+     travar o usuário), guardando o nome buscado
+     (`vinculoPendenteNome`); a sincronização busca de verdade pelo
+     nome assim que a rede volta e religa automaticamente SE achar
+     exatamente um projeto com nome batendo — ambíguo ou sem match
+     fica avulso, não vincula errado silenciosamente. UI: quando
+     offline e a busca de projeto não acha nada no cache, aparece
+     "Criar avulso e vincular depois".
+- `tsc --noEmit` limpo com todas essas mudanças.
+
 ## Modelo "021 U" do Itaú — reforma (2026-09-04)
 
 Segundo template real mapeado por inspeção direta (mesmo processo do

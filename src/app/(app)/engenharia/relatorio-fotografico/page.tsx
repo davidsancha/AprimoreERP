@@ -753,6 +753,11 @@ function RelatorioFotograficoContent() {
   const [obraNome, setObraNome] = useState('');
   const [projetoBusca, setProjetoBusca] = useState('');
   const [projetosSugeridos, setProjetosSugeridos] = useState<ProjetoResumo[]>([]);
+  // Preenchido só quando offline + o projeto buscado não estava em cache —
+  // o relatório nasce avulso pra não travar o usuário, e a sincronização
+  // tenta religar ao projeto certo pelo nome assim que puder buscar de
+  // verdade (ver apiRelatorioFotograficoOffline.ts/sincronizadorOffline.ts).
+  const [vinculoPendenteNome, setVinculoPendenteNome] = useState<string | null>(null);
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [projetoSelecionado, setProjetoSelecionado] = useState<ProjetoResumo | null>(null);
   const [buscandoProjetos, setBuscandoProjetos] = useState(false);
@@ -946,6 +951,7 @@ function RelatorioFotograficoContent() {
     setProjetoBusca(p.nome);
     setMostrarSugestoes(false);
     setModalBuscaAberto(false);
+    setVinculoPendenteNome(null);
     setPrograma(p.tipologia || '');
     // dados de obra vêm do projeto (migration 00010) — fonte única, não duplicada no relatório
     setAgencia(p.agencia || '');
@@ -1142,6 +1148,7 @@ function RelatorioFotograficoContent() {
           modeloRelatorio: modeloRelatorio || null,
           programa: programa || null,
           ...camposObra,
+          vinculoPendenteNome: vinculoPendenteNome || undefined,
         });
         setEstrutura(nova);
         // depois de criado, recolhe projeto/tipo num resumo compacto e leva o
@@ -1725,6 +1732,7 @@ function RelatorioFotograficoContent() {
                     setIsAvulso(e.target.checked);
                     setEstrutura(null);
                     setProjetoSelecionado(null);
+                    setVinculoPendenteNome(null);
                     setHabilitarEdicaoObra(false);
                     setResumoExpandido(true);
                     setDadosExpandido(true);
@@ -1803,6 +1811,24 @@ function RelatorioFotograficoContent() {
                   Ver todos
                 </button>
               </div>
+              {offline && projetoBusca.trim() && !buscandoProjetos && projetosSugeridos.length === 0 && (
+                <div className="flex items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mt-1">
+                  <p className="text-[10px] text-amber-600 font-semibold">
+                    Sem sinal e esse projeto não está salvo neste aparelho.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAvulso(true);
+                      setObraNome(projetoBusca.trim());
+                      setVinculoPendenteNome(projetoBusca.trim());
+                    }}
+                    className="text-[10px] font-bold text-amber-600 hover:underline whitespace-nowrap shrink-0"
+                  >
+                    Criar avulso e vincular depois
+                  </button>
+                </div>
+              )}
             </div>
           )
         ) : (

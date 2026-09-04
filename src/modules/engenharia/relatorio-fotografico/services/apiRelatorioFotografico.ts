@@ -248,6 +248,15 @@ export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {
   programa?: string | null;
   data_inicio_obra?: string | null;
   data_termino_obra?: string | null;
+  /**
+   * Só usado pelo wrapper offline (apiRelatorioFotograficoOffline.ts) —
+   * quando o usuário quis vincular a um projeto que não estava em cache
+   * (sem rede pra buscar), o relatório é criado avulso mesmo, mas guarda
+   * aqui o nome que ele buscou; a sincronização tenta achar e religar ao
+   * projeto certo depois. Ignorado pelo insert real (`criarEstrutura`
+   * abaixo só lê os campos que já existiam, este nunca chega no Supabase).
+   */
+  vinculoPendenteNome?: string;
 }
 
 export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<EstruturaFotografica> {

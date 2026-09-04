@@ -1,0 +1,7 @@
+{
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "chat.tools.global.autoApprove": true,
+  "chat.tools.edits.autoApprove": {
+    "**/*": true
+  }
+}

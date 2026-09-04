@@ -80,7 +80,40 @@ async function processarOperacao(op: OperacaoOffline): Promise<void> {
       const cacheAtual = await lerEstruturaCache<EstruturaFotografica>(localId);
       const nova = await api.criarEstrutura(dados);
       const patchPosCriacao = cacheAtual ? extrairPatchPosCriacao(cacheAtual) : null;
-      const final = patchPosCriacao ? await api.atualizarEstrutura(nova.id, patchPosCriacao) : nova;
+      let final = patchPosCriacao ? await api.atualizarEstrutura(nova.id, patchPosCriacao) : nova;
+
+      // Criado avulso offline porque o projeto buscado não estava em cache
+      // (ver criarEstrutura em apiRelatorioFotograficoOffline.ts) — agora
+      // que a rede voltou, tenta achar e religar ao projeto certo. Só
+      // religa em match único e exato pelo nome — ambíguo ou sem match
+      // fica avulso mesmo, pra não vincular errado silenciosamente.
+      if (dados.vinculoPendenteNome) {
+        try {
+          const candidatos = await api.buscarProjetos(dados.vinculoPendenteNome);
+          const exato = candidatos.filter((c) => c.nome.trim().toLowerCase() === dados.vinculoPendenteNome!.trim().toLowerCase());
+          const alvo = exato.length === 1 ? exato[0] : candidatos.length === 1 ? candidatos[0] : null;
+          if (alvo) {
+            await api.atualizarCamposProjeto(alvo.id, {
+              agencia: final.agencia,
+              upe: final.upe,
+              sap: final.sap,
+              gestor: final.gestor,
+              fiscalizacao_empresa: final.fiscalizacao_empresa,
+              fiscal: final.fiscal,
+              construtora: final.construtora,
+              responsavel: final.responsavel,
+              data_efetiva_inicio: final.data_inicio_obra,
+              data_efetiva_termino: final.data_termino_obra,
+            });
+            final = await api.atualizarEstrutura(final.id, { projeto_id: alvo.id, is_avulso: false });
+          }
+        } catch (e) {
+          // achar/religar o projeto é um bônus — se falhar, o relatório
+          // continua existindo e usável como avulso, só sem o vínculo
+          console.error("Não foi possível religar ao projeto automaticamente:", e);
+        }
+      }
+
       await migrarEstruturaLocal(localId, final.id);
       await salvarEstruturaCache(final);
       return;

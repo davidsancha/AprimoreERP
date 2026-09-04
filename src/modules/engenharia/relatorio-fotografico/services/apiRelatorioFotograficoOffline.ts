@@ -14,22 +14,26 @@
 import * as api from "./apiRelatorioFotografico";
 import type { DadosNovaEstrutura, DadosNovoProgresso } from "./apiRelatorioFotografico";
 import { limpaNome } from "../calc";
-import type { EstruturaFotografica, ProgressoSlide } from "../types";
+import type { EstruturaFotografica, FiltrosBuscaProjeto, ProgressoSlide, ProjetoResumo } from "../types";
 import {
   ehIdLocal,
   enfileirar,
   gerarIdLocal,
   lerCatalogoCache,
   lerEstruturaCache,
+  lerProjetoCache,
   listarEstruturasCache,
   listarFotosLocais,
   listarProgressoCachePorRelatorio,
+  listarProjetosCache,
   removerFotoLocal,
   removerProgressoCache,
   salvarCatalogoCache,
   salvarEstruturaCache,
   salvarFotoLocal,
   salvarProgressoCache,
+  salvarProjetoCache,
+  salvarProjetosCache,
 } from "@/shared/lib/offlineStore";
 
 export * from "./apiRelatorioFotografico";
@@ -86,6 +90,73 @@ export async function excluirFotoRelatorio(caminho: string): Promise<void> {
   }
 }
 
+/* ---------- projetos corporativos — cache-through: grava sempre que online, lê do cache quando offline ---------- */
+
+function filtraProjetosCache(projetos: ProjetoResumo[], termo: string): ProjetoResumo[] {
+  const alvo = termo.trim().toLowerCase();
+  if (!alvo) return projetos;
+  return projetos.filter((p) => p.nome?.toLowerCase().includes(alvo) || p.os?.toLowerCase().includes(alvo));
+}
+
+export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
+  try {
+    const resultado = await api.buscarProjetos(termo);
+    await salvarProjetosCache(resultado);
+    return resultado;
+  } catch (e) {
+    if (!pareceErroDeRede(e)) throw e;
+    const cache = await listarProjetosCache<ProjetoResumo>();
+    return filtraProjetosCache(cache, termo).slice(0, 20);
+  }
+}
+
+export async function buscarProjetosComFiltros(filtros: FiltrosBuscaProjeto): Promise<ProjetoResumo[]> {
+  try {
+    const resultado = await api.buscarProjetosComFiltros(filtros);
+    await salvarProjetosCache(resultado);
+    return resultado;
+  } catch (e) {
+    if (!pareceErroDeRede(e)) throw e;
+    const cache = await listarProjetosCache<ProjetoResumo>();
+    return filtraProjetosCache(cache, filtros.texto || "");
+  }
+}
+
+export async function buscarProjetoPorId(id: string): Promise<ProjetoResumo | null> {
+  try {
+    const resultado = await api.buscarProjetoPorId(id);
+    if (resultado) await salvarProjetoCache(resultado);
+    return resultado;
+  } catch (e) {
+    if (!pareceErroDeRede(e)) throw e;
+    return lerProjetoCache<ProjetoResumo>(id);
+  }
+}
+
+export async function obterEstruturaPorProjeto(projetoId: string): Promise<EstruturaFotografica | null> {
+  try {
+    const resultado = await api.obterEstruturaPorProjeto(projetoId);
+    if (resultado) await salvarEstruturaCache(resultado);
+    return resultado;
+  } catch (e) {
+    if (!pareceErroDeRede(e)) throw e;
+    const todasCache = await listarEstruturasCache<EstruturaFotografica>();
+    return todasCache.find((est) => est.projeto_id === projetoId) || null;
+  }
+}
+
+/**
+ * Cria o relatório. Três caminhos:
+ * 1. Online: cria de verdade, como sempre.
+ * 2. Offline + projeto já em cache (`dados.projetoId` real, resolvido
+ *    antes de chamar isto): cria local vinculado a esse projeto, sincroniza
+ *    a vinculação junto quando a rede voltar.
+ * 3. Offline + projeto não estava em cache (`dados.isAvulso=true` +
+ *    `dados.vinculoPendenteNome` preenchido pela tela): cria avulso agora
+ *    pra não travar o usuário, e a sincronização tenta achar e religar ao
+ *    projeto certo pelo nome assim que puder buscar de verdade — ver
+ *    sincronizadorOffline.ts.
+ */
 export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<EstruturaFotografica> {
   try {
     const nova = await api.criarEstrutura(dados);

@@ -17,6 +17,7 @@ const STORE_FOTOS = "fotos_blob";
 const STORE_CATALOGO = "catalogo_cache";
 const STORE_ESTRUTURAS = "estruturas_cache";
 const STORE_PROGRESSO = "progresso_cache";
+const STORE_PROJETOS = "projetos_cache";
 
 export type TipoOperacaoOffline =
   | "criar_estrutura"
@@ -62,6 +63,9 @@ function abrirDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_PROGRESSO)) {
         const store = db.createObjectStore(STORE_PROGRESSO, { keyPath: "id" });
         store.createIndex("relatorio_id", "relatorio_id", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_PROJETOS)) {
+        db.createObjectStore(STORE_PROJETOS, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -190,6 +194,25 @@ export async function listarProgressoCachePorRelatorio<T>(relatorioId: string): 
 
 export async function removerProgressoCache(id: string): Promise<void> {
   await comStore(STORE_PROGRESSO, "readwrite", (s) => s.delete(id));
+}
+
+/* ---------- cache de projetos corporativos (write-through, enquanto online; leitura quando offline) ---------- */
+
+export async function salvarProjetoCache<T extends { id: string }>(projeto: T): Promise<void> {
+  await comStore(STORE_PROJETOS, "readwrite", (s) => s.put(projeto));
+}
+
+export async function salvarProjetosCache<T extends { id: string }>(projetos: T[]): Promise<void> {
+  for (const p of projetos) await salvarProjetoCache(p);
+}
+
+export async function lerProjetoCache<T>(id: string): Promise<T | null> {
+  const item = await comStore<T | undefined>(STORE_PROJETOS, "readonly", (s) => s.get(id));
+  return item ?? null;
+}
+
+export async function listarProjetosCache<T>(): Promise<T[]> {
+  return comStore<T[]>(STORE_PROJETOS, "readonly", (s) => s.getAll());
 }
 
 /** Gera um id local reconhecível — usado tanto pra relatórios quanto slides de progresso criados offline. */

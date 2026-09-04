@@ -86,11 +86,33 @@ cada 30s, porque `navigator.onLine` sozinho não é confiável). Ver
 e `sincronizadorOffline.ts`. A tela mostra um aviso amarelo quando
 offline/com pendências e um aviso verde quando termina de sincronizar.
 
+## Ícone e splash screen
+
+Gerados a partir do glifo (só o prédio, sem o texto) recortado de
+`public/brand/Logo1.png` — `@capacitor/assets` não instalou nesta
+máquina (node-gyp/Python ausente, o pacote traz seu próprio `sharp`
+nativo), então gerei manualmente com o `sharp` que o projeto já usa
+(script não versionado, só o resultado): `resources/icon.png`,
+`resources/splash.png` e todas as densidades em
+`android/app/src/main/res/mipmap-*` e `drawable-{port,land}-*`.
+
+## Login por biometria
+
+`capacitor-native-biometric` (`src/shared/lib/biometria.ts`) — só
+funciona dentro do app nativo. Depois do primeiro login com senha, o
+usuário pode ativar; o app guarda o `refresh_token` da sessão atrás da
+biometria do aparelho (nunca a senha), e a próxima entrada troca esse
+token por uma sessão nova via `supabase.auth.refreshSession()`.
+Logout explícito desativa a biometria automaticamente (evita reabrir a
+sessão de quem saiu, em aparelho compartilhado).
+
 ## Pendências conhecidas
 
-- Ícone/splash screen do app ainda são os padrões do Capacitor —
-  falta gerar os assets com a marca Aprimore
-  (`npx @capacitor/assets generate`, depois de colocar um ícone/splash
-  fonte em `resources/`).
 - Nada disso foi testado num dispositivo/emulador real ainda (ver
-  seção acima — precisa de Android Studio numa máquina com SDK).
+  seção acima — precisa de Android Studio numa máquina com SDK, ou do
+  APK compilado pelo GitHub Actions).
+- Cache de projetos vinculados cobre busca/seleção e religação
+  automática ao voltar a rede; não existe ainda uma tela pra "religar
+  manualmente" um relatório que ficou avulso por não achar match único
+  do projeto — hoje isso só é resolvido via edição direta no banco se
+  a religação automática falhar (0 ou 2+ candidatos com nome parecido).

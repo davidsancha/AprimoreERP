@@ -6,6 +6,7 @@ import Sidebar from '@/shared/components/Sidebar';
 import { ThemeProvider } from '@/shared/contexts/ThemeContext';
 import ThemeToggle from '@/shared/components/ThemeToggle';
 import { useAuth } from '@/core/auth/AuthProvider';
+import { useConectividade } from '@/shared/hooks/useConectividade';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout({
@@ -14,6 +15,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   const { user, profile, signOut } = useAuth();
+  const online = useConectividade();
   const cargo = profile?.cargo || 'Gestor';
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -53,6 +55,12 @@ export default function AppLayout({
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
+            {/* Indicador sutil de conectividade — só um ponto discreto, não chama atenção quando está tudo normal (online) */}
+            <span
+              title={online ? 'Conectado' : 'Sem conexão — alterações ficam salvas neste aparelho'}
+              className={`h-1.5 w-1.5 rounded-full shrink-0 transition-colors ${online ? 'bg-emerald-500/50' : 'bg-amber-500 animate-pulse'}`}
+            />
+
             {/* Alternador de Tema (Light / Dark Mode) */}
             <ThemeToggle />
 

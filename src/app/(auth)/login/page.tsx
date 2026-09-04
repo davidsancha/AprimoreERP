@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Fingerprint } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { ativarBiometria, biometriaDisponivel, entrarComBiometria, temBiometriaAtiva } from '@/shared/lib/biometria';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,6 +14,33 @@ export default function LoginPage() {
   const [parceiroEgf, setParceiroEgf] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Biometria — só existe dentro do app nativo instalado (ver src/shared/lib/biometria.ts)
+  const [biometriaOk, setBiometriaOk] = useState(false);
+  const [biometriaJaAtiva, setBiometriaJaAtiva] = useState(false);
+  const [ativarBiometriaNoLogin, setAtivarBiometriaNoLogin] = useState(true);
+  const [entrandoComBiometria, setEntrandoComBiometria] = useState(false);
+
+  useEffect(() => {
+    biometriaDisponivel().then(setBiometriaOk);
+    temBiometriaAtiva().then(setBiometriaJaAtiva);
+  }, []);
+
+  async function handleEntrarComBiometria() {
+    if (!supabase) return;
+    setEntrandoComBiometria(true);
+    setError(null);
+    try {
+      const { refreshToken } = await entrarComBiometria();
+      const { error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+      if (error) throw error;
+      router.push('/');
+    } catch {
+      setError('Não foi possível entrar com biometria. Use e-mail e senha.');
+    } finally {
+      setEntrandoComBiometria(false);
+    }
+  }
 
   // "Esqueci minha senha" — estado próprio, não é mais uma aba do form principal
   const [recuperarAberto, setRecuperarAberto] = useState(false);
@@ -34,7 +63,7 @@ export default function LoginPage() {
     }
 
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -43,6 +72,13 @@ export default function LoginPage() {
         setError(error.message);
         setLoading(false);
       } else {
+        if (biometriaOk && ativarBiometriaNoLogin && data.session?.refresh_token) {
+          try {
+            await ativarBiometria(email, data.session.refresh_token);
+          } catch {
+            // ativar biometria é um bônus — não deve travar o login se falhar
+          }
+        }
         router.push('/');
       }
     } else {
@@ -132,6 +168,18 @@ export default function LoginPage() {
           </button>
         </div>
 
+        {isLogin && biometriaOk && biometriaJaAtiva && (
+          <button
+            type="button"
+            disabled={entrandoComBiometria}
+            onClick={handleEntrarComBiometria}
+            className="w-full flex items-center justify-center gap-2 mb-6 py-3 px-4 rounded-xl border border-brand-ocre/30 bg-brand-ocre/10 text-brand-ocre font-bold hover:bg-brand-ocre/20 transition-all disabled:opacity-50"
+          >
+            <Fingerprint size={18} />
+            {entrandoComBiometria ? 'Confirmando…' : 'Entrar com biometria'}
+          </button>
+        )}
+
         {error && (
           <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center">
             {error === 'Invalid login credentials' ? 'Email ou senha inválidos' : error}
@@ -192,6 +240,21 @@ export default function LoginPage() {
               </button>
             )}
           </div>
+
+          {isLogin && biometriaOk && !biometriaJaAtiva && (
+            <label className="flex items-center gap-2.5 text-xs font-semibold text-sub cursor-pointer select-none bg-background border border-card-border rounded-xl px-4 py-3">
+              <input
+                type="checkbox"
+                checked={ativarBiometriaNoLogin}
+                onChange={(e) => setAtivarBiometriaNoLogin(e.target.checked)}
+                className="w-4 h-4 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre shrink-0"
+              />
+              <span className="flex items-center gap-1.5">
+                <Fingerprint size={14} className="text-brand-ocre shrink-0" />
+                Ativar entrada por biometria neste aparelho
+              </span>
+            </label>
+          )}
 
           {!isLogin && (
             <label className="flex items-start gap-2.5 text-xs font-semibold text-sub cursor-pointer select-none bg-background border border-card-border rounded-xl px-4 py-3">

@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   // troque `CAPACITOR_SERVER_URL` pela URL do deploy antes de gerar o
   // APK/AAB final — ver android/README-BUILD.md.
   server: {
-    url: process.env.CAPACITOR_SERVER_URL || 'http://192.168.10.15:3010',
+    url: process.env.CAPACITOR_SERVER_URL || 'https://aprimore-davids-projects-3fc24bda.vercel.app',
     cleartext: true,
   },
   android: {

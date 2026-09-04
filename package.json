@@ -19,6 +19,7 @@
     "@google/genai": "^2.8.0",
     "@supabase/supabase-js": "^2.107.0",
     "@yudiel/react-qr-scanner": "^2.6.0",
+    "capacitor-native-biometric": "^4.2.2",
     "cheerio": "^1.2.0",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.17.0",

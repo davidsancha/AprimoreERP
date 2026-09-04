@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useRouter, usePathname } from 'next/navigation';
+import { desativarBiometria, temAppNativo } from '@/shared/lib/biometria';
 
 export type UserProfile = {
   id: string;
@@ -98,6 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     if (supabase) {
+      // logout explícito invalida a entrada por biometria — evita que ela
+      // reabra a sessão de quem acabou de sair num aparelho compartilhado
+      if (temAppNativo()) await desativarBiometria().catch(() => {});
       await supabase.auth.signOut();
       router.push('/login');
     }
