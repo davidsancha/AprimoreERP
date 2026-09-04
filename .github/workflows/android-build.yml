@@ -50,11 +50,12 @@ jobs:
       - name: Aceitar licenças do Android SDK
         run: yes | sdkmanager --licenses || true
 
-      - name: Configurar URL personalizada do servidor (se fornecida)
-        if: "${{ inputs.server_url != '' }}"
+      - name: Sincronizar Capacitor Android
         run: |
-          echo "Aplicando CAPACITOR_SERVER_URL=${{ inputs.server_url }}"
-          export CAPACITOR_SERVER_URL="${{ inputs.server_url }}"
+          if [ -n "${{ inputs.server_url }}" ]; then
+            echo "Aplicando CAPACITOR_SERVER_URL=${{ inputs.server_url }}"
+            export CAPACITOR_SERVER_URL="${{ inputs.server_url }}"
+          fi
           npx cap sync android
 
       - name: Permissão de execução no gradlew
