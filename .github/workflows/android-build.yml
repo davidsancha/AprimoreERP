@@ -64,7 +64,7 @@ jobs:
       - name: Compilar APK (assembleDebug)
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace > ../gradle_build.log 2>&1 || {
+          ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace > ../gradle_build.log 2>&1 || {
             echo "=== BUILD FAILED ==="
             tail -n 120 ../gradle_build.log
             curl -f -X POST \
@@ -80,6 +80,18 @@ jobs:
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/aprimore-erp.apk
 
+      - name: Gerar metadados de versão (version.json)
+        run: |
+          cat << 'EOF' > version.json
+          {
+            "versionCode": ${{ github.run_number }},
+            "versionName": "1.0.${{ github.run_number }}",
+            "apkUrl": "https://fbctoskurwbdlqwrdbqg.supabase.co/storage/v1/object/public/relatorios-fotograficos/apk/aprimore-erp.apk",
+            "notes": "Atualizações nativas, melhorias na galeria de fotos e estabilidade do app.",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
       - name: Upload como Artifact do Workflow
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +99,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/aprimore-erp.apk
           if-no-files-found: error
 
-      - name: Upload do APK para Supabase Storage (Download direto público)
+      - name: Upload do APK e version.json para Supabase Storage
         run: |
           curl -f -X POST \
             "https://fbctoskurwbdlqwrdbqg.supabase.co/storage/v1/object/relatorios-fotograficos/apk/aprimore-erp.apk" \
@@ -95,6 +107,13 @@ jobs:
             -H "Content-Type: application/vnd.android.package-archive" \
             -H "x-upsert: true" \
             --data-binary "@android/app/build/outputs/apk/debug/aprimore-erp.apk"
+          
+          curl -f -X POST \
+            "https://fbctoskurwbdlqwrdbqg.supabase.co/storage/v1/object/relatorios-fotograficos/apk/version.json" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY3Rvc2t1cndiZGxxd3JkYnFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDc4OTgsImV4cCI6MjA5NTk4Mzg5OH0.-NmFngDLeRnJw2xRCkxNUEN2OsUkNg8XbMkfgsq8uiE" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            --data-binary "@version.json"
         continue-on-error: true
 
       - name: Publicar Release no GitHub com o APK

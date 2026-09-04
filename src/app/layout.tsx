@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { AuthProvider } from '@/core/auth/AuthProvider';
+import VerificadorAtualizacaoApp from '@/shared/components/VerificadorAtualizacaoApp';
 import './globals.css';
 
 const geistSans = Geist({
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="min-h-full flex bg-background text-foreground font-sans selection:bg-brand-ocre selection:text-brand-dark overflow-x-hidden transition-colors duration-300">
         <AuthProvider>
           {children}
+          <VerificadorAtualizacaoApp />
         </AuthProvider>
       </body>
     </html>
