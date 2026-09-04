@@ -1628,28 +1628,55 @@ function RelatorioFotograficoContent() {
     setMontandoPptx(true);
     setErro(null);
     try {
-      const campos: CamposRelatorio = {
-        ...CAMPOS_RELATORIO_VAZIOS,
-        agencia,
-        programa,
-        upe,
-        sap,
-        gestor,
-        fiscEmpresa,
-        fiscal,
-        construtora,
-        responsavel,
-        inicio: formatarData(dataInicioObra),
-        termino: formatarData(dataTerminoObra),
-      };
-      const slides = progresso.map((s) => ({
-        descricao: s.equipamento
-          ? descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'alta')
-          : descricaoReforma(s.servico || '', s.ambiente || '', 'alta'),
-        etapa1: s.etapa1,
-        fotoAntesPath: s.foto_antes_path,
-        fotoDepoisPath: s.foto_depois_path,
-      }));
+      const campos: CamposRelatorio = ehSantander
+        ? {
+            ...CAMPOS_RELATORIO_VAZIOS,
+            chamado,
+            mantenedor,
+            relatorioTitulo,
+            dataRelatorio,
+            descricaoProblema,
+            causaOrigem,
+            danos: danosSantander,
+            paliativoRetiradaRisco,
+            escopoProposta,
+            cronograma: cronogramaSantander,
+            // os dois marcadores do template Santander juntam vários dados
+            // numa linha só — ver comentário em MODELOS_CFG["santander-add"]
+            resumoUniorg: `UNIORG: ${uniorg} ${agencia}`,
+            resumoOsUniorg: `OS: ${chamado}             UNIORG: ${uniorg}        NOME DO PONTO: ${agencia}`,
+          }
+        : {
+            ...CAMPOS_RELATORIO_VAZIOS,
+            agencia,
+            programa,
+            upe,
+            sap,
+            gestor,
+            fiscEmpresa,
+            fiscal,
+            construtora,
+            responsavel,
+            inicio: formatarData(dataInicioObra),
+            termino: formatarData(dataTerminoObra),
+          };
+      const slides = ehSantander
+        ? progresso.map((s) => ({
+            ambiente: s.ambiente || '',
+            comentario: s.comentario || '',
+            etapa1: s.etapa1,
+            fotoAntesPath: s.foto_antes_path,
+            fotoDepoisPath: s.foto_depois_path,
+            fotoDurantePath: s.foto_durante_path,
+          }))
+        : progresso.map((s) => ({
+            descricao: s.equipamento
+              ? descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'alta')
+              : descricaoReforma(s.servico || '', s.ambiente || '', 'alta'),
+            etapa1: s.etapa1,
+            fotoAntesPath: s.foto_antes_path,
+            fotoDepoisPath: s.foto_depois_path,
+          }));
 
       const resp = await fetch('/api/relatorio-fotografico/gerar', {
         method: 'POST',
@@ -1661,6 +1688,7 @@ function RelatorioFotograficoContent() {
           slides,
           banco,
           agencia,
+          uniorg,
           nomeFallback: isAvulso ? obraNome : projetoSelecionado?.nome || 'projeto',
         }),
       });

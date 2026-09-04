@@ -493,6 +493,55 @@ David aprovou. Dividido assim:
   implementado.
 - `npx tsc --noEmit` limpo com essas mudanças.
 
+## Modelo Santander "Antes x Durante x Depois" (2026-09-04)
+
+Terceiro banco, o mais diferente estruturalmente até agora — confirmado
+por inspeção direta de
+`EGF/SANTANDER/RELATÓRIO FOTOGRÁFICO - XXX-XXXX NOME AG.pptx` (4 slides:
+capa, dados do problema, slide-molde, "OBRIGADO" fixo).
+
+**Descoberta que mudou o motor de geração**: o slide-molde tem **3 fotos**
+por slide (ANTES/DURANTE/DEPOIS lado a lado, não 2) e o slide 4 precisa
+continuar sendo sempre o último. `ModeloCfg` ganhou `formaDurante`
+(3ª foto opcional) e `slideFinal` (slide fixo preservado — os clones
+agora são inseridos ANTES dele em vez de anexados no fim). `numeroSlide`
+mudou de `slideModelo + i` pra `i === 0 ? slideModelo : 500 + i`, porque
+a fórmula antiga colidia com o número do slide final fixo. Confirmado
+com o David antes de mexer no motor (via AskUserQuestion) — 3 fotos por
+slide era mesmo o esperado, não um exagero meu.
+
+**Campos novos** (`uniorg`, `mantenedor`, `chamado`, `relatorio_titulo`,
+`data_relatorio`, `descricao_problema`, `causa_origem`, `danos`,
+`paliativo_retirada_risco`, `escopo_proposta`, `cronograma`) vivem
+sempre em `engenharia_estrutura_fotografica`, mesmo em relatório
+vinculado a projeto — são conteúdo do relatório em si, não dado de obra
+reaproveitável (diferente de agência/UPE/SAP, que vão pra `projetos`).
+"CHAMADO" (slide 1) e "OS" (slide 2) são o mesmo campo (`chamado`);
+"NOME DO PONTO" (slide 2) reaproveita o campo de Agência existente —
+ambas decisões confirmadas com o David.
+
+Dois marcadores do template juntam mais de um dado numa linha só
+(`UNIORG: XXX-XXXX LOJA` no slide 1; `OS: XXXX UNIORG: 001-XXXX NOME DO
+PONTO:` no slide 2) — resolvido com dois campos computados só pra
+renderização (`resumoUniorg`/`resumoOsUniorg` em `CamposRelatorio`),
+montados em `page.tsx` a partir dos campos atômicos, não no motor
+genérico de `pptx.ts`.
+
+Progresso por slide usa Ambiente (mesmo catálogo do Itaú/reforma) +
+Comentários (texto livre — a tela pré-preenche com o comentário do
+slide anterior ao criar um novo, editável, por pedido explícito do
+David) em vez de serviço/ambiente combinados. `ProgressoSlide` ganhou
+`foto_durante_path`/`comentario`; `ehLinhaSantander()` detecta uma linha
+Santander por eliminação (tem ambiente mas não serviço nem equipamento
+— reforma clássica sempre tem serviço) já que o dado em si não carrega
+um marcador explícito de "é Santander".
+
+Staged em `_templates-pendentes/santander-add.pptx` +
+`supabase/migrations/00017_santander_add_config.sql`, pedido pro
+Antigravity aplicar/subir. `tsc --noEmit` limpo; `eslint` sem
+regressões novas (os mesmos 4 achados pré-existentes de sempre,
+documentados nas rodadas anteriores).
+
 ## App Android — indicador de conectividade, biometria, cache de projetos, ícone (2026-09-04)
 
 - **Bug corrigido**: APK instalado ficava tela preta → branca → nada.
