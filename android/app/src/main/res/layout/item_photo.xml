@@ -12,24 +12,4 @@
         android:scaleType="centerCrop"
         android:background="#EEEEEE" />
 
-    <View
-        android:id="@+id/viewOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#66C9922A"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/textBadge"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="4dp"
-        android:background="#C9922A"
-        android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
-
 </FrameLayout>

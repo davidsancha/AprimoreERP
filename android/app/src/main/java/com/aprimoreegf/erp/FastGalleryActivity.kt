@@ -9,17 +9,25 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
+/** Uma pasta/álbum de fotos do aparelho — `bucketId == null` representa "Todas as fotos" (agregado, sem filtro). */
+private data class Album(val bucketId: String?, val nome: String, val quantidade: Int)
+
 /**
  * Grade nativa de fotos, estilo WhatsApp: abre direto em DCIM/Camera (a
- * pasta que a própria câmera do aparelho grava), com botão pra alternar
- * pra "Todas as fotos" quando o usuário quiser. Sem SAF/Intent genérico —
- * consulta MediaStore direto, então abre e rola instantaneamente.
+ * pasta que a própria câmera do aparelho grava), com um seletor de álbum
+ * em dropdown no topo — igual ao da picker de mídia do WhatsApp — pra
+ * trocar pra qualquer outra pasta (Todas as fotos, Downloads, capturas de
+ * tela etc.), não só um botão fixo "Câmera ↔ Todas". Sem SAF/Intent
+ * genérico — consulta MediaStore direto, então abre e rola instantaneamente.
+ * Seleção única: tocar numa foto já escolhe e fecha a tela, sem passo de
+ * confirmação separado (ver PhotoAdapter).
  */
 class FastGalleryActivity : AppCompatActivity() {
 
@@ -30,19 +38,18 @@ class FastGalleryActivity : AppCompatActivity() {
     }
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var tituloView: TextView
-    private lateinit var confirmarView: TextView
     private lateinit var trocarAlbumView: TextView
     private lateinit var adapter: PhotoAdapter
-    private var somenteCamera = true
+
+    // null = ainda não resolvido (primeiro carregamento tenta achar "Camera"); "" seria ambíguo com um bucketId de verdade, por isso Album.bucketId usa null pra "todas as fotos"
+    private var albumAtual: Album? = null
+    private var albuns: List<Album> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_fast_gallery)
 
         recyclerView = findViewById(R.id.recyclerFotos)
-        tituloView = findViewById(R.id.textTitulo)
-        confirmarView = findViewById(R.id.textConfirmar)
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
 
         findViewById<TextView>(R.id.textCancelar).setOnClickListener {
@@ -50,22 +57,17 @@ class FastGalleryActivity : AppCompatActivity() {
             finish()
         }
 
-        adapter = PhotoAdapter { selecionados -> atualizarConfirmar(selecionados) }
-        recyclerView.layoutManager = GridLayoutManager(this, 3)
-        recyclerView.adapter = adapter
-
-        confirmarView.setOnClickListener {
-            val uris = ArrayList(adapter.itensSelecionados().map { it.toString() })
+        // seleção única — tocar na foto já escolhe e fecha a tela na hora, sem confirmação separada
+        adapter = PhotoAdapter { uri ->
             val resultIntent = Intent()
-            resultIntent.putStringArrayListExtra(EXTRA_RESULT_URIS, uris)
+            resultIntent.putStringArrayListExtra(EXTRA_RESULT_URIS, arrayListOf(uri.toString()))
             setResult(RESULT_OK, resultIntent)
             finish()
         }
+        recyclerView.layoutManager = GridLayoutManager(this, 3)
+        recyclerView.adapter = adapter
 
-        trocarAlbumView.setOnClickListener {
-            somenteCamera = !somenteCamera
-            carregarFotos()
-        }
+        trocarAlbumView.setOnClickListener { abrirSeletorDeAlbum() }
 
         pedirPermissaoECarregar()
     }
@@ -91,7 +93,7 @@ class FastGalleryActivity : AppCompatActivity() {
 
     private fun pedirPermissaoECarregar() {
         if (algumaPermissaoConcedida()) {
-            carregarFotos()
+            carregarAlbunsECarregarFotos()
         } else {
             ActivityCompat.requestPermissions(this, permissoesNecessarias(), PERMISSAO_REQUEST_CODE)
         }
@@ -101,7 +103,7 @@ class FastGalleryActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSAO_REQUEST_CODE) {
             if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
-                carregarFotos()
+                carregarAlbunsECarregarFotos()
             } else {
                 Toast.makeText(this, "Permissão de fotos negada.", Toast.LENGTH_SHORT).show()
                 setResult(RESULT_CANCELED)
@@ -110,27 +112,68 @@ class FastGalleryActivity : AppCompatActivity() {
         }
     }
 
-    private fun carregarFotos() {
-        val fotos = consultarMediaStore(somenteCamera)
-        // Fallback: se o dispositivo não tem uma pasta "Camera" identificável
-        // (alguns fabricantes usam outro nome), não deixa a tela em branco —
-        // cai direto pra "todas as fotos" sem o usuário precisar descobrir isso.
-        if (fotos.isEmpty() && somenteCamera) {
-            somenteCamera = false
-            carregarFotos()
-            return
+    /** Lista todos os álbuns (pastas) com fotos, mais "Todas as fotos" agregando tudo — igual ao dropdown do WhatsApp. */
+    private fun listarAlbuns(): List<Album> {
+        val colecao = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projecao = arrayOf(MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+        val porBucket = LinkedHashMap<String, Pair<String, Int>>()
+        var total = 0
+
+        contentResolver.query(colecao, projecao, null, null, null)?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_ID)
+            val nomeIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                val bucketId = cursor.getString(idIdx) ?: continue
+                val nome = cursor.getString(nomeIdx) ?: "Sem nome"
+                val atual = porBucket[bucketId]
+                porBucket[bucketId] = nome to ((atual?.second ?: 0) + 1)
+                total++
+            }
         }
-        adapter.definirItens(fotos)
-        tituloView.text = if (somenteCamera) "Câmera" else "Todas as fotos"
-        trocarAlbumView.text = if (somenteCamera) "Todas as fotos" else "Câmera"
-        atualizarConfirmar(adapter.itensSelecionados())
+
+        val lista = mutableListOf(Album(null, "Todas as fotos", total))
+        lista += porBucket.entries
+            .map { (id, par) -> Album(id, par.first, par.second) }
+            .sortedByDescending { it.quantidade }
+        return lista
     }
 
-    private fun consultarMediaStore(apenasCamera: Boolean): List<Uri> {
+    private fun carregarAlbunsECarregarFotos() {
+        albuns = listarAlbuns()
+        // padrão: abre direto no álbum da câmera (mesma pasta que o app de
+        // câmera do aparelho grava) — se não achar (fabricante usa outro
+        // nome, ou aparelho sem fotos de câmera ainda), cai pra "Todas as fotos"
+        albumAtual = albuns.firstOrNull { it.nome.equals(BUCKET_CAMERA, ignoreCase = true) } ?: albuns.firstOrNull()
+        carregarFotos()
+    }
+
+    private fun abrirSeletorDeAlbum() {
+        if (albuns.isEmpty()) return
+        val nomes = albuns.map { "${it.nome} (${it.quantidade})" }.toTypedArray()
+        val indiceAtual = albuns.indexOfFirst { it.bucketId == albumAtual?.bucketId }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Escolher álbum")
+            .setSingleChoiceItems(nomes, indiceAtual) { dialog, posicao ->
+                albumAtual = albuns[posicao]
+                carregarFotos()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun carregarFotos() {
+        val album = albumAtual ?: return
+        val fotos = consultarMediaStore(album.bucketId)
+        adapter.definirItens(fotos)
+        trocarAlbumView.text = "${album.nome} ▾"
+    }
+
+    private fun consultarMediaStore(bucketId: String?): List<Uri> {
         val colecao = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val projecao = arrayOf(MediaStore.Images.Media._ID)
-        val selecao = if (apenasCamera) "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} = ?" else null
-        val selecaoArgs = if (apenasCamera) arrayOf(BUCKET_CAMERA) else null
+        val selecao = if (bucketId != null) "${MediaStore.Images.Media.BUCKET_ID} = ?" else null
+        val selecaoArgs = if (bucketId != null) arrayOf(bucketId) else null
         val ordenacao = "${MediaStore.Images.Media.DATE_ADDED} DESC"
 
         val lista = mutableListOf<Uri>()
@@ -142,11 +185,5 @@ class FastGalleryActivity : AppCompatActivity() {
             }
         }
         return lista
-    }
-
-    private fun atualizarConfirmar(selecionados: List<Uri>) {
-        confirmarView.isEnabled = selecionados.isNotEmpty()
-        confirmarView.alpha = if (selecionados.isEmpty()) 0.4f else 1f
-        confirmarView.text = if (selecionados.isEmpty()) "Escolher" else "Escolher (${selecionados.size})"
     }
 }

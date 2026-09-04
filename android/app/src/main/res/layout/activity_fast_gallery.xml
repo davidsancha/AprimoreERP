@@ -23,22 +23,24 @@
             android:padding="8dp" />
 
         <TextView
-            android:id="@+id/textTitulo"
+            android:id="@+id/textTrocarAlbum"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="Câmera"
+            android:text="Câmera ▾"
             android:textStyle="bold"
-            android:textSize="15sp" />
+            android:textSize="15sp"
+            android:padding="8dp" />
 
+        <!-- espaçador do mesmo tamanho do "Cancelar" à esquerda (mesmo texto, invisível), pra o nome do álbum ficar centralizado de verdade -->
         <TextView
-            android:id="@+id/textTrocarAlbum"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Todas as fotos"
-            android:textSize="13sp"
-            android:padding="8dp" />
+            android:text="Cancelar"
+            android:textSize="14sp"
+            android:padding="8dp"
+            android:visibility="invisible" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -46,21 +48,6 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="72dp" />
-
-    <TextView
-        android:id="@+id/textConfirmar"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_gravity="bottom"
-        android:gravity="center"
-        android:text="Escolher"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:textSize="15sp"
-        android:background="#C9922A"
-        android:enabled="false"
-        android:alpha="0.4" />
+        android:clipToPadding="false" />
 
 </LinearLayout>
