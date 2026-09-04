@@ -8,6 +8,8 @@ on:
       - 'android/**'
       - 'capacitor.config.ts'
       - '.github/workflows/android-build.yml'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
     inputs:
       server_url:
@@ -26,14 +28,13 @@ jobs:
       - name: Checkout repositório
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js 20
+      - name: Configurar Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Instalar dependências npm
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Configurar Java 17
         uses: actions/setup-java@v4
