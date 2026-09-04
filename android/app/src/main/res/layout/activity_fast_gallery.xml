@@ -5,42 +5,62 @@
     android:orientation="vertical"
     android:background="#FFFFFF">
 
+    <!-- cabeçalho único (a tela usava a barra de título nativa do Android POR CIMA
+         deste bloco, duplicando "Escolher fotos" numa faixa separada, pequena e
+         mal posicionada — a Activity agora usa AppTheme.NoActionBar, então este é
+         o único cabeçalho) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="14dp"
         android:elevation="2dp"
-        android:background="#FFFFFF">
+        android:background="#002F6C">
 
         <TextView
             android:id="@+id/textCancelar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Cancelar"
-            android:textSize="14sp"
-            android:padding="8dp" />
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:alpha="0.85"
+            android:padding="4dp"
+            android:layout_marginBottom="6dp" />
 
-        <TextView
-            android:id="@+id/textTrocarAlbum"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="Câmera ▾"
-            android:textStyle="bold"
-            android:textSize="15sp"
-            android:padding="8dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <!-- espaçador do mesmo tamanho do "Cancelar" à esquerda (mesmo texto, invisível), pra o nome do álbum ficar centralizado de verdade -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Cancelar"
-            android:textSize="14sp"
-            android:padding="8dp"
-            android:visibility="invisible" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Escolher fotos"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="20sp" />
+
+            <!-- seletor de álbum — pílula bem visível e com área de toque grande, ao lado do título -->
+            <TextView
+                android:id="@+id/textTrocarAlbum"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Câmera ▾"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:background="#33FFFFFF"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="10dp"
+                android:minWidth="48dp"
+                android:minHeight="40dp"
+                android:gravity="center" />
+        </LinearLayout>
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView

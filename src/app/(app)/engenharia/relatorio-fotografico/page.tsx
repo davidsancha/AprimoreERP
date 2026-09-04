@@ -217,7 +217,18 @@ function ehDispositivoMovel(): boolean {
  * como gesto do usuário aos olhos do navegador e o convite pra salvar nem
  * aparece; um clique novo e explícito garante o gesto.
  */
-function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: File) => void; onFechar: () => void }) {
+function ModalEscolhaOrigemFoto({
+  onEscolher,
+  onFechar,
+  origemPreferida,
+  onOrigemUsada,
+}: {
+  onEscolher: (file: File) => void;
+  onFechar: () => void;
+  /** Quando a foto anterior da MESMA sequência (ex.: antes→depois) veio de câmera/galeria, pula a tela de escolha e já abre a mesma origem de novo. */
+  origemPreferida?: 'camera' | 'galeria';
+  onOrigemUsada?: (origem: 'camera' | 'galeria') => void;
+}) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
   const filesRef = useRef<HTMLInputElement>(null);
@@ -229,6 +240,7 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
   const nativo = temGaleriaNativa();
 
   async function abrirGaleria() {
+    onOrigemUsada?.('galeria');
     // App nativo (Capacitor/Android): grade rápida própria, abrindo direto
     // na pasta da câmera — ver FastGalleryActivity.kt/fastGallery.ts. Sem
     // isso caímos no seletor genérico do sistema, mais lento e sem pasta padrão.
@@ -254,7 +266,19 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
   }
 
   useEffect(() => {
-    if (desktop) galRef.current?.click();
+    if (desktop) {
+      galRef.current?.click();
+      return;
+    }
+    // continuação automática da mesma sequência (ex.: escolheu galeria pro
+    // "antes", já reabre a galeria pro "depois" sem mostrar a tela de
+    // escolha de novo) — só quando o componente nasce assim (ver `key` no
+    // ponto de uso, que força um mount novo por slot).
+    if (origemPreferida === 'galeria') abrirGaleria();
+    else if (origemPreferida === 'camera') {
+      onOrigemUsada?.('camera');
+      camRef.current?.click();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -361,7 +385,10 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
         <h4 className="text-xs font-bold text-main text-center mb-1">Adicionar foto</h4>
         <button
           type="button"
-          onClick={() => camRef.current?.click()}
+          onClick={() => {
+            onOrigemUsada?.('camera');
+            camRef.current?.click();
+          }}
           className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
         >
           <Camera size={16} className="text-brand-ocre" />
@@ -877,6 +904,10 @@ function RelatorioFotograficoContent() {
   const [novoSlideDepoisSant, setNovoSlideDepoisSant] = useState<File | null>(null);
   const [escolhendoFotoSant, setEscolhendoFotoSant] = useState<'antes' | 'durante' | 'depois' | null>(null);
   const [escolhendoSlideFoto, setEscolhendoSlideFoto] = useState<'antes' | 'depois' | null>(null);
+  // Guarda se a foto anterior da sequência veio de câmera ou galeria, pra
+  // continuar na mesma origem sem mostrar a tela de escolha de novo — zera
+  // sempre que uma sequência nova de fotos começa (ver iniciarOuLimparFotosSlide*).
+  const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
@@ -1553,6 +1584,7 @@ function RelatorioFotograficoContent() {
       setNovoSlideDepoisSant(null);
       return;
     }
+    if (!novoSlideAntesSant) setOrigemFotoEscolhida(null); // sequência nova — mostra a escolha de origem de novo
     setEscolhendoFotoSant(!novoSlideAntesSant ? 'antes' : !novoSlideDuranteSant ? 'durante' : 'depois');
   }
 
@@ -1576,6 +1608,7 @@ function RelatorioFotograficoContent() {
       setNovoSlideDepois(null);
       return;
     }
+    if (!novoSlideAntes) setOrigemFotoEscolhida(null); // sequência nova — mostra a escolha de origem de novo
     setEscolhendoSlideFoto(novoSlideAntes ? 'depois' : 'antes');
   }
 
@@ -2685,6 +2718,9 @@ function RelatorioFotograficoContent() {
             </button>
             {escolhendoSlideFoto && (
               <ModalEscolhaOrigemFoto
+                key={escolhendoSlideFoto}
+                origemPreferida={origemFotoEscolhida ?? undefined}
+                onOrigemUsada={setOrigemFotoEscolhida}
                 onEscolher={(file) => {
                   if (escolhendoSlideFoto === 'antes') {
                     setNovoSlideAntes(file);
@@ -2775,6 +2811,9 @@ function RelatorioFotograficoContent() {
             </button>
             {escolhendoFotoSant && (
               <ModalEscolhaOrigemFoto
+                key={escolhendoFotoSant}
+                origemPreferida={origemFotoEscolhida ?? undefined}
+                onOrigemUsada={setOrigemFotoEscolhida}
                 onEscolher={(file) => {
                   if (escolhendoFotoSant === 'antes') {
                     setNovoSlideAntesSant(file);
