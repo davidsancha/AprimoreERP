@@ -190,6 +190,17 @@ export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<Estrutu
     responsavel: dados.responsavel ?? null,
     data_inicio_obra: dados.data_inicio_obra ?? null,
     data_termino_obra: dados.data_termino_obra ?? null,
+    uniorg: dados.uniorg ?? null,
+    mantenedor: dados.mantenedor ?? null,
+    chamado: dados.chamado ?? null,
+    relatorio_titulo: dados.relatorio_titulo ?? null,
+    data_relatorio: dados.data_relatorio ?? null,
+    descricao_problema: dados.descricao_problema ?? null,
+    causa_origem: dados.causa_origem ?? null,
+    danos: dados.danos ?? null,
+    paliativo_retirada_risco: dados.paliativo_retirada_risco ?? null,
+    escopo_proposta: dados.escopo_proposta ?? null,
+    cronograma: dados.cronograma ?? null,
     created_at: agora,
     updated_at: agora,
   };
@@ -337,6 +348,8 @@ export async function criarProgresso(relatorioId: string, dados: DadosNovoProgre
     etapa1: dados.etapa1,
     foto_antes_path: dados.fotoAntesPath,
     foto_depois_path: dados.fotoDepoisPath,
+    foto_durante_path: dados.fotoDurantePath ?? null,
+    comentario: dados.comentario ?? null,
     created_at: agora,
   };
   await salvarProgressoCache(registro);
@@ -346,7 +359,12 @@ export async function criarProgresso(relatorioId: string, dados: DadosNovoProgre
 
 export async function atualizarProgresso(
   id: string,
-  patch: Partial<Pick<ProgressoSlide, "servico" | "ambiente" | "equipamento" | "numero_ponto" | "local" | "etapa1" | "foto_antes_path" | "foto_depois_path">>
+  patch: Partial<
+    Pick<
+      ProgressoSlide,
+      "servico" | "ambiente" | "equipamento" | "numero_ponto" | "local" | "etapa1" | "foto_antes_path" | "foto_depois_path" | "foto_durante_path" | "comentario"
+    >
+  >
 ): Promise<ProgressoSlide> {
   if (!ehIdLocal(id)) {
     try {

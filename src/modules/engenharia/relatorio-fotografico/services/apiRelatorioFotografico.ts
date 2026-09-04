@@ -248,6 +248,18 @@ export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {
   programa?: string | null;
   data_inicio_obra?: string | null;
   data_termino_obra?: string | null;
+  // exclusivos do modelo Santander (migration 00017) — ver types.ts
+  uniorg?: string | null;
+  mantenedor?: string | null;
+  chamado?: string | null;
+  relatorio_titulo?: string | null;
+  data_relatorio?: string | null;
+  descricao_problema?: string | null;
+  causa_origem?: string | null;
+  danos?: string | null;
+  paliativo_retirada_risco?: string | null;
+  escopo_proposta?: string | null;
+  cronograma?: string | null;
   /**
    * Só usado pelo wrapper offline (apiRelatorioFotograficoOffline.ts) —
    * quando o usuário quis vincular a um projeto que não estava em cache
@@ -283,6 +295,17 @@ export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<Estrutu
         responsavel: dados.responsavel ?? null,
         data_inicio_obra: dados.data_inicio_obra ?? null,
         data_termino_obra: dados.data_termino_obra ?? null,
+        uniorg: dados.uniorg ?? null,
+        mantenedor: dados.mantenedor ?? null,
+        chamado: dados.chamado ?? null,
+        relatorio_titulo: dados.relatorio_titulo ?? null,
+        data_relatorio: dados.data_relatorio ?? null,
+        descricao_problema: dados.descricao_problema ?? null,
+        causa_origem: dados.causa_origem ?? null,
+        danos: dados.danos ?? null,
+        paliativo_retirada_risco: dados.paliativo_retirada_risco ?? null,
+        escopo_proposta: dados.escopo_proposta ?? null,
+        cronograma: dados.cronograma ?? null,
         equipamentos: [],
         servicos_habilitados: [],
       },
@@ -422,6 +445,9 @@ export interface DadosNovoProgresso {
   // foto pode ser enviada depois; só bloqueia montar o PowerPoint.
   fotoAntesPath: string | null;
   fotoDepoisPath: string | null;
+  // só o modelo Santander usa (3 fotos por slide) e preenche comentario
+  fotoDurantePath?: string | null;
+  comentario?: string | null;
 }
 
 /** Adiciona ao fim da lista — `ordem` é sempre o próximo índice livre. */
@@ -443,6 +469,8 @@ export async function criarProgresso(relatorioId: string, dados: DadosNovoProgre
         etapa1: dados.etapa1,
         foto_antes_path: dados.fotoAntesPath,
         foto_depois_path: dados.fotoDepoisPath,
+        foto_durante_path: dados.fotoDurantePath ?? null,
+        comentario: dados.comentario ?? null,
       },
     ])
     .select()
@@ -453,7 +481,12 @@ export async function criarProgresso(relatorioId: string, dados: DadosNovoProgre
 
 export async function atualizarProgresso(
   id: string,
-  patch: Partial<Pick<ProgressoSlide, "servico" | "ambiente" | "equipamento" | "numero_ponto" | "local" | "etapa1" | "foto_antes_path" | "foto_depois_path">>,
+  patch: Partial<
+    Pick<
+      ProgressoSlide,
+      "servico" | "ambiente" | "equipamento" | "numero_ponto" | "local" | "etapa1" | "foto_antes_path" | "foto_depois_path" | "foto_durante_path" | "comentario"
+    >
+  >,
 ): Promise<ProgressoSlide> {
   const sb = exigirSupabase();
   const { data, error } = await sb.from("engenharia_progresso_relatorio").update(patch).eq("id", id).select().single();

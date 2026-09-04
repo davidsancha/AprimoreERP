@@ -14,10 +14,14 @@ import type { CamposRelatorio } from '@/modules/engenharia/relatorio-fotografico
 export const runtime = 'nodejs';
 
 interface SlideEntrada {
-  descricao: string;
+  descricao?: string;
+  ambiente?: string;
+  comentario?: string;
   etapa1: 'ANTES' | 'DURANTE';
   fotoAntesPath: string;
   fotoDepoisPath: string;
+  // só o modelo Santander usa (3 fotos por slide — ver ModeloCfg.formaDurante)
+  fotoDurantePath?: string;
 }
 
 interface CorpoRequisicao {
@@ -28,6 +32,7 @@ interface CorpoRequisicao {
   banco: string;
   agencia: string;
   nomeFallback: string;
+  uniorg?: string;
 }
 
 function baseStorage(): string {
@@ -63,22 +68,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Nenhum slide para montar.' }, { status: 400 });
     }
     // defesa em profundidade — o client já bloqueia isso, mas a rota não confia cegamente no corpo
-    if (corpo.slides.some((s) => !s.fotoAntesPath || !s.fotoDepoisPath)) {
-      return NextResponse.json({ erro: 'Há slide(s) sem as duas fotos — complete antes de montar.' }, { status: 400 });
+    if (corpo.slides.some((s) => !s.fotoAntesPath || !s.fotoDepoisPath || (cfg.formaDurante && !s.fotoDurantePath))) {
+      const faltaTexto = cfg.formaDurante ? 'as três fotos' : 'as duas fotos';
+      return NextResponse.json({ erro: `Há slide(s) sem ${faltaTexto} — complete antes de montar.` }, { status: 400 });
     }
 
     const bufferModelo = await baixar(corpo.templatePath);
 
     const slides = await Promise.all(
       corpo.slides.map(async (s) => {
-        const [antesBruto, depoisBruto] = await Promise.all([baixar(s.fotoAntesPath), baixar(s.fotoDepoisPath)]);
-        const [antes, depois] = await Promise.all([normalizarFoto(antesBruto), normalizarFoto(depoisBruto)]);
-        return { descricao: s.descricao, etapa1: s.etapa1, antes, depois };
+        const [antesBruto, depoisBruto, duranteBruto] = await Promise.all([
+          baixar(s.fotoAntesPath),
+          baixar(s.fotoDepoisPath),
+          s.fotoDurantePath ? baixar(s.fotoDurantePath) : Promise.resolve(null),
+        ]);
+        const [antes, depois, durante] = await Promise.all([
+          normalizarFoto(antesBruto),
+          normalizarFoto(depoisBruto),
+          duranteBruto ? normalizarFoto(duranteBruto) : Promise.resolve(undefined),
+        ]);
+        return { descricao: s.descricao, ambiente: s.ambiente, comentario: s.comentario, etapa1: s.etapa1, antes, depois, durante };
       }),
     );
 
     const pptx = await montarRelatorio(bufferModelo, cfg, { campos: corpo.campos, slides });
-    const nomeArquivo = nomeArquivoRelatorio(corpo.banco, corpo.agencia, corpo.nomeFallback, corpo.configId);
+    const nomeArquivo = nomeArquivoRelatorio(corpo.banco, corpo.agencia, corpo.nomeFallback, corpo.configId, corpo.uniorg);
 
     return new NextResponse(new Uint8Array(pptx), {
       headers: {

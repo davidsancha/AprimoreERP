@@ -51,6 +51,22 @@ export interface EstruturaFotografica {
   responsavel: string | null;
   data_inicio_obra: string | null;
   data_termino_obra: string | null;
+  // campos específicos do modelo Santander (migration 00017) — só
+  // preenchidos quando banco === "Santander"; vivem direto na estrutura
+  // (nunca em `projetos`) porque são conteúdo do relatório em si (chamado,
+  // descrição do problema etc.), não dado organizacional da obra
+  // reaproveitável entre relatórios diferentes do mesmo projeto.
+  uniorg: string | null;
+  mantenedor: string | null;
+  chamado: string | null;
+  relatorio_titulo: string | null;
+  data_relatorio: string | null;
+  descricao_problema: string | null;
+  causa_origem: string | null;
+  danos: string | null;
+  paliativo_retirada_risco: string | null;
+  escopo_proposta: string | null;
+  cronograma: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -118,11 +134,32 @@ export interface CamposRelatorio {
   responsavel: string;
   inicio: string;
   termino: string;
+  // exclusivos do modelo Santander (opcionais — só preenchidos quando o
+  // modelo é Santander). mantenedor/chamado/relatorioTitulo/dataRelatorio/
+  // descricaoProblema...cronograma são valores diretos; resumoUniorg e
+  // resumoOsUniorg chegam JÁ COMPOSTOS (uniorg + nome da loja + chamado
+  // combinados) porque os marcadores do template juntam vários dados numa
+  // linha só — ver comentário em MODELOS_CFG["santander-add"] (lib/pptx.ts).
+  mantenedor?: string;
+  chamado?: string;
+  relatorioTitulo?: string;
+  dataRelatorio?: string;
+  descricaoProblema?: string;
+  causaOrigem?: string;
+  danos?: string;
+  paliativoRetiradaRisco?: string;
+  escopoProposta?: string;
+  cronograma?: string;
+  resumoUniorg?: string;
+  resumoOsUniorg?: string;
 }
 
 export const CAMPOS_RELATORIO_VAZIOS: CamposRelatorio = {
   agencia: "", programa: "", upe: "", sap: "", gestor: "", fiscEmpresa: "",
   fiscal: "", construtora: "", responsavel: "", inicio: "", termino: "",
+  mantenedor: "", chamado: "", relatorioTitulo: "", dataRelatorio: "",
+  descricaoProblema: "", causaOrigem: "", danos: "", paliativoRetiradaRisco: "",
+  escopoProposta: "", cronograma: "", resumoUniorg: "", resumoOsUniorg: "",
 };
 
 /** Caminho da foto já enviada pro bucket `relatorios-fotograficos` (nunca a foto solta). */
@@ -146,6 +183,13 @@ export interface ProgressoSlide {
   // sozinhos).
   foto_antes_path: string | null;
   foto_depois_path: string | null;
+  // Terceira foto (migration 00017) — só o modelo Santander usa (ANTES x
+  // DURANTE x DEPOIS lado a lado); nula pros demais modelos.
+  foto_durante_path: string | null;
+  // Texto livre por slide do modelo Santander — a tela pré-preenche com o
+  // comentário do slide anterior ao criar um novo (ver page.tsx), mas o
+  // valor em si é só mais uma coluna, sem lógica especial aqui.
+  comentario: string | null;
   created_at: string;
 }
 
@@ -159,11 +203,26 @@ export interface ModeloCfgCampo {
 export interface ModeloCfg {
   nome: string;
   slideModelo: number;
-  marcadorFoto1: string;
-  marcadorFoto2: string;
+  // Modelos Itaú numeram e renomeiam esses rótulos por slide clonado ("Foto
+  // 01 - ANTES", "Foto 02 - DEPOIS", trocando ANTES/DURANTE); modelos sem
+  // numeração (Santander, rótulos fixos ANTES/DURANTE/DEPOIS) deixam de fora.
+  marcadorFoto1?: string;
+  marcadorFoto2?: string;
   marcadorRotuloAntes?: string;
-  marcadorDescricao: string;
+  // Descrição única (Itaú: equipamento+ponto ou serviço+ambiente numa string
+  // só) — modelos com campos separados (Santander: Ambiente/Comentários) usam
+  // marcadorAmbiente/marcadorComentario abaixo em vez deste.
+  marcadorDescricao?: string;
+  marcadorAmbiente?: string;
+  marcadorComentario?: string;
   formaAntes: string;
   formaDepois: string;
+  // Terceira foto por slide (só Santander, ANTES x DURANTE x DEPOIS) — os
+  // demais modelos não definem isso e o motor ignora a foto "durante".
+  formaDurante?: string;
+  // Slide que tem que continuar sendo SEMPRE o último (ex.: "OBRIGADO" do
+  // Santander) — o motor preserva esse slide e insere os clones antes dele,
+  // em vez de anexar no fim do arquivo.
+  slideFinal?: number;
   campos: ModeloCfgCampo[];
 }

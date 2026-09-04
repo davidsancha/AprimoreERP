@@ -132,6 +132,7 @@ async function processarOperacao(op: OperacaoOffline): Promise<void> {
         ...dados,
         fotoAntesPath: await resolverCaminhoFoto(relatorioIdReal, dados.fotoAntesPath),
         fotoDepoisPath: await resolverCaminhoFoto(relatorioIdReal, dados.fotoDepoisPath),
+        fotoDurantePath: await resolverCaminhoFoto(relatorioIdReal, dados.fotoDurantePath ?? null),
       };
       const novo = await api.criarProgresso(relatorioIdReal, dadosResolvidos);
       mapaIds[localId] = novo.id;

@@ -129,10 +129,16 @@ const TIPO_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relati
 const CT_SLIDE = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
 
 export interface SlideDados {
-  descricao: string;
+  // Itaú: descrição única (equipamento+ponto ou serviço+ambiente). Santander
+  // usa ambiente/comentario em vez disso — ver ModeloCfg.marcadorAmbiente.
+  descricao?: string;
+  ambiente?: string;
+  comentario?: string;
   etapa1: "ANTES" | "DURANTE";
   antes: FotoLida;
   depois: FotoLida;
+  // só preenchida quando cfg.formaDurante existe (modelo Santander)
+  durante?: FotoLida;
 }
 
 export interface DadosRelatorio {
@@ -162,8 +168,8 @@ export async function montarRelatorio(
     return v.toString("utf-8");
   };
 
-  // --- descarta slides de exemplo além de capa (1,2) e do slide-molde ---
-  const manter = new Set([1, 2, cfg.slideModelo]);
+  // --- descarta slides de exemplo além de capa (1,2), do slide-molde e do slide final fixo (se houver) ---
+  const manter = new Set([1, 2, cfg.slideModelo, ...(cfg.slideFinal ? [cfg.slideFinal] : [])]);
   const relsPresXml0 = txt("ppt/_rels/presentation.xml.rels");
   const mapaRid = new Map(
     [...relsPresXml0.matchAll(/<Relationship Id="(rId\d+)"[^>]*Target="slides\/slide(\d+)\.xml"/g)].map((m) => [
@@ -249,13 +255,15 @@ export async function montarRelatorio(
   const xmlBase = txt(nomeBase);
   const relsBase = txt("ppt/slides/_rels/slide" + cfg.slideModelo + ".xml.rels");
 
-  // tamanho real das duas formas de foto no slide-molde (mesmo pra todos os
+  // tamanho real das formas de foto no slide-molde (mesmo pra todos os
   // slides clonados) — usado pra cortar e comprimir cada foto no tamanho
   // exato que vai aparecer, em vez de embutir a foto inteira na resolução
   // da câmera.
   const quadroAntes = xfrmDe(achaForma(xmlBase, cfg.formaAntes));
   const quadroDepois = xfrmDe(achaForma(xmlBase, cfg.formaDepois));
+  const quadroDurante = cfg.formaDurante ? xfrmDe(achaForma(xmlBase, cfg.formaDurante)) : null;
   if (!quadroAntes || !quadroDepois) throw new Error("Sem dimensões nas formas de foto do slide-molde.");
+  if (cfg.formaDurante && !quadroDurante) throw new Error('Sem dimensões na forma "' + cfg.formaDurante + '".');
 
   // o slide-molde pode ter uma <p:tags> (custDataLst) associada a UM slide
   // só; se ela for copiada para cada clone, vários slides passam a
@@ -271,7 +279,11 @@ export async function montarRelatorio(
   let addSld = "";
   let idSlide = 900;
   let nRid = 900;
-  const numeroSlide = (i: number) => cfg.slideModelo + i;
+  // i=0 reaproveita o próprio slide-molde (já registrado em presentation.xml
+  // etc. via `manter`); i>0 precisa de números que não colidam com nenhum
+  // slide preservado (capa, molde, e o slide final fixo, se houver) — daí a
+  // faixa alta em vez de slideModelo+i (que colidiria com cfg.slideFinal).
+  const numeroSlide = (i: number) => (i === 0 ? cfg.slideModelo : 500 + i);
 
   for (let i = 0; i < dados.slides.length; i++) {
     const s = dados.slides[i]!;
@@ -279,15 +291,21 @@ export async function montarRelatorio(
     if (ridTags) xml = xml.replace(/<p:custDataLst>[\s\S]*?<\/p:custDataLst>/, "");
 
     const etapa1 = s.etapa1 === "DURANTE" ? "DURANTE" : "ANTES";
-    const novoRotulo1 = cfg.marcadorFoto1.replace(/\d+/, String(2 * i + 1).padStart(2, "0")).replace(/ANTES$/, etapa1);
-    const novoRotulo2 = cfg.marcadorFoto2.replace(/\d+/, String(2 * i + 2).padStart(2, "0"));
-    xml = xml.split(cfg.marcadorFoto1).join(novoRotulo1);
-    xml = xml.split(cfg.marcadorFoto2).join(novoRotulo2);
+    if (cfg.marcadorFoto1 && cfg.marcadorFoto2) {
+      const novoRotulo1 = cfg.marcadorFoto1.replace(/\d+/, String(2 * i + 1).padStart(2, "0")).replace(/ANTES$/, etapa1);
+      const novoRotulo2 = cfg.marcadorFoto2.replace(/\d+/, String(2 * i + 2).padStart(2, "0"));
+      xml = xml.split(cfg.marcadorFoto1).join(novoRotulo1);
+      xml = xml.split(cfg.marcadorFoto2).join(novoRotulo2);
+    }
     if (cfg.marcadorRotuloAntes) xml = xml.split(cfg.marcadorRotuloAntes).join(etapa1);
-    xml = xml.split(cfg.marcadorDescricao).join(escXml(s.descricao));
+    if (cfg.marcadorDescricao) xml = xml.split(cfg.marcadorDescricao).join(escXml(s.descricao || ""));
+    if (cfg.marcadorAmbiente) xml = xml.split(cfg.marcadorAmbiente).join(escXml(s.ambiente || ""));
+    if (cfg.marcadorComentario) xml = xml.split(cfg.marcadorComentario).join(escXml(s.comentario || ""));
 
     const antesComprimido = await recortarEComprimir(s.antes, quadroAntes);
     const depoisComprimido = await recortarEComprimir(s.depois, quadroDepois);
+    const duranteComprimido =
+      cfg.formaDurante && quadroDurante && s.durante ? await recortarEComprimir(s.durante, quadroDurante) : null;
 
     const ridA = "rIdImgA" + i;
     const ridD = "rIdImgD" + i;
@@ -299,12 +317,19 @@ export async function montarRelatorio(
     xml = preencheForma(xml, cfg.formaAntes, ridA, antesComprimido);
     xml = preencheForma(xml, cfg.formaDepois, ridD, depoisComprimido);
 
-    let rels = relsBase.replace(
-      "</Relationships>",
+    let relExtra =
       '<Relationship Id="' + ridA + '" Type="' + TIPO_IMG + '" Target="../media/' + nomeA + '"/>' +
-        '<Relationship Id="' + ridD + '" Type="' + TIPO_IMG + '" Target="../media/' + nomeD + '"/>' +
-        "</Relationships>",
-    );
+      '<Relationship Id="' + ridD + '" Type="' + TIPO_IMG + '" Target="../media/' + nomeD + '"/>';
+
+    if (duranteComprimido && cfg.formaDurante) {
+      const ridU = "rIdImgU" + i;
+      const nomeU = "rf" + ++nImg + "." + duranteComprimido.ext;
+      partes.set("ppt/media/" + nomeU, duranteComprimido.bytes);
+      xml = preencheForma(xml, cfg.formaDurante, ridU, duranteComprimido);
+      relExtra += '<Relationship Id="' + ridU + '" Type="' + TIPO_IMG + '" Target="../media/' + nomeU + '"/>';
+    }
+
+    let rels = relsBase.replace("</Relationships>", relExtra + "</Relationships>");
     if (ridTags) rels = rels.replace(new RegExp('<Relationship Id="' + ridTags + '"[^>]*/>'), "");
 
     const num = numeroSlide(i);
@@ -343,10 +368,23 @@ export async function montarRelatorio(
       "ppt/_rels/presentation.xml.rels",
       Buffer.from(txt("ppt/_rels/presentation.xml.rels").replace("</Relationships>", addRel + "</Relationships>"), "utf-8"),
     );
-    partes.set(
-      "ppt/presentation.xml",
-      Buffer.from(txt("ppt/presentation.xml").replace("</p:sldIdLst>", addSld + "</p:sldIdLst>"), "utf-8"),
-    );
+    // com slide final fixo (ex.: "OBRIGADO"), os clones entram ANTES dele
+    // na lista — sem isso, virariam sempre o penúltimo bloco em vez do
+    // slide final continuar por último de verdade
+    let ridSlideFinal: string | null = null;
+    if (cfg.slideFinal) {
+      for (const [rid, numOriginal] of mapaRid) {
+        if (numOriginal === cfg.slideFinal) {
+          ridSlideFinal = rid;
+          break;
+        }
+      }
+    }
+    const presXmlAtual = txt("ppt/presentation.xml");
+    const novoPresXml = ridSlideFinal
+      ? presXmlAtual.replace(new RegExp('<p:sldId[^>]*r:id="' + ridSlideFinal + '"[^>]*/>'), (m) => addSld + m)
+      : presXmlAtual.replace("</p:sldIdLst>", addSld + "</p:sldIdLst>");
+    partes.set("ppt/presentation.xml", Buffer.from(novoPresXml, "utf-8"));
   }
 
   // correção 5: alguns modelos declaram .jpg com o tipo MIME errado
@@ -484,6 +522,42 @@ export const MODELOS_CFG: Record<string, ModeloCfg> = {
       { id: "termino", slide: 2, marcador: ": 27/07/2026", prefixo: ": " },
     ],
   },
+  /*
+   * Santander — "RELATÓRIO FOTOGRÁFICO ANTES x DEPOIS" (na verdade ANTES x
+   * DURANTE x DEPOIS: 3 fotos por slide, não 2). Confirmado por inspeção
+   * direta em 04/09/2026 de
+   * `EGF/SANTANDER/RELATÓRIO FOTOGRÁFICO - XXX-XXXX NOME AG.pptx` — 4 slides:
+   * 1 (capa), 2 (dados do problema), 3 (slide-molde, 3 fotos + Ambiente +
+   * Comentários), 4 ("OBRIGADO" fixo — ver slideFinal). Dois marcadores
+   * combinam mais de um dado numa linha só no arquivo original, então os
+   * campos `resumoUniorg`/`resumoOsUniorg` abaixo já chegam PRÉ-MONTADOS
+   * (uniorg + nome da loja + chamado combinados) — ver
+   * apiRelatorioFotografico.ts/page.tsx, não são valores crus.
+   */
+  "santander-add": {
+    nome: "Santander — Antes x Durante x Depois",
+    slideModelo: 3,
+    slideFinal: 4,
+    marcadorAmbiente: "ÁREA DE PÚBLICO",
+    marcadorComentario: "NETTOP ATRÁS DA TV E INSTALAÇÃO DE EXTENSOR HDMI.",
+    formaAntes: "Retângulo 3",
+    formaDurante: "Retângulo 1",
+    formaDepois: "Retângulo 4",
+    campos: [
+      { id: "chamado", slide: 1, marcador: " : XXX", prefixo: " : " },
+      { id: "resumoUniorg", slide: 1, marcador: "UNIORG: XXX-XXXX LOJA" },
+      { id: "relatorioTitulo", slide: 1, marcador: " ANTES X DURANTE X DEPOIS", prefixo: " " },
+      { id: "dataRelatorio", slide: 1, marcador: ": 27/08/026", prefixo: ": " },
+      { id: "mantenedor", slide: 2, marcador: "NOME MANTENEDOR:", prefixo: "NOME MANTENEDOR: " },
+      { id: "resumoOsUniorg", slide: 2, marcador: "OS: XXXX             UNIORG: 001-XXXX        NOME DO PONTO:" },
+      { id: "descricaoProblema", slide: 2, marcador: "DESCRIÇÃO DO PROBLEMA:", prefixo: "DESCRIÇÃO DO PROBLEMA: " },
+      { id: "causaOrigem", slide: 2, marcador: "CAUSA / ORIGEM: N/A", prefixo: "CAUSA / ORIGEM: " },
+      { id: "danos", slide: 2, marcador: "DANOS: N/A", prefixo: "DANOS: " },
+      { id: "paliativoRetiradaRisco", slide: 2, marcador: "PALIATIVO E RETIRADA DE RISCO: N/A", prefixo: "PALIATIVO E RETIRADA DE RISCO: " },
+      { id: "escopoProposta", slide: 2, marcador: "ESCOPO / PROPOSTA: INSTALAÇÃO DE EXTENSOR HDMI.", prefixo: "ESCOPO / PROPOSTA: " },
+      { id: "cronograma", slide: 2, marcador: "CRONOGRAMA:", prefixo: "CRONOGRAMA: " },
+    ],
+  },
 };
 
 /** cfgAtual() no protótipo sempre devolve a config Itaú Personnalité (é o único banco com marcadores definidos até hoje). */
@@ -491,7 +565,16 @@ export function cfgAtual(): ModeloCfg {
   return MODELOS_CFG["itau-personnalite"]!;
 }
 
-export function nomeArquivoRelatorio(banco: string | undefined, agencia: string, nomeFallback: string, configId?: string): string {
+export function nomeArquivoRelatorio(
+  banco: string | undefined,
+  agencia: string,
+  nomeFallback: string,
+  configId?: string,
+  uniorg?: string,
+): string {
+  if (configId === "santander-add") {
+    return limpaNome("RELATÓRIO FOTOGRÁFICO - " + (uniorg || "") + " " + agencia) + ".pptx";
+  }
   if (configId === "itau-021u-reforma") {
     return limpaNome("021 U - RELATÓRIO FOTOGRÁFICO ANTES x DEPOIS " + agencia) + ".pptx";
   }

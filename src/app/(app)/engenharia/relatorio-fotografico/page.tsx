@@ -65,6 +65,14 @@ import type {
   ProjetoResumo,
   TipoProjetoFotografico,
 } from '@/modules/engenharia/relatorio-fotografico/types';
+import { CAMPOS_RELATORIO_VAZIOS } from '@/modules/engenharia/relatorio-fotografico/types';
+
+/** Máscara do UNIORG do Santander — XXX-XXXX com o hífen sempre fixo na 4ª posição. */
+function formatarUniorg(valor: string): string {
+  const digitos = valor.replace(/\D/g, '').slice(0, 7);
+  if (digitos.length <= 3) return digitos;
+  return digitos.slice(0, 3) + '-' + digitos.slice(3);
+}
 
 function ajustaPontos(pontos: { numero: string; local: string }[], qtd: number) {
   qtd = Math.max(0, Math.min(999, qtd | 0));
@@ -622,13 +630,20 @@ function SlotFoto({
 }
 
 /** Legenda do slide (mesma regra usada no PowerPoint) — infra: equipamento+ponto; reforma: serviço+ambiente. */
+/** Reforma "clássica" sempre tem serviço; um slide com ambiente mas sem serviço/equipamento só pode ser do modelo Santander (Ambiente + Comentários). */
+function ehLinhaSantander(s: ProgressoSlide): boolean {
+  return !s.servico && !s.equipamento && !!s.ambiente;
+}
+
 function legendaSlide(s: ProgressoSlide): string {
   if (s.equipamento) return descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'normal');
+  if (ehLinhaSantander(s)) return s.ambiente + (s.comentario ? ' — ' + s.comentario : '');
   return descricaoReforma(s.servico || '', s.ambiente || '', 'normal');
 }
 
-/** Verde = as duas fotos já foram enviadas; âmbar = falta alguma (migration 00013 — serviço/ambiente valem sem foto). */
+/** Verde = fotos completas (2 pras reforma/infra, 3 — antes/durante/depois — pro Santander); âmbar = falta alguma (migration 00013 — serviço/ambiente valem sem foto). */
 function slideCompleto(s: ProgressoSlide): boolean {
+  if (ehLinhaSantander(s)) return !!s.foto_antes_path && !!s.foto_depois_path && !!s.foto_durante_path;
   return !!s.foto_antes_path && !!s.foto_depois_path;
 }
 
@@ -784,6 +799,20 @@ function RelatorioFotograficoContent() {
   const [dataTerminoObra, setDataTerminoObra] = useState('');
   const [habilitarEdicaoObra, setHabilitarEdicaoObra] = useState(false);
 
+  // campos exclusivos do modelo Santander — conteúdo do relatório em si,
+  // não dado de obra: nunca herdam do projeto vinculado, sempre editáveis
+  const [uniorg, setUniorg] = useState('');
+  const [mantenedor, setMantenedor] = useState('');
+  const [chamado, setChamado] = useState('');
+  const [relatorioTitulo, setRelatorioTitulo] = useState('ANTES X DURANTE X DEPOIS');
+  const [dataRelatorio, setDataRelatorio] = useState('');
+  const [descricaoProblema, setDescricaoProblema] = useState('');
+  const [causaOrigem, setCausaOrigem] = useState('');
+  const [danosSantander, setDanosSantander] = useState('');
+  const [paliativoRetiradaRisco, setPaliativoRetiradaRisco] = useState('');
+  const [escopoProposta, setEscopoProposta] = useState('');
+  const [cronogramaSantander, setCronogramaSantander] = useState('');
+
   const [estrutura, setEstrutura] = useState<EstruturaFotografica | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -829,11 +858,21 @@ function RelatorioFotograficoContent() {
   const [novoSlideAmbiente, setNovoSlideAmbiente] = useState('');
   const [novoSlideAntes, setNovoSlideAntes] = useState<File | null>(null);
   const [novoSlideDepois, setNovoSlideDepois] = useState<File | null>(null);
+
+  // criação de slide — modelo Santander (Ambiente + Comentários + 3 fotos)
+  const [novoSlideAmbienteSant, setNovoSlideAmbienteSant] = useState('');
+  const [novoSlideComentarioSant, setNovoSlideComentarioSant] = useState('');
+  const [novoSlideAntesSant, setNovoSlideAntesSant] = useState<File | null>(null);
+  const [novoSlideDuranteSant, setNovoSlideDuranteSant] = useState<File | null>(null);
+  const [novoSlideDepoisSant, setNovoSlideDepoisSant] = useState<File | null>(null);
+  const [escolhendoFotoSant, setEscolhendoFotoSant] = useState<'antes' | 'durante' | 'depois' | null>(null);
   const [escolhendoSlideFoto, setEscolhendoSlideFoto] = useState<'antes' | 'depois' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
-  const progressoReforma = useMemo(() => progresso.filter((p) => p.servico), [progresso]);
+  // reforma "clássica" tem servico+ambiente; Santander só ambiente (sem
+  // serviço) — ambos entram na mesma lista de slides gerados
+  const progressoReforma = useMemo(() => progresso.filter((p) => p.servico || p.ambiente), [progresso]);
 
   /** Ambientes do catálogo global, na ordem salva pra ESTE relatório — os que ainda não foram ordenados caem no fim, em ordem alfabética. */
   const ambientesOrdenados = useMemo(() => {
@@ -934,6 +973,14 @@ function RelatorioFotograficoContent() {
   const modelosFiltrados = useMemo(
     () => modelosDoBanco.filter((m) => !m.tipo_projeto || m.tipo_projeto === tipoProjeto),
     [modelosDoBanco, tipoProjeto],
+  );
+
+  // modelo "Santander — Antes x Durante x Depois": campos de cabeçalho e
+  // slides de progresso completamente diferentes dos outros bancos — ver
+  // MODELOS_CFG["santander-add"] em lib/pptx.ts
+  const ehSantander = useMemo(
+    () => modelosDoBanco.find((m) => m.nome === modeloRelatorio)?.config_id === 'santander-add',
+    [modelosDoBanco, modeloRelatorio],
   );
 
   // se o modelo selecionado deixar de valer (trocou banco/tipo), limpa; se houver apenas 1 disponível, auto-seleciona por padrão
@@ -1070,6 +1117,18 @@ function RelatorioFotograficoContent() {
       setDataInicioObra(e.data_inicio_obra || '');
       setDataTerminoObra(e.data_termino_obra || '');
     }
+    // campos do Santander vivem sempre na própria estrutura, avulso ou não
+    setUniorg(e.uniorg || '');
+    setMantenedor(e.mantenedor || '');
+    setChamado(e.chamado || '');
+    setRelatorioTitulo(e.relatorio_titulo || 'ANTES X DURANTE X DEPOIS');
+    setDataRelatorio(e.data_relatorio || '');
+    setDescricaoProblema(e.descricao_problema || '');
+    setCausaOrigem(e.causa_origem || '');
+    setDanosSantander(e.danos || '');
+    setPaliativoRetiradaRisco(e.paliativo_retirada_risco || '');
+    setEscopoProposta(e.escopo_proposta || '');
+    setCronogramaSantander(e.cronograma || '');
     setEquipamentos(e.equipamentos || []);
   }
 
@@ -1093,8 +1152,9 @@ function RelatorioFotograficoContent() {
       { label: 'Início da obra (Efetivo)', valor: dataInicioObra },
       { label: 'Término da obra (Efetivo)', valor: dataTerminoObra },
     ];
+    if (ehSantander) campos.push({ label: 'UNIORG', valor: uniorg });
     return campos.filter((c) => !c.valor || !c.valor.trim()).map((c) => c.label);
-  }, [banco, modeloRelatorio, agencia, programa, upe, sap, gestor, fiscEmpresa, fiscal, construtora, responsavel, dataInicioObra, dataTerminoObra]);
+  }, [banco, modeloRelatorio, agencia, programa, upe, sap, gestor, fiscEmpresa, fiscal, construtora, responsavel, dataInicioObra, dataTerminoObra, ehSantander, uniorg]);
 
   // slides com serviço/ambiente definidos mas sem alguma das duas fotos (migration 00013) — bloqueia só o "Montar PowerPoint"
   const pendenciasFotos = useMemo(() => progresso.filter((s) => !slideCompleto(s)).length, [progresso]);
@@ -1137,6 +1197,24 @@ function RelatorioFotograficoContent() {
             data_termino_obra: null,
           };
 
+      // campos exclusivos do Santander — sempre na própria estrutura (nunca
+      // em `projetos`), independente de avulso ou vinculado
+      const camposSantander = ehSantander
+        ? {
+            uniorg: uniorg || null,
+            mantenedor: mantenedor || null,
+            chamado: chamado || null,
+            relatorio_titulo: relatorioTitulo || null,
+            data_relatorio: dataRelatorio || null,
+            descricao_problema: descricaoProblema || null,
+            causa_origem: causaOrigem || null,
+            danos: danosSantander || null,
+            paliativo_retirada_risco: paliativoRetiradaRisco || null,
+            escopo_proposta: escopoProposta || null,
+            cronograma: cronogramaSantander || null,
+          }
+        : {};
+
       if (!estrutura) {
         const nova = await criarEstrutura({
           projetoId: isAvulso ? null : projetoSelecionado!.id,
@@ -1148,6 +1226,7 @@ function RelatorioFotograficoContent() {
           modeloRelatorio: modeloRelatorio || null,
           programa: programa || null,
           ...camposObra,
+          ...camposSantander,
           vinculoPendenteNome: vinculoPendenteNome || undefined,
         });
         setEstrutura(nova);
@@ -1179,6 +1258,7 @@ function RelatorioFotograficoContent() {
         modelo_relatorio: modeloRelatorio || null,
         programa: programa || null,
         ...camposObra,
+        ...camposSantander,
       });
       setEstrutura(atualizada);
       if (!isAvulso && projetoSelecionado && habilitarEdicaoObra) {
@@ -1416,6 +1496,63 @@ function RelatorioFotograficoContent() {
   }
 
   /**
+   * Slide do modelo Santander: Ambiente + Comentários + 3 fotos (Antes/
+   * Durante/Depois, não 2). O comentário NÃO é limpo depois de salvar —
+   * o David pediu que o próximo slide já venha com o último comentário
+   * preenchido, editável (o padrão é repetir o mesmo comentário em vários
+   * pontos do mesmo ambiente).
+   */
+  async function salvarNovoSlideSantander() {
+    if (!estrutura || !novoSlideAmbienteSant.trim()) return;
+    setFotoOcupada('novo-slide');
+    try {
+      const segmento = [novoSlideAmbienteSant.trim()];
+      const [caminhoAntes, caminhoDurante, caminhoDepois] = await Promise.all([
+        novoSlideAntesSant ? uploadFotoRelatorio(estrutura.id, [...segmento, 'ANTES'], novoSlideAntesSant) : Promise.resolve(null),
+        novoSlideDuranteSant ? uploadFotoRelatorio(estrutura.id, [...segmento, 'DURANTE'], novoSlideDuranteSant) : Promise.resolve(null),
+        novoSlideDepoisSant ? uploadFotoRelatorio(estrutura.id, [...segmento, 'DEPOIS'], novoSlideDepoisSant) : Promise.resolve(null),
+      ]);
+      const novo = await criarProgresso(estrutura.id, {
+        ambiente: novoSlideAmbienteSant.trim(),
+        comentario: novoSlideComentarioSant.trim() || null,
+        etapa1: 'ANTES',
+        fotoAntesPath: caminhoAntes,
+        fotoDepoisPath: caminhoDepois,
+        fotoDurantePath: caminhoDurante,
+      });
+      if (ordemAutomatica) {
+        const ordenada = [...progresso, novo].sort(compararOrdemAutomatica);
+        persistirOrdem(ordenada);
+      } else {
+        setProgresso((prev) => [...prev, novo]);
+      }
+      setNovoSlideAntesSant(null);
+      setNovoSlideDuranteSant(null);
+      setNovoSlideDepoisSant(null);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setFotoOcupada(null);
+    }
+  }
+
+  function iniciarOuLimparFotosSlideSant() {
+    if (novoSlideAntesSant && novoSlideDuranteSant && novoSlideDepoisSant) {
+      setNovoSlideAntesSant(null);
+      setNovoSlideDuranteSant(null);
+      setNovoSlideDepoisSant(null);
+      return;
+    }
+    setEscolhendoFotoSant(!novoSlideAntesSant ? 'antes' : !novoSlideDuranteSant ? 'durante' : 'depois');
+  }
+
+  function definirFotoSlideManualSant(lado: 'antes' | 'durante' | 'depois', file: File | null) {
+    if (lado === 'antes') setNovoSlideAntesSant(file);
+    else if (lado === 'durante') setNovoSlideDuranteSant(file);
+    else setNovoSlideDepoisSant(file);
+  }
+
+  /**
    * Um botão só, dois picks em sequência: primeiro Antes/Durante, depois
    * Depois — igual ao app original. Se as duas já estiverem escolhidas, o
    * mesmo botão vira "Excluir fotos" (limpa as duas de uma vez). Cada
@@ -1492,6 +1629,7 @@ function RelatorioFotograficoContent() {
     setErro(null);
     try {
       const campos: CamposRelatorio = {
+        ...CAMPOS_RELATORIO_VAZIOS,
         agencia,
         programa,
         upe,
@@ -2133,6 +2271,81 @@ function RelatorioFotograficoContent() {
             aparecem vazias aqui (e como pendência abaixo). Habilite a edição acima pra lançar direto por aqui.
           </p>
         )}
+
+        {ehSantander && (
+          <div className="space-y-3 border-t border-card-border pt-3.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ocre">Modelo Santander</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className={label}>UNIORG (Loja) *</label>
+                <input
+                  type="text"
+                  value={uniorg}
+                  onChange={(e) => setUniorg(formatarUniorg(e.target.value))}
+                  className={input}
+                  placeholder="XXX-XXXX"
+                  maxLength={8}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Chamado / OS</label>
+                <input type="text" value={chamado} onChange={(e) => setChamado(e.target.value)} className={input} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Nome do Mantenedor</label>
+                <input type="text" value={mantenedor} onChange={(e) => setMantenedor(e.target.value)} className={input} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Data do relatório</label>
+                <input
+                  type="text"
+                  value={dataRelatorio}
+                  onChange={(e) => setDataRelatorio(e.target.value)}
+                  className={input}
+                  placeholder="ex.: 04/09/2026"
+                />
+                <p className="text-[10px] text-sub">Sempre digitada — não puxa de nenhum outro cadastro.</p>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className={label}>Relatório (título)</label>
+                <input
+                  type="text"
+                  value={relatorioTitulo}
+                  onChange={(e) => setRelatorioTitulo(e.target.value)}
+                  className={input}
+                />
+              </div>
+            </div>
+
+            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ocre pt-1">Vistoria</p>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1">
+                <label className={label}>Descrição do problema</label>
+                <textarea value={descricaoProblema} onChange={(e) => setDescricaoProblema(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Causa / Origem</label>
+                <textarea value={causaOrigem} onChange={(e) => setCausaOrigem(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Danos</label>
+                <textarea value={danosSantander} onChange={(e) => setDanosSantander(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Paliativo e retirada de risco</label>
+                <textarea value={paliativoRetiradaRisco} onChange={(e) => setPaliativoRetiradaRisco(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Escopo / Proposta</label>
+                <textarea value={escopoProposta} onChange={(e) => setEscopoProposta(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+              <div className="space-y-1">
+                <label className={label}>Cronograma</label>
+                <textarea value={cronogramaSantander} onChange={(e) => setCronogramaSantander(e.target.value)} className={input + ' min-h-[70px]'} />
+              </div>
+            </div>
+          </div>
+        )}
           </>
         )}
 
@@ -2354,7 +2567,7 @@ function RelatorioFotograficoContent() {
 
       {/* 6 — criar slide: uma etapa única (não mais um link por serviço) —
           escolhe serviço + ambiente, monta o par antes/depois, salva */}
-      {estrutura && tipoProjeto === 'reforma' && estrutura.servicos_habilitados.length > 0 && (
+      {estrutura && tipoProjeto === 'reforma' && !ehSantander && estrutura.servicos_habilitados.length > 0 && (
         <div className={secao}>
           <h3 className={tituloSecao}>{badge(6)} Criar slide</h3>
           <div className="grid grid-cols-2 gap-2">
@@ -2464,6 +2677,99 @@ function RelatorioFotograficoContent() {
                 setNovoSlideDepois(null);
                 setNovoSlideAmbiente('');
                 setNovoSlideEtapa('ANTES');
+              }}
+              className="px-4 py-2 rounded-lg border border-card-border text-xs font-bold text-sub"
+            >
+              Limpar campos
+            </button>
+          </div>
+        </div>
+      )}
+
+      {estrutura && ehSantander && (
+        <div className={secao}>
+          <h3 className={tituloSecao}>{badge(6)} Criar slide</h3>
+          <SeletorPersonalizado
+            rotulo="Ambiente"
+            placeholder="Selecione o ambiente…"
+            valor={novoSlideAmbienteSant}
+            opcoes={[...ambientesGlobais].sort((a, b) => a.localeCompare(b, 'pt-BR'))}
+            onEscolher={(v) => setNovoSlideAmbienteSant(v)}
+          />
+          <div className="space-y-1">
+            <label className={label}>Comentários</label>
+            <textarea
+              value={novoSlideComentarioSant}
+              onChange={(e) => setNovoSlideComentarioSant(e.target.value)}
+              className={input + ' min-h-[70px]'}
+              placeholder="Repete no próximo slide por padrão — edite se mudar"
+            />
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            {(['antes', 'durante', 'depois'] as const).map((lado) => {
+              const arquivo = lado === 'antes' ? novoSlideAntesSant : lado === 'durante' ? novoSlideDuranteSant : novoSlideDepoisSant;
+              return (
+                <div key={lado} className="flex flex-col items-center gap-1">
+                  <SlotFoto
+                    rotulo={lado === 'antes' ? 'Antes' : lado === 'durante' ? 'Durante' : 'Depois'}
+                    caminho={null}
+                    arquivoLocal={arquivo}
+                    ocupado={fotoOcupada === 'novo-slide'}
+                    onSelecionar={(f) => definirFotoSlideManualSant(lado, f)}
+                    onExcluir={() => definirFotoSlideManualSant(lado, null)}
+                  />
+                  {arquivo && <span className="text-[9px] text-emerald-600 font-bold text-center max-w-[80px] truncate">{arquivo.name}</span>}
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={iniciarOuLimparFotosSlideSant}
+              disabled={fotoOcupada === 'novo-slide'}
+              className={`h-20 inline-flex flex-col items-center justify-center gap-1 px-5 rounded-xl text-xs font-bold disabled:opacity-40 shadow-sm transition-colors ${
+                novoSlideAntesSant && novoSlideDuranteSant && novoSlideDepoisSant
+                  ? 'bg-red-500/10 border-2 border-red-500/40 text-red-500 hover:bg-red-500/20'
+                  : 'bg-brand-ocre text-white hover:bg-brand-ocre/90'
+              }`}
+            >
+              <Camera size={18} />
+              {novoSlideAntesSant && novoSlideDuranteSant && novoSlideDepoisSant ? 'Excluir fotos' : 'Inserir fotos'}
+            </button>
+            {escolhendoFotoSant && (
+              <ModalEscolhaOrigemFoto
+                onEscolher={(file) => {
+                  if (escolhendoFotoSant === 'antes') {
+                    setNovoSlideAntesSant(file);
+                    setEscolhendoFotoSant('durante');
+                  } else if (escolhendoFotoSant === 'durante') {
+                    setNovoSlideDuranteSant(file);
+                    setEscolhendoFotoSant('depois');
+                  } else {
+                    setNovoSlideDepoisSant(file);
+                    setEscolhendoFotoSant(null);
+                  }
+                }}
+                onFechar={() => setEscolhendoFotoSant(null)}
+              />
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!novoSlideAmbienteSant.trim() || fotoOcupada === 'novo-slide'}
+              onClick={salvarNovoSlideSantander}
+              className="px-4 py-2 rounded-lg bg-brand-ocre text-white text-xs font-bold disabled:opacity-40"
+            >
+              {fotoOcupada === 'novo-slide' ? 'Enviando…' : 'Gerar slide'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNovoSlideAmbienteSant('');
+                setNovoSlideComentarioSant('');
+                setNovoSlideAntesSant(null);
+                setNovoSlideDuranteSant(null);
+                setNovoSlideDepoisSant(null);
               }}
               className="px-4 py-2 rounded-lg border border-card-border text-xs font-bold text-sub"
             >
