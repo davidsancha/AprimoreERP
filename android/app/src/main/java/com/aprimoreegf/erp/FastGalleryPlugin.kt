@@ -3,11 +3,13 @@ package com.aprimoreegf.erp
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
 import java.io.FileOutputStream
@@ -24,25 +26,23 @@ class FastGalleryPlugin : Plugin() {
     @PluginMethod
     fun pick(call: PluginCall) {
         val intent = Intent(activity, FastGalleryActivity::class.java)
-        saveCall(call)
         startActivityForResult(call, intent, "pickResult")
     }
 
-    override fun handleOnActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.handleOnActivityResult(requestCode, resultCode, data)
-        val call = savedCall ?: return
-
-        if (resultCode != Activity.RESULT_OK || data == null) {
+    @ActivityCallback
+    fun pickResult(call: PluginCall, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK || result.data == null) {
             call.reject("Seleção cancelada")
             return
         }
 
-        val uris = data.getStringArrayListExtra(FastGalleryActivity.EXTRA_RESULT_URIS) ?: arrayListOf()
+        val data = result.data
+        val uris = data?.getStringArrayListExtra(FastGalleryActivity.EXTRA_RESULT_URIS) ?: arrayListOf()
         // Copia pro cache do app: content:// dos itens de mídia some fora do
         // ciclo de vida da picker em alguns fabricantes, e o lado JS precisa
         // de um File real pro pipeline de upload existente (uploadFotoRelatorio).
         val cacheDir = File(context.cacheDir, "fast-gallery").apply { mkdirs() }
-        val result = JSArray()
+        val resultArr = JSArray()
 
         for ((index, uriStr) in uris.withIndex()) {
             try {
@@ -57,7 +57,7 @@ class FastGalleryPlugin : Plugin() {
                 item.put("path", outFile.absolutePath)
                 item.put("name", outFile.name)
                 item.put("mimeType", mime)
-                result.put(item)
+                resultArr.put(item)
             } catch (e: Exception) {
                 // ignora essa foto e segue com as demais — melhor devolver
                 // parte da seleção do que falhar tudo por um item problemático
@@ -65,7 +65,8 @@ class FastGalleryPlugin : Plugin() {
         }
 
         val ret = JSObject()
-        ret.put("photos", result)
+        ret.put("photos", resultArr)
         call.resolve(ret)
     }
 }
+
