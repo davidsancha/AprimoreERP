@@ -41,6 +41,6 @@
     "typescript": "^5"
   },
   "optionalDependencies": {
-    "@img/sharp-linux-x64": "^0.35.4"
+    "@img/sharp-linux-x64": "0.34.5"
   }
 }

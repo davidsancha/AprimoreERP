@@ -2570,7 +2570,7 @@ function RelatorioFotograficoContent() {
                     className={`px-3 py-1.5 rounded-lg border text-xs font-bold truncate transition-colors ${
                       habilitado
                         ? 'border-brand-ocre bg-brand-ocre/10 text-main'
-                        : 'border-card-border bg-slate-100 dark:bg-zinc-800/60 text-desc opacity-70 hover:opacity-100'
+                        : 'border-card-border bg-slate-100 dark:bg-zinc-800/60 text-sub hover:text-main'
                     }`}
                     style={{ opacity: servicoOcupado === nome ? 0.5 : undefined }}
                   >
