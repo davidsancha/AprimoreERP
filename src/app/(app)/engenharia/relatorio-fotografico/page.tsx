@@ -224,6 +224,7 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
   const [fotoCapturada, setFotoCapturada] = useState<File | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [abrindoGaleriaNativa, setAbrindoGaleriaNativa] = useState(false);
+  const [erroGaleriaNativa, setErroGaleriaNativa] = useState<string | null>(null);
   const desktop = !ehDispositivoMovel();
   const nativo = temGaleriaNativa();
 
@@ -233,11 +234,17 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
     // isso caímos no seletor genérico do sistema, mais lento e sem pasta padrão.
     if (nativo) {
       setAbrindoGaleriaNativa(true);
+      setErroGaleriaNativa(null);
       try {
         const arquivos = await escolherFotosDaGaleriaNativa();
         if (arquivos[0]) onEscolher(arquivos[0]);
-      } catch {
-        // usuário cancelou a seleção
+      } catch (e) {
+        // "Seleção cancelada" é o usuário tocando em Cancelar na própria
+        // grade (ver FastGalleryPlugin.kt) — silencioso de propósito.
+        // Qualquer outro erro (permissão negada, plugin ausente etc.)
+        // precisa aparecer: antes ficava mudo e parecia que nada acontecia.
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!msg.includes('Seleção cancelada')) setErroGaleriaNativa(msg || 'Não foi possível abrir a galeria.');
       } finally {
         setAbrindoGaleriaNativa(false);
       }
@@ -369,6 +376,9 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
           {abrindoGaleriaNativa ? <Loader2 size={16} className="animate-spin text-brand-blue" /> : <ImageIcon size={16} className="text-brand-blue" />}
           {abrindoGaleriaNativa ? 'Abrindo…' : 'Galeria do celular'}
         </button>
+        {erroGaleriaNativa && (
+          <p className="text-[10px] text-red-500 font-semibold text-center leading-tight">{erroGaleriaNativa}</p>
+        )}
         {!nativo && (
           <button
             type="button"

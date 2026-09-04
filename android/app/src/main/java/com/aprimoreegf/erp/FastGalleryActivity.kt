@@ -70,27 +70,37 @@ class FastGalleryActivity : AppCompatActivity() {
         pedirPermissaoECarregar()
     }
 
-    private fun permissaoNecessaria(): String {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+    /**
+     * Android 14+ (API 34) tem um terceiro estado além de permitir/negar: o
+     * usuário pode conceder acesso PARCIAL ("selecionar fotos"), que não
+     * marca READ_MEDIA_IMAGES como concedida — só READ_MEDIA_VISUAL_USER_SELECTED.
+     * Sem pedir as duas, esse caso caía direto no "permissão negada" mesmo
+     * com o usuário tendo liberado alguma coisa.
+     */
+    private fun permissoesNecessarias(): Array<String> {
+        return when {
+            Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, "android.permission.READ_MEDIA_VISUAL_USER_SELECTED")
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
 
+    private fun algumaPermissaoConcedida(): Boolean {
+        return permissoesNecessarias().any { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+    }
+
     private fun pedirPermissaoECarregar() {
-        val permissao = permissaoNecessaria()
-        if (ContextCompat.checkSelfPermission(this, permissao) == PackageManager.PERMISSION_GRANTED) {
+        if (algumaPermissaoConcedida()) {
             carregarFotos()
         } else {
-            ActivityCompat.requestPermissions(this, arrayOf(permissao), PERMISSAO_REQUEST_CODE)
+            ActivityCompat.requestPermissions(this, permissoesNecessarias(), PERMISSAO_REQUEST_CODE)
         }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSAO_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
                 carregarFotos()
             } else {
                 Toast.makeText(this, "Permissão de fotos negada.", Toast.LENGTH_SHORT).show()
