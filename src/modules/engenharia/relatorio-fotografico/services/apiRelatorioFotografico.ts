@@ -166,21 +166,74 @@ export async function obterEstrutura(id: string): Promise<EstruturaFotografica |
 }
 
 /**
- * Relatórios que o usuário criou — base do "Meus Relatórios" do Parceiro
- * EGF. Filtra por `user_id` na própria query (funciona mesmo com a RLS
- * ainda permissiva de hoje, já que só pedimos as linhas dele); relatórios
- * onde ele é colaborador via Cowork entram depois que
- * `engenharia_relatorio_colaboradores` existir (ver README.md).
+ * Relatórios que o usuário criou OU dos quais participa como colaborador
+ * (Cowork, migration 00014/00015) — base do "Meus Relatórios" do Parceiro
+ * EGF. Duas consultas simples + merge no cliente em vez de um OR/join
+ * complexo, porque a RLS de `engenharia_relatorio_colaboradores` já resolve
+ * a visibilidade — aqui só precisamos juntar os dois conjuntos de ids.
  */
 export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotografica[]> {
   const sb = exigirSupabase();
-  const { data, error } = await sb
-    .from("engenharia_estrutura_fotografica")
-    .select("*")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false });
+  const [proprios, colaboracoes] = await Promise.all([
+    sb.from("engenharia_estrutura_fotografica").select("*").eq("user_id", userId),
+    sb.from("engenharia_relatorio_colaboradores").select("relatorio_id").eq("user_id", userId),
+  ]);
+  if (proprios.error) throw proprios.error;
+  if (colaboracoes.error) throw colaboracoes.error;
+
+  const idsCompartilhados = (colaboracoes.data || []).map((c) => c.relatorio_id);
+  const idsProprios = new Set((proprios.data || []).map((r) => r.id));
+  const idsFaltantes = idsCompartilhados.filter((id) => !idsProprios.has(id));
+
+  let compartilhados: EstruturaFotografica[] = [];
+  if (idsFaltantes.length) {
+    const { data, error } = await sb.from("engenharia_estrutura_fotografica").select("*").in("id", idsFaltantes);
+    if (error) throw error;
+    compartilhados = data || [];
+  }
+
+  return [...(proprios.data || []), ...compartilhados].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  );
+}
+
+/* ---------- Cowork: compartilhamento de relatório (migration 00015) ---------- */
+
+export interface ColaboradorRelatorio {
+  id: string;
+  relatorio_id: string;
+  user_id: string;
+  papel: "leitor" | "editor" | "admin";
+  nome: string;
+  email: string;
+}
+
+export async function listarColaboradores(relatorioId: string): Promise<ColaboradorRelatorio[]> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.rpc("listar_colaboradores_relatorio", { p_relatorio_id: relatorioId });
   if (error) throw error;
   return data || [];
+}
+
+export async function adicionarColaborador(
+  relatorioId: string,
+  email: string,
+  papel: "leitor" | "editor" | "admin" = "editor"
+): Promise<ColaboradorRelatorio> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.rpc("adicionar_colaborador_relatorio", {
+    p_relatorio_id: relatorioId,
+    p_email: email,
+    p_papel: papel,
+  });
+  if (error) throw error;
+  return data[0];
+}
+
+export async function removerColaborador(colaboradorId: string): Promise<void> {
+  const sb = exigirSupabase();
+  const { error } = await sb.rpc("remover_colaborador_relatorio", { p_colaborador_id: colaboradorId });
+  if (error) throw error;
 }
 
 export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {

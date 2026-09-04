@@ -447,6 +447,43 @@ export const MODELOS_CFG: Record<string, ModeloCfg> = {
       { id: "termino", slide: 2, marcador: "TÉRMINO: 31/08/2026", prefixo: "TÉRMINO: " },
     ],
   },
+  /*
+   * Modelo "021 U" do Itaú (banco "Itaú", não "Itaú Personnalité" — produto
+   * diferente) — confirmado por inspeção direta do arquivo entregue pelo
+   * David em 04/09/2026 (`EGF/ITAÚ/021 U - RELATÓRIO FOTOGRÁFICO ANTES x
+   * DEPOIS .pptx`). Slides 1-2 têm o mesmo dado repetido (agência/programa/
+   * UPE/SAP no 1; gestor/fiscalização/construtora/responsável/período no 2),
+   * igual ao padrão Personnalité, mas em runs de texto separados: label e
+   * valor quase sempre são `<a:r>` distintos aqui (ex. "CÓDIGO SAP: " e
+   * "AG.005636/0142" em runs separados), então o marcador é só o valor, sem
+   * prefixo — diferente do Personnalité, onde vários campos vêm com
+   * label+valor no MESMO run. TÉRMINO é o único campo com o rótulo e o
+   * valor em runs separados MAS com o ": " colado no valor (rótulo
+   * "TÉRMINO" + valor ": 27/07/2026") — daí o prefixo ": " aqui.
+   */
+  "itau-021u-reforma": {
+    nome: "Itaú 021 U — Reforma",
+    slideModelo: 3,
+    marcadorFoto1: "Foto 01 - ANTES",
+    marcadorFoto2: "Foto 02 - DEPOIS",
+    marcadorRotuloAntes: "ANTES",
+    marcadorDescricao: "AMPLIAÇÃO DO ABASTECIMENTO (SAGUÃO)",
+    formaAntes: "Retângulo 5",
+    formaDepois: "Retângulo 4",
+    campos: [
+      { id: "agencia", slide: 1, marcador: "AG 5636 - CONTAGEM-SEDE" },
+      { id: "programa", slide: 1, marcador: "NOVO PPCI" },
+      { id: "upe", slide: 1, marcador: "225617" },
+      { id: "sap", slide: 1, marcador: "AG.005636/0142" },
+      { id: "gestor", slide: 2, marcador: "Graziela Santos" },
+      { id: "fiscEmpresa", slide: 2, marcador: "JLL" },
+      { id: "fiscal", slide: 2, marcador: "FISCAL: Graziela Santos", prefixo: "FISCAL: " },
+      { id: "construtora", slide: 2, marcador: "EGF CONSTRUTORA" },
+      { id: "responsavel", slide: 2, marcador: "RESPONSÁVEL: JULIANA SINASTRO", prefixo: "RESPONSÁVEL: " },
+      { id: "inicio", slide: 2, marcador: "INÍCIO: 24/07/2026", prefixo: "INÍCIO: " },
+      { id: "termino", slide: 2, marcador: ": 27/07/2026", prefixo: ": " },
+    ],
+  },
 };
 
 /** cfgAtual() no protótipo sempre devolve a config Itaú Personnalité (é o único banco com marcadores definidos até hoje). */
@@ -454,7 +491,10 @@ export function cfgAtual(): ModeloCfg {
   return MODELOS_CFG["itau-personnalite"]!;
 }
 
-export function nomeArquivoRelatorio(banco: string | undefined, agencia: string, nomeFallback: string): string {
+export function nomeArquivoRelatorio(banco: string | undefined, agencia: string, nomeFallback: string, configId?: string): string {
+  if (configId === "itau-021u-reforma") {
+    return limpaNome("021 U - RELATÓRIO FOTOGRÁFICO ANTES x DEPOIS " + agencia) + ".pptx";
+  }
   if (banco === "Itaú Personnalité") {
     return limpaNome("21 - PERSON REL. FOTOGRÁFICO FINAL - CONSTR - AG. " + agencia) + ".pptx";
   }

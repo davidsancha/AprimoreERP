@@ -16,12 +16,15 @@ import {
   Pencil,
   Ruler,
   Search,
+  Share2,
   Trash2,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/core/auth/AuthProvider';
 import {
   adicionarAmbienteGlobal,
+  adicionarColaborador,
   atualizarCamposProjeto,
   atualizarEquipamentos,
   atualizarEstrutura,
@@ -29,6 +32,7 @@ import {
   buscarProjetoPorId,
   buscarProjetos,
   buscarProjetosComFiltros,
+  type ColaboradorRelatorio,
   criarEstrutura,
   criarProgresso,
   desabilitarServico,
@@ -39,15 +43,19 @@ import {
   lerModelosPorBanco,
   lerServicosGlobais,
   listarClientesFinaisUsados,
+  listarColaboradores,
   listarProgresso,
   listarRelatoriosDoUsuario,
   obterEstruturaPorProjeto,
   removerAmbienteGlobal,
+  removerColaborador,
   reordenarProgresso,
   uploadFotoRelatorio,
   urlPublicaFoto,
-} from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotografico';
+} from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotograficoOffline';
 import { descricaoDe, descricaoReforma, limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
+import { escolherFotosDaGaleriaNativa, temGaleriaNativa } from '@/shared/lib/fastGallery';
+import { useSincronizacaoOffline } from '@/modules/engenharia/relatorio-fotografico/hooks/useSincronizacaoOffline';
 import type {
   CamposRelatorio,
   Equipamento,
@@ -207,7 +215,28 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
   const filesRef = useRef<HTMLInputElement>(null);
   const [fotoCapturada, setFotoCapturada] = useState<File | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [abrindoGaleriaNativa, setAbrindoGaleriaNativa] = useState(false);
   const desktop = !ehDispositivoMovel();
+  const nativo = temGaleriaNativa();
+
+  async function abrirGaleria() {
+    // App nativo (Capacitor/Android): grade rápida própria, abrindo direto
+    // na pasta da câmera — ver FastGalleryActivity.kt/fastGallery.ts. Sem
+    // isso caímos no seletor genérico do sistema, mais lento e sem pasta padrão.
+    if (nativo) {
+      setAbrindoGaleriaNativa(true);
+      try {
+        const arquivos = await escolherFotosDaGaleriaNativa();
+        if (arquivos[0]) onEscolher(arquivos[0]);
+      } catch {
+        // usuário cancelou a seleção
+      } finally {
+        setAbrindoGaleriaNativa(false);
+      }
+      return;
+    }
+    galRef.current?.click();
+  }
 
   useEffect(() => {
     if (desktop) galRef.current?.click();
@@ -325,23 +354,28 @@ function ModalEscolhaOrigemFoto({ onEscolher, onFechar }: { onEscolher: (file: F
         </button>
         <button
           type="button"
-          onClick={() => galRef.current?.click()}
-          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
+          disabled={abrindoGaleriaNativa}
+          onClick={abrirGaleria}
+          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background disabled:opacity-60"
         >
-          <ImageIcon size={16} className="text-brand-blue" />
-          Galeria do celular
+          {abrindoGaleriaNativa ? <Loader2 size={16} className="animate-spin text-brand-blue" /> : <ImageIcon size={16} className="text-brand-blue" />}
+          {abrindoGaleriaNativa ? 'Abrindo…' : 'Galeria do celular'}
         </button>
-        <button
-          type="button"
-          onClick={() => filesRef.current?.click()}
-          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
-        >
-          <Folder size={16} className="text-brand-ocre" />
-          Arquivos do aparelho (DCIM / Pastas)
-        </button>
-        <p className="text-[10px] text-desc text-center pt-1 leading-tight">
-          No Android, se abrir o seletor padrão, toque no menu (⋮) para abrir a Galeria do aparelho.
-        </p>
+        {!nativo && (
+          <button
+            type="button"
+            onClick={() => filesRef.current?.click()}
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
+          >
+            <Folder size={16} className="text-brand-ocre" />
+            Arquivos do aparelho (DCIM / Pastas)
+          </button>
+        )}
+        {!nativo && (
+          <p className="text-[10px] text-desc text-center pt-1 leading-tight">
+            No Android, se abrir o seletor padrão, toque no menu (⋮) para abrir a Galeria do aparelho.
+          </p>
+        )}
         <button type="button" onClick={onFechar} className="w-full px-4 py-2 rounded-lg text-xs font-bold text-sub">
           Cancelar
         </button>
@@ -693,6 +727,7 @@ function ModalPreviaSlide({
 
 function RelatorioFotograficoContent() {
   const { user, profile } = useAuth();
+  const { offline, pendencias: pendenciasOffline, sincronizando: sincronizandoOffline, ultimoResultado, sincronizarAgora } = useSincronizacaoOffline();
   const searchParams = useSearchParams();
   const projetoIdUrl = searchParams.get('projetoId');
   // Parceiro EGF — acesso convidado, restrito aos próprios relatórios
@@ -703,6 +738,15 @@ function RelatorioFotograficoContent() {
   // antes de decidir criar um novo
   const [meusRelatorios, setMeusRelatorios] = useState<EstruturaFotografica[]>([]);
   const [carregandoMeusRelatorios, setCarregandoMeusRelatorios] = useState(false);
+
+  // Cowork — compartilhamento do relatório atual com outros usuários
+  const [modalCompartilharAberto, setModalCompartilharAberto] = useState(false);
+  const [colaboradores, setColaboradores] = useState<ColaboradorRelatorio[]>([]);
+  const [carregandoColaboradores, setCarregandoColaboradores] = useState(false);
+  const [emailConvite, setEmailConvite] = useState('');
+  const [papelConvite, setPapelConvite] = useState<'leitor' | 'editor' | 'admin'>('editor');
+  const [enviandoConvite, setEnviandoConvite] = useState(false);
+  const [erroConvite, setErroConvite] = useState<string | null>(null);
 
   // passo 1 — vínculo com projeto (ou avulso)
   const [isAvulso, setIsAvulso] = useState(false);
@@ -954,6 +998,44 @@ function RelatorioFotograficoContent() {
     setObraNome(r.obra_nome || '');
     carregarEstruturaNoFormulario(r);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function abrirCompartilhar() {
+    if (!estrutura) return;
+    setModalCompartilharAberto(true);
+    setErroConvite(null);
+    setEmailConvite('');
+    setCarregandoColaboradores(true);
+    listarColaboradores(estrutura.id)
+      .then(setColaboradores)
+      .catch((e) => setErroConvite((e as Error).message))
+      .finally(() => setCarregandoColaboradores(false));
+  }
+
+  async function enviarConvite() {
+    if (!estrutura || !emailConvite.trim()) return;
+    setEnviandoConvite(true);
+    setErroConvite(null);
+    try {
+      await adicionarColaborador(estrutura.id, emailConvite.trim(), papelConvite);
+      const lista = await listarColaboradores(estrutura.id);
+      setColaboradores(lista);
+      setEmailConvite('');
+    } catch (e) {
+      setErroConvite((e as Error).message);
+    } finally {
+      setEnviandoConvite(false);
+    }
+  }
+
+  async function removerConvite(colaboradorId: string) {
+    if (!estrutura) return;
+    try {
+      await removerColaborador(colaboradorId);
+      setColaboradores((atual) => atual.filter((c) => c.id !== colaboradorId));
+    } catch (e) {
+      setErroConvite((e as Error).message);
+    }
   }
 
   function carregarEstruturaNoFormulario(e: EstruturaFotografica) {
@@ -1514,6 +1596,39 @@ function RelatorioFotograficoContent() {
         </p>
       </div>
 
+      {(offline || pendenciasOffline > 0) && (
+        <div className="flex items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3.5 py-2.5 text-amber-600">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle size={15} className="shrink-0" />
+            <p className="text-xs font-semibold min-w-0">
+              {offline
+                ? `Sem conexão — o que você criar/alterar fica salvo neste aparelho${pendenciasOffline > 0 ? ` (${pendenciasOffline} pendente${pendenciasOffline > 1 ? 's' : ''})` : ''} e envia sozinho quando a internet voltar.`
+                : sincronizandoOffline
+                ? 'Enviando dados salvos offline…'
+                : `${pendenciasOffline} pendência${pendenciasOffline > 1 ? 's' : ''} aguardando envio.`}
+            </p>
+          </div>
+          {!offline && !sincronizandoOffline && pendenciasOffline > 0 && (
+            <button
+              type="button"
+              onClick={sincronizarAgora}
+              className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap hover:underline shrink-0"
+            >
+              Enviar agora
+            </button>
+          )}
+        </div>
+      )}
+
+      {ultimoResultado && ultimoResultado.sincronizados > 0 && !offline && !sincronizandoOffline && pendenciasOffline === 0 && (
+        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3.5 py-2.5 text-emerald-600">
+          <Check size={15} className="shrink-0" />
+          <p className="text-xs font-semibold">
+            {ultimoResultado.sincronizados} {ultimoResultado.sincronizados > 1 ? 'itens salvos offline foram enviados' : 'item salvo offline foi enviado'} pro sistema.
+          </p>
+        </div>
+      )}
+
       {erro && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold rounded-lg p-3">{erro}</div>
       )}
@@ -1569,13 +1684,25 @@ function RelatorioFotograficoContent() {
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setResumoExpandido(true)}
-            className="text-[10px] font-bold text-brand-blue hover:underline whitespace-nowrap shrink-0"
-          >
-            Editar
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {(!ehParceiroEgf || estrutura.user_id === user?.id) && (
+              <button
+                type="button"
+                onClick={abrirCompartilhar}
+                className="flex items-center gap-1 text-[10px] font-bold text-sub hover:text-brand-ocre whitespace-nowrap"
+                title="Compartilhar este relatório com outro usuário"
+              >
+                <Share2 size={12} /> Compartilhar
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setResumoExpandido(true)}
+              className="text-[10px] font-bold text-brand-blue hover:underline whitespace-nowrap"
+            >
+              Editar
+            </button>
+          </div>
         </div>
       )}
 
@@ -2666,6 +2793,81 @@ function RelatorioFotograficoContent() {
           onEscolherFoto={(lado, file) => adicionarFotoAoSlide(progresso[previaIndice]!, lado, file)}
           ocupado={fotoOcupada === 'previa-' + progresso[previaIndice]!.id}
         />
+      )}
+
+      {modalCompartilharAberto && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModalCompartilharAberto(false)}>
+          <div className="bg-card border border-card-border rounded-2xl p-5 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-main flex items-center gap-2">
+                <Share2 size={16} className="text-brand-ocre" /> Compartilhar relatório
+              </h3>
+              <button type="button" onClick={() => setModalCompartilharAberto(false)} className="text-sub hover:text-main">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-sub mb-4">
+              A pessoa precisa já ter uma conta cadastrada no sistema. Ela poderá {papelConvite === 'leitor' ? 'apenas visualizar' : 'editar'} este relatório.
+            </p>
+
+            {erroConvite && (
+              <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-[11px]">{erroConvite}</div>
+            )}
+
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="email"
+                value={emailConvite}
+                onChange={(e) => setEmailConvite(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') enviarConvite(); }}
+                placeholder="e-mail do colaborador"
+                className="flex-1 bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:ring-2 focus:ring-brand-ocre/50"
+              />
+              <select
+                value={papelConvite}
+                onChange={(e) => setPapelConvite(e.target.value as 'leitor' | 'editor' | 'admin')}
+                className="bg-background border border-card-border rounded-lg px-2 py-2 text-[11px] text-main focus:outline-none"
+              >
+                <option value="leitor">Leitor</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={enviarConvite}
+              disabled={!emailConvite.trim() || enviandoConvite}
+              className="w-full flex items-center justify-center gap-1.5 bg-brand-ocre text-brand-dark font-bold text-xs py-2 rounded-lg hover:bg-brand-ocre/90 disabled:opacity-50 transition-all mb-4"
+            >
+              {enviandoConvite ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              {enviandoConvite ? 'Adicionando…' : 'Adicionar colaborador'}
+            </button>
+
+            <div className="border-t border-card-border pt-3">
+              <h4 className="text-[10px] font-bold text-sub uppercase tracking-wider mb-2">Já têm acesso</h4>
+              {carregandoColaboradores ? (
+                <p className="text-[11px] text-sub">Carregando…</p>
+              ) : colaboradores.length === 0 ? (
+                <p className="text-[11px] text-sub">Ninguém além de você ainda.</p>
+              ) : (
+                <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {colaboradores.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-2 bg-background border border-card-border/70 rounded-lg px-2.5 py-1.5">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-main truncate">{c.nome || c.email}</div>
+                        <div className="text-[10px] text-sub truncate">{c.email} · {c.papel}</div>
+                      </div>
+                      <button type="button" onClick={() => removerConvite(c.id)} className="text-red-500 hover:text-red-400 shrink-0" title="Remover acesso">
+                        <Trash2 size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

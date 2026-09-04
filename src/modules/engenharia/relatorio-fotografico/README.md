@@ -493,6 +493,66 @@ David aprovou. Dividido assim:
   implementado.
 - `npx tsc --noEmit` limpo com essas mudanças.
 
+## Modelo "021 U" do Itaú — reforma (2026-09-04)
+
+Segundo template real mapeado por inspeção direta (mesmo processo do
+Personnalité): `EGF/ITAÚ/021 U - RELATÓRIO FOTOGRÁFICO ANTES x DEPOIS
+.pptx`, banco **"Itaú"** (produto diferente do Personnalité), tipo
+reforma. Config `itau-021u-reforma` em `lib/pptx.ts` — vincula ao
+modelo "Itaú Reforma — Padrão" que já existia no catálogo (migration
+00011) sem `config_id`. Nome do arquivo final: `021 U - RELATÓRIO
+FOTOGRÁFICO ANTES x DEPOIS <agência>.pptx` (`nomeArquivoRelatorio`
+agora recebe o `configId` pra decidir o padrão de nome, não só o texto
+do banco).
+
+**Diferença notável em relação ao Personnalité**: nesse arquivo, label
+e valor quase sempre são runs de texto SEPARADOS (ex. "CÓDIGO SAP: " e
+"AG.005636/0142" em `<a:r>` distintos), então a maioria dos marcadores
+aqui é só o valor, sem prefixo — no Personnalité vários campos vêm com
+label+valor no mesmo run. Formas de foto: `Retângulo 5` (ANTES, à
+esquerda) / `Retângulo 4` (DEPOIS, à direita) — nomes diferentes do
+Personnalité (`Retângulo 14`/`Retângulo 17`), cada template tem os
+seus, sempre confirme por inspeção, nunca assuma.
+
+Staged em `_templates-pendentes/itau-021u-reforma.pptx` +
+`supabase/migrations/00016_itau_021u_reforma_config.sql`, pedido pro
+Antigravity subir/aplicar (mesmo combinado de sempre: eu não subo pro
+Storage nem aplico migration).
+
+## Cowork — compartilhar relatório (2026-09-04)
+
+Botão "Compartilhar" na barra de resumo do relatório (visível pro dono
+ou staff interno) abre modal de convite por e-mail com papel
+leitor/editor/admin. Depende de 3 RPCs `SECURITY DEFINER` em
+`supabase/migrations/00015_cowork_colaboradores_rpc.sql` (o cliente não
+acessa `auth.users` direto pra resolver e-mail → user_id) — aplicado
+pelo Antigravity, seguindo o combinado de divisão de trabalho.
+`listarRelatoriosDoUsuario` (Meus Relatórios, Parceiro EGF) agora
+também traz relatórios compartilhados, não só os próprios.
+
+## App Android (Capacitor) — em andamento (2026-09-04)
+
+Projeto Android gerado com Capacitor em `android/` — WebView carregando
+o Next.js remoto (não é export estático, porque a geração de PPTX com
+`sharp` precisa de servidor Node de verdade). Ver
+`android/README-BUILD.md` pra rodar/compilar — **esta sessão não tem
+JDK 17 nem Android SDK instalados, então nada disso foi compilado ou
+testado num dispositivo real ainda**, só escrito e revisado por leitura
++ `tsc --noEmit` do lado web.
+
+Peça principal: seletor de fotos nativo estilo WhatsApp (plugin
+Kotlin customizado `FastGallery`, em
+`android/app/src/main/java/com/aprimoreegf/erp/`) — consulta o
+MediaStore direto (sem Intent/SAF genérico) pra abrir instantâneo,
+por padrão só na pasta **DCIM/Camera**, com botão pra alternar pra
+"Todas as fotos", grade com Glide pro scroll ficar liso. No lado web,
+`src/shared/lib/fastGallery.ts` decide entre esse seletor nativo e o
+`<input type="file">` de sempre via `Capacitor.isNativePlatform()` —
+zero mudança de comportamento fora do app nativo.
+
+Planejado (não é este momento): app Flutter separado, ícone/splash com
+a marca Aprimore, mesmo tratamento pra iPhone/iOS.
+
 ## Diferença de cor de marca encontrada
 
 Este projeto usa `--brand-blue: #002f6c` e `--brand-ocre: #c69214`

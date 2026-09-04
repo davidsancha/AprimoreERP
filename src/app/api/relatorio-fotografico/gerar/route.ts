@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     );
 
     const pptx = await montarRelatorio(bufferModelo, cfg, { campos: corpo.campos, slides });
-    const nomeArquivo = nomeArquivoRelatorio(corpo.banco, corpo.agencia, corpo.nomeFallback);
+    const nomeArquivo = nomeArquivoRelatorio(corpo.banco, corpo.agencia, corpo.nomeFallback, corpo.configId);
 
     return new NextResponse(new Uint8Array(pptx), {
       headers: {

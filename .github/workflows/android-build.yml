@@ -1,0 +1,97 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: 'URL do servidor Next.js para o app carregar (ex: http://192.168.10.15:3010 ou https://aprimore.exemplo.com)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Compilar APK Android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar dependências npm
+        run: npm ci
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Configurar URL personalizada do servidor (se fornecida)
+        if: "${{ inputs.server_url != '' }}"
+        run: |
+          echo "Aplicando CAPACITOR_SERVER_URL=${{ inputs.server_url }}"
+          export CAPACITOR_SERVER_URL="${{ inputs.server_url }}"
+          npx cap sync android
+
+      - name: Permissão de execução no gradlew
+        run: chmod +x android/gradlew
+
+      - name: Compilar APK (assembleDebug)
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Renomear APK para distribuição
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/aprimore-erp.apk
+
+      - name: Upload como Artifact do Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: aprimore-erp-apk
+          path: android/app/build/outputs/apk/debug/aprimore-erp.apk
+          if-no-files-found: error
+
+      - name: Upload do APK para Supabase Storage (Download direto público)
+        run: |
+          curl -f -X POST \
+            "https://fbctoskurwbdlqwrdbqg.supabase.co/storage/v1/object/relatorios-fotograficos/apk/aprimore-erp.apk" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY3Rvc2t1cndiZGxxd3JkYnFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDc4OTgsImV4cCI6MjA5NTk4Mzg5OH0.-NmFngDLeRnJw2xRCkxNUEN2OsUkNg8XbMkfgsq8uiE" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-upsert: true" \
+            --data-binary "@android/app/build/outputs/apk/debug/aprimore-erp.apk"
+        continue-on-error: true
+
+      - name: Publicar Release no GitHub com o APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Aprimore ERP — Android APK
+          body: |
+            ### Aprimore ERP (Android APK)
+            - **Download direto**: baixe `aprimore-erp.apk` abaixo.
+            - Compilação automática gerada pelo GitHub Actions.
+          files: |
+            android/app/build/outputs/apk/debug/aprimore-erp.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
