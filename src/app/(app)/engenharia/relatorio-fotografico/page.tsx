@@ -1662,7 +1662,12 @@ function RelatorioFotograficoContent() {
 
   /** Geração roda no servidor (precisa de `sharp`) — o client só manda os dados já carregados e recebe o .pptx pronto. */
   async function montarPowerPoint() {
-    if (!estrutura || progresso.some((s) => !slideCompleto(s))) return;
+    if (!estrutura) return;
+    if (progresso.some((s) => !slideCompleto(s))) {
+      // defesa extra além do botão desabilitado — nunca retorna em silêncio
+      setErro('Há slide(s) sem foto — complete antes de montar.');
+      return;
+    }
     const modeloEscolhido = modelosDoBanco.find((m) => m.nome === modeloRelatorio);
     if (!modeloEscolhido?.config_id || !modeloEscolhido.storage_template_path) {
       setErro('Este modelo ainda não tem um template configurado no Storage — avise o Antigravity.');
@@ -1780,25 +1785,35 @@ function RelatorioFotograficoContent() {
   const somenteLeituraObra = !isAvulso && !habilitarEdicaoObra;
   const classeCampoObra = somenteLeituraObra ? inputSomenteLeitura : input;
 
+  // `title` (tooltip) nunca aparece no toque do celular, só passando o mouse
+  // no PC — por isso o motivo do botão desabilitado precisa ficar visível na
+  // tela o tempo todo, não escondido num tooltip (era exatamente por isso
+  // que "clicar não fazia nada": o botão realmente não fazia nada mesmo,
+  // sem nenhuma pista visível do motivo).
+  const motivoBloqueioPptx =
+    pendencias.length > 0
+      ? 'Resolva as pendências nos dados do relatório primeiro.'
+      : progresso.length === 0
+        ? 'Crie pelo menos 1 slide primeiro.'
+        : pendenciasFotos > 0
+          ? `${pendenciasFotos} slide(s) sem foto — complete antes de montar.`
+          : null;
+
   const botaoMontarPptx = estrutura && (
-    <button
-      type="button"
-      disabled={pendencias.length > 0 || progresso.length === 0 || pendenciasFotos > 0 || montandoPptx}
-      onClick={montarPowerPoint}
-      title={
-        pendencias.length > 0
-          ? 'Resolva as pendências nos dados do relatório primeiro'
-          : progresso.length === 0
-            ? 'Crie pelo menos 1 slide primeiro'
-            : pendenciasFotos > 0
-              ? `${pendenciasFotos} slide(s) sem foto — complete antes de montar`
-              : undefined
-      }
-      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-    >
-      {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
-      {montandoPptx ? 'Montando…' : 'Montar PowerPoint'}
-    </button>
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        disabled={!!motivoBloqueioPptx || montandoPptx}
+        onClick={montarPowerPoint}
+        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+      >
+        {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
+        {montandoPptx ? 'Montando…' : 'Montar PowerPoint'}
+      </button>
+      {motivoBloqueioPptx && (
+        <p className="text-[10px] text-amber-600 font-semibold text-center">{motivoBloqueioPptx}</p>
+      )}
+    </div>
   );
 
   return (
