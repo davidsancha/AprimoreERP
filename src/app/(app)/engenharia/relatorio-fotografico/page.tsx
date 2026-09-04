@@ -55,6 +55,7 @@ import {
 } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotograficoOffline';
 import { descricaoDe, descricaoReforma, limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
 import { escolherFotosDaGaleriaNativa, temGaleriaNativa } from '@/shared/lib/fastGallery';
+import { salvarArquivoNoAparelho } from '@/shared/lib/salvarArquivo';
 import { useSincronizacaoOffline } from '@/modules/engenharia/relatorio-fotografico/hooks/useSincronizacaoOffline';
 import type {
   CamposRelatorio,
@@ -909,6 +910,7 @@ function RelatorioFotograficoContent() {
   // sempre que uma sequência nova de fotos começa (ver iniciarOuLimparFotosSlide*).
   const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
+  const [sucessoPptx, setSucessoPptx] = useState<string | null>(null);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
   // reforma "clássica" tem servico+ambiente; Santander só ambiente (sem
@@ -1675,6 +1677,7 @@ function RelatorioFotograficoContent() {
     }
     setMontandoPptx(true);
     setErro(null);
+    setSucessoPptx(null);
     try {
       const campos: CamposRelatorio = ehSantander
         ? {
@@ -1747,16 +1750,7 @@ function RelatorioFotograficoContent() {
       const blob = await resp.blob();
       const nomeCabecalho = resp.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1];
       const nomeArquivo = nomeCabecalho ? decodeURIComponent(nomeCabecalho) : 'relatorio.pptx';
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = nomeArquivo;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // revoga só depois de dar tempo do navegador iniciar o download —
-      // revogar na hora podia invalidar o blob antes do download começar
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setSucessoPptx(await salvarArquivoNoAparelho(blob, nomeArquivo));
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -1812,6 +1806,9 @@ function RelatorioFotograficoContent() {
       </button>
       {motivoBloqueioPptx && (
         <p className="text-[10px] text-amber-600 font-semibold text-center">{motivoBloqueioPptx}</p>
+      )}
+      {sucessoPptx && !montandoPptx && (
+        <p className="text-[10px] text-emerald-600 font-semibold text-center">{sucessoPptx}</p>
       )}
     </div>
   );
