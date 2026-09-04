@@ -82,7 +82,7 @@ jobs:
 
       - name: Gerar metadados de versão (version.json)
         run: |
-          cat << 'EOF' > version.json
+          cat << EOF > version.json
           {
             "versionCode": ${{ github.run_number }},
             "versionName": "1.0.${{ github.run_number }}",
