@@ -10,7 +10,14 @@
  */
 
 const DB_NAME = "aprimore_offline";
-const DB_VERSION = 1;
+// v2: adicionou STORE_PROJETOS (cache de projetos corporativos) depois que
+// alguns navegadores já tinham criado o banco na v1 — sem bumpar a versão,
+// o IndexedDB nunca reabre `onupgradeneeded` nesses navegadores, então a
+// object store nova nunca é criada e toda leitura/escrita nela falha com
+// "NotFoundError: ... object stores was not found", silenciosamente
+// engolido pela camada offline (não é erro de rede) e reaparecendo como
+// listas vazias ou erros sem explicação.
+const DB_VERSION = 2;
 
 const STORE_FILA = "fila";
 const STORE_FOTOS = "fotos_blob";

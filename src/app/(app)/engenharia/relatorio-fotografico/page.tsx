@@ -103,6 +103,7 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
   const [resultados, setResultados] = useState<ProjetoResumo[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
 
   useEffect(() => {
     listarClientesFinaisUsados().then(setClientes).catch(() => {});
@@ -110,10 +111,14 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
 
   useEffect(() => {
     setCarregando(true);
+    setErroBusca(null);
     const t = setTimeout(() => {
       buscarProjetosComFiltros({ texto, clienteFinalId: clienteFinalId || undefined, status: status || undefined })
         .then(setResultados)
-        .catch(console.error)
+        // erro real (RLS, sessão expirada, bug local etc.) precisa aparecer —
+        // antes era só console.error e a tela mostrava "Nenhum projeto
+        // encontrado" como se a busca tivesse funcionado normalmente
+        .catch((e) => setErroBusca(e instanceof Error ? e.message : String(e)))
         .finally(() => setCarregando(false));
     }, 250);
     return () => clearTimeout(t);
@@ -172,8 +177,12 @@ function ModalBuscaProjetos({ onSelecionar, onFechar }: { onSelecionar: (p: Proj
         </div>
         <div className="overflow-y-auto flex-1">
           {carregando && <div className="p-4 text-xs text-sub">Buscando…</div>}
-          {!carregando && resultados.length === 0 && <div className="p-4 text-xs text-sub">Nenhum projeto encontrado.</div>}
+          {!carregando && erroBusca && (
+            <div className="p-4 text-xs text-red-600 font-semibold">Erro ao buscar projetos: {erroBusca}</div>
+          )}
+          {!carregando && !erroBusca && resultados.length === 0 && <div className="p-4 text-xs text-sub">Nenhum projeto encontrado.</div>}
           {!carregando &&
+            !erroBusca &&
             resultados.map((p) => (
               <button
                 key={p.id}
@@ -996,7 +1005,9 @@ function RelatorioFotograficoContent() {
       try {
         setProjetosSugeridos(await buscarProjetos(projetoBusca));
       } catch (e) {
-        console.error(e);
+        // idem ao modal "Ver todos": erro real precisa aparecer, não só sumir
+        // da lista de sugestões como se a busca não tivesse achado nada
+        setErro(e instanceof Error ? e.message : String(e));
       } finally {
         setBuscandoProjetos(false);
       }
