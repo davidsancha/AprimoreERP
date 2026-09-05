@@ -23,12 +23,20 @@ import Link from 'next/link';
 import { useAuth } from '@/core/auth/AuthProvider';
 import { Projeto, CategoriaCusto, CATEGORIAS_CUSTO_LABELS } from '../types';
 import { Recebimento } from '../../financeiro/types';
-import { salvarProjetoCompleto, fetchProjetoById, fetchOrcamentosByProjeto } from '../services/apiProjetos';
+import { salvarProjetoCompleto, fetchProjetoById, fetchOrcamentosByProjeto, deletarProjeto } from '../services/apiProjetos';
 import { fetchRecebimentosByProjeto } from '../../financeiro/services/apiFinanceiro';
 import { supabase } from '@/shared/lib/supabaseClient';
 import ValorPremium from '@/shared/components/ValorPremium';
 import Toast, { ToastType } from '@/shared/components/Toast';
 import MoneyInput from '@/shared/components/MoneyInput';
+import ConfirmButton from '@/shared/components/ConfirmButton';
+
+/** Máscara do código UNIORG (Santander): 3 dígitos, hífen, mais 4 dígitos — só números. */
+function formatarUniorg(valor: string): string {
+  const digitos = valor.replace(/\D/g, '').slice(0, 7);
+  if (digitos.length <= 3) return digitos;
+  return digitos.slice(0, 3) + '-' + digitos.slice(3);
+}
 
 interface FormProjetoProps {
   projetoId?: string;
@@ -55,6 +63,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [valorTotalContrato, setValorTotalContrato] = useState<number>(0);
   const [status, setStatus] = useState<'planejado' | 'em_andamento' | 'concluido' | 'suspenso'>('em_andamento');
   const [tipologia, setTipologia] = useState('');
+  const [uniorg, setUniorg] = useState('');
   // Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia)
   const [agencia, setAgencia] = useState('');
   const [upe, setUpe] = useState('');
@@ -74,9 +83,6 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const [clienteBusca, setClienteBusca] = useState('');
   const [mostrarDropdownClientes, setMostrarDropdownClientes] = useState(false);
   
-  const [clienteFinalBusca, setClienteFinalBusca] = useState('');
-  const [mostrarDropdownClienteFinal, setMostrarDropdownClienteFinal] = useState(false);
-
   // Inicializar o campo de busca quando carregar edição
   useEffect(() => {
     if (clienteId && clientesDisponiveis.length > 0) {
@@ -87,24 +93,15 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
     }
   }, [clienteId, clientesDisponiveis]);
 
-  useEffect(() => {
-    if (clienteFinalId && clientesDisponiveis.length > 0) {
-      const cliente = clientesDisponiveis.find(c => c.id === clienteFinalId);
-      if (cliente && clienteFinalBusca === '') {
-        setClienteFinalBusca(cliente.nome);
-      }
-    }
-  }, [clienteFinalId, clientesDisponiveis]);
-
-  const clientesFiltrados = clientesDisponiveis.filter(c => 
-    c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || 
+  const clientesFiltrados = clientesDisponiveis.filter(c =>
+    c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) ||
     c.documento.includes(clienteBusca)
   );
 
-  const clientesFinalFiltrados = clientesDisponiveis.filter(c => 
-    c.nome.toLowerCase().includes(clienteFinalBusca.toLowerCase()) || 
-    c.documento.includes(clienteFinalBusca)
-  );
+  // Cliente Final define o layout do cadastro (Santander tem campos próprios,
+  // bem diferentes do padrão Itaú/genérico) — nunca texto livre, só seleção.
+  const clienteFinalNome = clientesDisponiveis.find((c) => c.id === clienteFinalId)?.nome || '';
+  const ehSantander = /santander/i.test(clienteFinalNome);
 
   // 2. Estados de Endereço Inteligente (Módulo 2)
   const [cep, setCep] = useState('');
@@ -161,6 +158,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
           setValorTotalContrato(Number(proj.valor_total_contrato));
           setStatus(proj.status);
           setTipologia(proj.tipologia || '');
+          setUniorg(proj.uniorg || '');
           setAgencia(proj.agencia || '');
           setUpe(proj.upe || '');
           setSap(proj.sap || '');
@@ -517,11 +515,27 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const margemTeorica = valorTotalContrato - somaOrcamento;
   const margemPercentual = valorTotalContrato > 0 ? (margemTeorica / valorTotalContrato) * 100 : 0;
 
+  // Excluir projeto (só em modo edição) — sem log adicional, o próprio
+  // ConfirmButton já exige um segundo clique antes de confirmar.
+  const handleExcluir = async () => {
+    if (!projetoId) return;
+    setLoading(true);
+    try {
+      await deletarProjeto(projetoId);
+      showToast('Projeto excluído com sucesso.', 'success');
+      setTimeout(() => router.push('/projetos'), 1000);
+    } catch (err) {
+      console.error('Erro ao excluir projeto:', err);
+      showToast('Houve um erro ao excluir o projeto.', 'error');
+      setLoading(false);
+    }
+  };
+
   // Envio de Formulário
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!clienteId || !nome || !os || !dataPrevistaInicio || !dataPrevistaTermino || !cep || !logradouro || !bairro || !cidade || !uf || !numero || !tipologia) {
+    if (!clienteId || !nome || (!ehSantander && !os) || !dataPrevistaInicio || !dataPrevistaTermino || !cep || !logradouro || !bairro || !cidade || !uf || !numero || !tipologia) {
       showToast('Por favor, selecione um cliente e preencha todos os campos obrigatórios do projeto e endereço.', 'warning');
       return;
     }
@@ -553,6 +567,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
       complemento: complemento || null,
       status,
       tipologia,
+      uniorg: uniorg || null,
       agencia: agencia || null,
       upe: upe || null,
       sap: sap || null,
@@ -607,6 +622,16 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
             >
               <Camera size={15} /> Relatório Fotográfico
             </Link>
+          )}
+          {projetoId && (
+            <ConfirmButton
+              onConfirm={handleExcluir}
+              label="Excluir"
+              confirmLabel="Confirmar exclusão?"
+              icon={Trash2}
+              className="border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 text-xs font-bold"
+              title="Excluir este projeto definitivamente"
+            />
           )}
           <button
             type="submit"
@@ -699,65 +724,72 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                     </Link>
                   )}
                 </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={14} className="text-sub" />
+                {/* Seleção travada, não texto livre — o layout do cadastro (Santander x
+                    padrão) e o preenchimento automático do Banco no Relatório Fotográfico
+                    dependem de bater exatamente com um cliente já cadastrado. */}
+                <select
+                  value={clienteFinalId}
+                  onChange={(e) => setClienteFinalId(e.target.value)}
+                  className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-semibold"
+                >
+                  <option value="">Selecione...</option>
+                  {clientesDisponiveis
+                    .slice()
+                    .sort((a, b) => a.nome.localeCompare(b.nome))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome}</option>
+                    ))}
+                </select>
+              </div>
+
+              {ehSantander ? (
+                <div className="grid grid-cols-[auto_1fr] gap-2">
+                  <div className="space-y-1 w-28">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">UNIORG</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000-0000"
+                      value={uniorg}
+                      onChange={(e) => setUniorg(formatarUniorg(e.target.value))}
+                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={clienteFinalBusca}
-                    onChange={(e) => {
-                      setClienteFinalBusca(e.target.value);
-                      setClienteFinalId('');
-                      setMostrarDropdownClienteFinal(true);
-                    }}
-                    onFocus={() => setMostrarDropdownClienteFinal(true)}
-                    onBlur={() => setTimeout(() => setMostrarDropdownClienteFinal(false), 200)}
-                    className="w-full pl-9 pr-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all"
-                    placeholder="Ex: Itaú, Santander..."
-                  />
-                  {mostrarDropdownClienteFinal && clientesFinalFiltrados.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-card border border-card-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                      {clientesFinalFiltrados.map(c => (
-                        <div
-                          key={c.id}
-                          className="px-3 py-2 text-xs text-main hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer font-medium border-b border-card-border/50 last:border-0"
-                          onClick={() => {
-                            setClienteFinalId(c.id);
-                            setClienteFinalBusca(c.nome);
-                            setMostrarDropdownClienteFinal(false);
-                          }}
-                        >
-                          <div className="font-bold">{c.nome}</div>
-                          <div className="text-[10px] text-sub">{c.documento}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome da Loja *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Agência 1234"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value.toUpperCase())}
+                      className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto / Agência *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Residencial Aurora ou Agência 1234"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
+              ) : (
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">OS *</label>
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Nome do Projeto / Agência *</label>
                   <input
                     type="text"
                     required
+                    placeholder="Ex: Residencial Aurora ou Agência 1234"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value.toUpperCase())}
+                    className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-desc uppercase tracking-wider">{ehSantander ? 'OS / Chamado' : 'OS *'}</label>
+                  <input
+                    type="text"
+                    required={!ehSantander}
                     placeholder="OS-2026-001"
                     value={os}
-                    onChange={(e) => setOs(e.target.value)}
+                    onChange={(e) => setOs(e.target.value.toUpperCase())}
                     className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold"
                   />
                 </div>
@@ -768,7 +800,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                     required
                     placeholder="Residencial ou Programa"
                     value={tipologia}
-                    onChange={(e) => setTipologia(e.target.value)}
+                    onChange={(e) => setTipologia(e.target.value.toUpperCase())}
                     className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold"
                   />
                 </div>
@@ -798,44 +830,47 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                 </div>
               </div>
 
-              {/* Dados de engenharia (opcional) */}
-              <div className="pt-2 border-t border-card-border/60 space-y-2">
-                <p className="text-[9px] font-bold text-desc uppercase tracking-wider">Dados de engenharia (opcional)</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Agência</label>
-                    <input type="text" value={agencia} onChange={(e) => setAgencia(e.target.value)} placeholder="ex.: 8647PERSONNALITE RJ-CAMPOS" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód UPE</label>
-                    <input type="text" value={upe} onChange={(e) => setUpe(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód SAP</label>
-                    <input type="text" value={sap} onChange={(e) => setSap(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Gestor de Obras</label>
-                    <input type="text" value={gestor} onChange={(e) => setGestor(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscalização — Empresa</label>
-                    <input type="text" value={fiscalizacaoEmpresa} onChange={(e) => setFiscalizacaoEmpresa(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscal</label>
-                    <input type="text" value={fiscal} onChange={(e) => setFiscal(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Construtora — Empresa</label>
-                    <input type="text" value={construtora} onChange={(e) => setConstrutora(e.target.value)} placeholder="ex.: EGF CONSTRUTORA" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Responsável</label>
-                    <input type="text" value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+              {/* Dados de engenharia (opcional) — Santander não usa nenhum desses, tem
+                  campos próprios (UNIORG/Nome da Loja acima); não desconfigurar Itaú/genérico. */}
+              {!ehSantander && (
+                <div className="pt-2 border-t border-card-border/60 space-y-2">
+                  <p className="text-[9px] font-bold text-desc uppercase tracking-wider">Dados de engenharia (opcional)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Agência</label>
+                      <input type="text" value={agencia} onChange={(e) => setAgencia(e.target.value.toUpperCase())} placeholder="ex.: 8647PERSONNALITE RJ-CAMPOS" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód UPE</label>
+                      <input type="text" value={upe} onChange={(e) => setUpe(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cód SAP</label>
+                      <input type="text" value={sap} onChange={(e) => setSap(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Gestor de Obras</label>
+                      <input type="text" value={gestor} onChange={(e) => setGestor(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscalização — Empresa</label>
+                      <input type="text" value={fiscalizacaoEmpresa} onChange={(e) => setFiscalizacaoEmpresa(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Fiscal</label>
+                      <input type="text" value={fiscal} onChange={(e) => setFiscal(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Construtora — Empresa</label>
+                      <input type="text" value={construtora} onChange={(e) => setConstrutora(e.target.value.toUpperCase())} placeholder="ex.: EGF CONSTRUTORA" className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Responsável</label>
+                      <input type="text" value={responsavel} onChange={(e) => setResponsavel(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-main focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-semibold" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Status do Projeto (logo abaixo de Responsável) */}
               <div className="space-y-1">
@@ -966,7 +1001,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
                   readOnly={enderecoBloqueado}
                   placeholder="Logradouro"
                   value={logradouro}
-                  onChange={(e) => setLogradouro(e.target.value)}
+                  onChange={(e) => setLogradouro(e.target.value.toUpperCase())}
                   className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all ${
                     enderecoBloqueado 
                       ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-semibold' 
@@ -978,22 +1013,22 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Bairro *</label>
-                  <input type="text" required readOnly={enderecoBloqueado} placeholder="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-semibold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
+                  <input type="text" required readOnly={enderecoBloqueado} placeholder="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value.toUpperCase())} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-semibold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Cidade *</label>
-                  <input type="text" required readOnly={enderecoBloqueado} placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-semibold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
+                  <input type="text" required readOnly={enderecoBloqueado} placeholder="Cidade" value={cidade} onChange={(e) => setCidade(e.target.value.toUpperCase())} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-semibold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-desc uppercase tracking-wider">UF *</label>
-                  <input type="text" required maxLength={2} readOnly={enderecoBloqueado} placeholder="UF" value={uf} onChange={(e) => setUf(e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all text-center ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-bold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
+                  <input type="text" required maxLength={2} readOnly={enderecoBloqueado} placeholder="UF" value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} className={`w-full border rounded-lg px-3 py-2 text-xs text-main focus:outline-none transition-all text-center ${enderecoBloqueado ? 'bg-zinc-150 dark:bg-zinc-900/50 border-card-border text-desc cursor-not-allowed font-bold' : 'bg-background border-card-border focus:border-brand-blue focus:ring-1 focus:ring-brand-blue'}`} />
                 </div>
                 <div className="space-y-1 col-span-2">
                   <label className="text-[10px] font-bold text-brand-blue uppercase tracking-wider">Número *</label>
-                  <input type="text" required id="numero-input" placeholder="Ex: 1000" value={numero} onChange={(e) => setNumero(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold" />
+                  <input type="text" required id="numero-input" placeholder="Ex: 1000" value={numero} onChange={(e) => setNumero(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all font-bold" />
                 </div>
               </div>
 
@@ -1013,7 +1048,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-desc uppercase tracking-wider">Complemento</label>
-                <input type="text" placeholder="Ex: Apt 4B, Bloco A" value={complemento} onChange={(e) => setComplemento(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all" />
+                <input type="text" placeholder="Ex: Apt 4B, Bloco A" value={complemento} onChange={(e) => setComplemento(e.target.value.toUpperCase())} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all" />
               </div>
             </div>
             

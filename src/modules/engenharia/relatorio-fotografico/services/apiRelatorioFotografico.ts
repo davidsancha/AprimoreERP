@@ -15,7 +15,7 @@ import type {
 const BUCKET_FOTOS = "relatorios-fotograficos";
 
 const CAMPOS_PROJETO_RESUMO =
-  "id, nome, os, tipologia, status, data_prevista_inicio, data_prevista_termino, data_efetiva_inicio, data_efetiva_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel";
+  "id, nome, os, tipologia, status, data_prevista_inicio, data_prevista_termino, data_efetiva_inicio, data_efetiva_termino, cliente_final_id, agencia, upe, sap, gestor, fiscalizacao_empresa, fiscal, construtora, responsavel, uniorg";
 
 async function resolverNomesClientes(sb: ReturnType<typeof exigirSupabase>, ids: (string | null)[]): Promise<Map<string, string>> {
   const unicos = [...new Set(ids.filter(Boolean))] as string[];
@@ -48,6 +48,7 @@ function paraProjetoResumo(p: any, nomesPorId: Map<string, string>): ProjetoResu
     fiscal: p.fiscal ?? null,
     construtora: p.construtora ?? null,
     responsavel: p.responsavel ?? null,
+    uniorg: p.uniorg ?? null,
   };
 }
 

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Download, Sparkles, X } from 'lucide-react';
+import { salvarArquivoNoAparelho } from '@/shared/lib/salvarArquivo';
 
 interface VersaoRemota {
   versionCode: number;
@@ -20,6 +21,7 @@ export default function VerificadorAtualizacaoApp() {
   const [atualizacao, setAtualizacao] = useState<VersaoRemota | null>(null);
   const [versaoInstalada, setVersaoInstalada] = useState<string>('');
   const [baixando, setBaixando] = useState(false);
+  const [mensagemBaixar, setMensagemBaixar] = useState<{ texto: string; erro: boolean } | null>(null);
 
   useEffect(() => {
     // Só executa quando o usuário estiver rodando pelo App Android instalado
@@ -78,14 +80,29 @@ export default function VerificadorAtualizacaoApp() {
     setAtualizacao(null);
   }
 
-  function baixarAtualizacao() {
+  async function baixarAtualizacao() {
     if (!atualizacao?.apkUrl) return;
     setBaixando(true);
-    // No Android Capacitor, redirecionar para a URL do APK inicia o download nativo do pacote
-    window.location.href = atualizacao.apkUrl;
-    setTimeout(() => {
+    setMensagemBaixar(null);
+    try {
+      // `window.location.href = apkUrl` funcionava antes porque navegar pra
+      // fora do domínio do app ejetava pro Chrome (que sabe baixar/instalar
+      // .apk) — ver Bridge.launchIntent(). Isso parou de acontecer quando
+      // `allowNavigation: ['*']` passou a manter toda navegação dentro do
+      // próprio WebView (fix do problema de SSO da Vercel): agora o link do
+      // APK "carrega" dentro do app, que não tem gerenciador de download, e
+      // o clique parecia não fazer nada — mesma causa raiz do bug do PPTX.
+      const resp = await fetch(atualizacao.apkUrl);
+      if (!resp.ok) throw new Error(`Falha ao baixar (HTTP ${resp.status})`);
+      const blob = await resp.blob();
+      const nomeArquivo = atualizacao.apkUrl.split('/').pop()?.split('?')[0] || 'aprimore-erp.apk';
+      const texto = await salvarArquivoNoAparelho(blob, nomeArquivo);
+      setMensagemBaixar({ texto: `${texto} Abra o arquivo pra instalar.`, erro: false });
+    } catch (err) {
+      setMensagemBaixar({ texto: err instanceof Error ? err.message : 'Não foi possível baixar a atualização.', erro: true });
+    } finally {
       setBaixando(false);
-    }, 4000);
+    }
   }
 
   return (
@@ -146,9 +163,14 @@ export default function VerificadorAtualizacaoApp() {
             className="flex-1 py-3 px-4 rounded-xl bg-brand-ocre hover:bg-brand-ocre/90 text-white text-xs font-bold shadow-lg shadow-brand-ocre/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
           >
             <Download size={16} />
-            {baixando ? 'Iniciando...' : 'Atualizar Agora'}
+            {baixando ? 'Baixando...' : 'Atualizar Agora'}
           </button>
         </div>
+        {mensagemBaixar && (
+          <p className={`mt-3 text-[11px] font-semibold text-center ${mensagemBaixar.erro ? 'text-red-600' : 'text-emerald-600'}`}>
+            {mensagemBaixar.texto}
+          </p>
+        )}
       </div>
     </div>
   );

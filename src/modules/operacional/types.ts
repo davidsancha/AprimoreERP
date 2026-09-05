@@ -18,6 +18,8 @@ export interface Projeto {
   complemento?: string | null;
   status: 'planejado' | 'em_andamento' | 'concluido' | 'suspenso';
   tipologia: string;
+  // Santander: código UNIORG da loja (máscara XXX-XXXX) — migration 00018
+  uniorg?: string | null;
   // Dados de obra usados por outros módulos (ex.: relatório fotográfico de engenharia) — migration 00010
   agencia?: string | null;
   upe?: string | null;

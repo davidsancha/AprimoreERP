@@ -102,6 +102,9 @@ export interface ProjetoResumo extends CamposObraProjeto {
   data_efetiva_termino: string | null;
   cliente_final_id: string | null;
   cliente_final_nome: string | null;
+  // Santander (migration 00018, coluna em `projetos`) — herdado no relatório
+  // fotográfico em vez de digitado à mão, ver selecionarProjeto em page.tsx.
+  uniorg: string | null;
 }
 
 /** Filtros da busca ampliada de projetos (lista completa, não só autocomplete). */

@@ -75,6 +75,30 @@ function formatarUniorg(valor: string): string {
   return digitos.slice(0, 3) + '-' + digitos.slice(3);
 }
 
+/**
+ * Mapeia o "Cliente Final" do projeto (cadastro de Projetos, ex.: "Itaú S/A")
+ * para o nome exato usado no catálogo de bancos do relatório fotográfico
+ * (`engenharia_bancos_catalogo`: "Itaú", "Itaú Personnalité", "Bradesco",
+ * "Santander") — os dois catálogos não usam sempre a mesma string ("Itaú
+ * S/A" no CRM vs. "Itaú" aqui), então uma igualdade exata deixava o Banco
+ * sem preencher sozinho ao selecionar o projeto.
+ */
+function bancoDoClienteFinal(nome: string | null | undefined, catalogo: string[]): string | null {
+  if (!nome) return null;
+  if (catalogo.includes(nome)) return nome;
+  const alvo = nome.toLowerCase();
+  if (alvo.includes('itaú') || alvo.includes('itau')) {
+    const personnalite = alvo.includes('personnalit');
+    return (
+      catalogo.find((b) => {
+        const bl = b.toLowerCase();
+        return personnalite ? bl.includes('personnalit') : bl === 'itaú' || bl === 'itau';
+      }) ?? null
+    );
+  }
+  return null;
+}
+
 function ajustaPontos(pontos: { numero: string; local: string }[], qtd: number) {
   qtd = Math.max(0, Math.min(999, qtd | 0));
   const novo = pontos.slice(0, qtd);
@@ -1063,6 +1087,11 @@ function RelatorioFotograficoContent() {
     setFiscal(p.fiscal || '');
     setConstrutora(p.construtora || '');
     setResponsavel(p.responsavel || '');
+    // Santander: campos próprios do relatório herdados do projeto em vez de
+    // digitados à mão toda vez — inofensivo pra outros bancos (não usados).
+    setChamado(p.os || '');
+    setUniorg(p.uniorg || '');
+    setEscopoProposta(p.tipologia || '');
     // datas de início/término = SEMPRE a efetiva do projeto (o rótulo diz "Efetivo" —
     // nunca substituir silenciosamente pela prevista aqui; ver docs/decisoes.md).
     // Se a efetiva ainda não existe, o campo fica vazio e vira pendência (a prevista
@@ -1076,8 +1105,9 @@ function RelatorioFotograficoContent() {
     setTipoExpandido(true);
 
     // banco: se o cliente final do projeto bater com um banco conhecido, pré-seleciona
-    if (p.cliente_final_nome && bancosCatalogo.includes(p.cliente_final_nome)) {
-      setBanco(p.cliente_final_nome);
+    const bancoInferido = bancoDoClienteFinal(p.cliente_final_nome, bancosCatalogo);
+    if (bancoInferido) {
+      setBanco(bancoInferido);
     }
 
     const existente = await obterEstruturaPorProjeto(p.id).catch(() => null);
@@ -1704,9 +1734,12 @@ function RelatorioFotograficoContent() {
             escopoProposta,
             cronograma: cronogramaSantander,
             // os dois marcadores do template Santander juntam vários dados
-            // numa linha só — ver comentário em MODELOS_CFG["santander-add"]
-            resumoUniorg: `UNIORG: ${uniorg} ${agencia}`,
-            resumoOsUniorg: `OS: ${chamado}             UNIORG: ${uniorg}        NOME DO PONTO: ${agencia}`,
+            // numa linha só — ver comentário em MODELOS_CFG["santander-add"].
+            // "LOJA"/"NOME DO PONTO" usam o nome do projeto/obra (cadastro de
+            // Projetos chama esse mesmo campo de "Nome da Loja" pro Santander)
+            // — antes reaproveitava `agencia`, campo que o Santander nem usa.
+            resumoUniorg: `UNIORG: ${uniorg} ${projetoSelecionado?.nome || obraNome || ''}`,
+            resumoOsUniorg: `OS: ${chamado}             UNIORG: ${uniorg}        NOME DO PONTO: ${projetoSelecionado?.nome || obraNome || ''}`,
           }
         : {
             ...CAMPOS_RELATORIO_VAZIOS,
