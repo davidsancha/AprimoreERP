@@ -77,6 +77,13 @@ function abrirDb(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    // sem isso, um upgrade de versão (como o v1->v2 acima) fica esperando pra
+    // sempre se outra aba/janela ainda tiver uma conexão aberta na versão
+    // antiga — nem onsuccess nem onerror disparam, e qualquer chamada que
+    // dependa do banco (ex.: listar projetos) trava num "Buscando..."
+    // infinito sem nenhum erro visível
+    req.onblocked = () =>
+      reject(new Error("Banco local desatualizado — feche as outras abas/janelas do sistema abertas e recarregue a página."));
   });
 }
 
