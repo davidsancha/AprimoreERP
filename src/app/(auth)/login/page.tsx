@@ -7,16 +7,24 @@ import { useRouter } from 'next/navigation';
 import { ativarBiometria, biometriaDisponivel, entrarComBiometria, temBiometriaAtiva } from '@/shared/lib/biometria';
 
 export default function LoginPage() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [parceiroEgf, setParceiroEgf] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Cadastro feito, mas precisa confirmar o e-mail antes de conseguir
-  // entrar (projeto em produção exige confirmação — ver handleSubmit).
-  const [cadastroPendenteConfirmacao, setCadastroPendenteConfirmacao] = useState(false);
+
+  // Logo tema-claro/escuro — esta página fica fora do ThemeProvider (só
+  // envolve as rotas autenticadas, ver src/app/(app)/layout.tsx), então lê
+  // a preferência salva direto do localStorage em vez de usar useTheme().
+  const [logoSrc, setLogoSrc] = useState('/brand/LogoVbranco.png');
+  const [logoError, setLogoError] = useState(false);
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem('aprimore-theme');
+      setLogoSrc(salvo === 'light' ? '/brand/LogoVpreto.png' : '/brand/LogoVbranco.png');
+    } catch {
+      // localStorage indisponível — mantém o padrão (logo branca)
+    }
+  }, []);
 
   // Biometria — só existe dentro do app nativo instalado (ver src/shared/lib/biometria.ts)
   const [biometriaOk, setBiometriaOk] = useState(false);
@@ -45,7 +53,7 @@ export default function LoginPage() {
     }
   }
 
-  // "Esqueci minha senha" — estado próprio, não é mais uma aba do form principal
+  // "Esqueci minha senha" — modal próprio
   const [recuperarAberto, setRecuperarAberto] = useState(false);
   const [emailRecuperar, setEmailRecuperar] = useState('');
   const [recuperarEnviado, setRecuperarEnviado] = useState(false);
@@ -58,7 +66,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setCadastroPendenteConfirmacao(false);
 
     if (!supabase) {
       setError('Supabase não configurado.');
@@ -66,57 +73,20 @@ export default function LoginPage() {
       return;
     }
 
-    if (isLogin) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-      } else {
-        if (biometriaOk && ativarBiometriaNoLogin && data.session?.refresh_token) {
-          try {
-            await ativarBiometria(email, data.session.refresh_token);
-          } catch {
-            // ativar biometria é um bônus — não deve travar o login se falhar
-          }
-        }
-        router.push('/');
-      }
+    if (error) {
+      setError(error.message);
+      setLoading(false);
     } else {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            // Trigger handle_new_user (Antigravity) atribui a role
-            // 'convidado' quando esse metadata vem preenchido — Parceiro
-            // EGF entra com acesso restrito (só os próprios relatórios +
-            // Cowork compartilhado com ele), nunca com acesso corporativo
-            // total como um cadastro comum hoje.
-            ...(parceiroEgf ? { role: 'convidado' } : {}),
-          }
+      if (biometriaOk && ativarBiometriaNoLogin && data.session?.refresh_token) {
+        try {
+          await ativarBiometria(email, data.session.refresh_token);
+        } catch {
+          // ativar biometria é um bônus — não deve travar o login se falhar
         }
-      });
-
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-      } else if (data.session) {
-        // Confirmação de e-mail desligada no projeto — já veio logado.
-        router.push('/');
-      } else {
-        // Em produção a confirmação de e-mail está ligada: `signUp` não
-        // devolve sessão nesse caso. Sem isso, a tela simplesmente voltava
-        // pro login sem explicação nenhuma (parecia que o cadastro tinha
-        // falhado silenciosamente).
-        setLoading(false);
-        setIsLogin(true);
-        setCadastroPendenteConfirmacao(true);
       }
+      router.push('/');
     }
   };
 
@@ -144,42 +114,23 @@ export default function LoginPage() {
       {/* Background Decorativo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-brand-ocre/5 blur-3xl" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-brand-ocre/5 blur-[120px]" />
-      
+
       <div className="w-full max-w-md bg-card/80 backdrop-blur-xl border border-card-border p-8 rounded-2xl shadow-2xl relative z-10">
-        
+
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-brand-ocre/10 rounded-2xl border border-brand-ocre/20 flex items-center justify-center mb-4">
-            <span className="text-brand-ocre font-bold text-2xl">A</span>
+          <div className="w-20 h-20 bg-brand-ocre/10 rounded-2xl border border-brand-ocre/20 flex items-center justify-center mb-4 p-2">
+            {!logoError ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoSrc} alt="Aprimore" className="h-full w-full object-contain" onError={() => setLogoError(true)} />
+            ) : (
+              <span className="text-brand-ocre font-bold text-2xl">A</span>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-main">Aprimore ERP</h1>
           <p className="text-sub text-sm mt-1">Acesse sua conta para continuar</p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-card-border mb-6">
-          <button
-            className={`flex-1 py-2 text-sm font-bold border-b-2 transition-colors ${
-              isLogin 
-                ? 'border-brand-ocre text-brand-ocre' 
-                : 'border-transparent text-sub hover:text-main'
-            }`}
-            onClick={() => { setIsLogin(true); setError(null); setCadastroPendenteConfirmacao(false); }}
-          >
-            Entrar
-          </button>
-          <button
-            className={`flex-1 py-2 text-sm font-bold border-b-2 transition-colors ${
-              !isLogin
-                ? 'border-brand-ocre text-brand-ocre'
-                : 'border-transparent text-sub hover:text-main'
-            }`}
-            onClick={() => { setIsLogin(false); setError(null); setCadastroPendenteConfirmacao(false); }}
-          >
-            Primeiro Acesso
-          </button>
-        </div>
-
-        {isLogin && biometriaOk && biometriaJaAtiva && (
+        {biometriaOk && biometriaJaAtiva && (
           <button
             type="button"
             disabled={entrandoComBiometria}
@@ -189,12 +140,6 @@ export default function LoginPage() {
             <Fingerprint size={18} />
             {entrandoComBiometria ? 'Confirmando…' : 'Entrar com biometria'}
           </button>
-        )}
-
-        {cadastroPendenteConfirmacao && (
-          <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 text-sm text-center">
-            Conta criada! Confirme seu e-mail (verifique a caixa de entrada e o spam) antes de entrar.
-          </div>
         )}
 
         {error && (
@@ -208,22 +153,6 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {!isLogin && (
-            <div>
-              <label className="block text-xs font-semibold text-sub uppercase tracking-wider mb-2">
-                {parceiroEgf ? 'Nome de usuário' : 'Nome Completo'}
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-main focus:outline-none focus:ring-2 focus:ring-brand-ocre/50 focus:border-brand-ocre transition-all"
-                placeholder={parceiroEgf ? 'Como você quer ser chamado' : 'Seu nome'}
-                required={!isLogin}
-              />
-            </div>
-          )}
-
           <div>
             <label className="block text-xs font-semibold text-sub uppercase tracking-wider mb-2">E-mail</label>
             <input
@@ -235,7 +164,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-xs font-semibold text-sub uppercase tracking-wider mb-2">Senha</label>
             <input
@@ -246,23 +175,21 @@ export default function LoginPage() {
               placeholder="••••••••"
               required
             />
-            {isLogin && (
-              <button
-                type="button"
-                onClick={() => {
-                  setRecuperarAberto(true);
-                  setEmailRecuperar(email);
-                  setRecuperarEnviado(false);
-                  setRecuperarErro(null);
-                }}
-                className="mt-2 text-xs font-semibold text-brand-ocre hover:underline"
-              >
-                Esqueci minha senha
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setRecuperarAberto(true);
+                setEmailRecuperar(email);
+                setRecuperarEnviado(false);
+                setRecuperarErro(null);
+              }}
+              className="mt-2 text-xs font-semibold text-brand-ocre hover:underline"
+            >
+              Esqueci minha senha
+            </button>
           </div>
 
-          {isLogin && biometriaOk && !biometriaJaAtiva && (
+          {biometriaOk && !biometriaJaAtiva && (
             <label className="flex items-center gap-2.5 text-xs font-semibold text-sub cursor-pointer select-none bg-background border border-card-border rounded-xl px-4 py-3">
               <input
                 type="checkbox"
@@ -277,33 +204,17 @@ export default function LoginPage() {
             </label>
           )}
 
-          {!isLogin && (
-            <label className="flex items-start gap-2.5 text-xs font-semibold text-sub cursor-pointer select-none bg-background border border-card-border rounded-xl px-4 py-3">
-              <input
-                type="checkbox"
-                checked={parceiroEgf}
-                onChange={(e) => setParceiroEgf(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre shrink-0"
-              />
-              <span className="flex items-start gap-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/brand/egflogo.jpg" alt="" className="h-5 w-5 rounded-full object-cover shrink-0 mt-0.5" />
-                <span>
-                  Sou <strong className="text-main">Parceiro EGF</strong> — acesso convidado, só aos meus próprios
-                  relatórios (e aos que compartilharem comigo).
-                </span>
-              </span>
-            </label>
-          )}
-
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-brand-ocre text-brand-dark font-bold py-3 px-4 rounded-xl hover:bg-brand-ocre/90 hover:-translate-y-0.5 transition-all shadow-lg shadow-brand-ocre/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
-            {loading ? 'Aguarde...' : (isLogin ? 'Entrar no Sistema' : 'Criar Conta')}
+            {loading ? 'Aguarde...' : 'Entrar no Sistema'}
           </button>
         </form>
+
+        {/* Cadastro só acontece por convite (ver /convite/[token]) — não existe
+            mais um caminho de auto-cadastro aberto aqui. */}
       </div>
 
       {recuperarAberto && (

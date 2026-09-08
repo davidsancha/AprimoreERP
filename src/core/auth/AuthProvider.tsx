@@ -86,8 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // /redefinir-senha fica sempre acessível, autenticado ou não — o link
       // de recuperação do Supabase abre uma sessão temporária de
       // "recovery" nessa rota; se ela contasse como "já logado", o usuário
-      // seria jogado pra "/" antes de conseguir trocar a senha.
-      const rotaPublicaLivre = pathname === '/redefinir-senha';
+      // seria jogado pra "/" antes de conseguir trocar a senha. /convite/*
+      // idem — é assim que gente sem conta ainda completa o cadastro.
+      const rotaPublicaLivre = pathname === '/redefinir-senha' || pathname.startsWith('/convite/');
       const isLoginRoute = pathname === '/login';
       if (!user && !isLoginRoute && !rotaPublicaLivre) {
         router.push('/login');

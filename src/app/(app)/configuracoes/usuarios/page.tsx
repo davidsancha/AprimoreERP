@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Shield, ShieldAlert, Loader2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useAuth } from '@/core/auth/AuthProvider';
-import ModalNovoUsuario from '@/modules/configuracoes/components/ModalNovoUsuario';
+import ModalNovoConvite from '@/modules/configuracoes/components/ModalNovoConvite';
 import Toast, { ToastType } from '@/shared/components/Toast';
 
 export default function UsuariosPage() {
@@ -37,13 +37,8 @@ export default function UsuariosPage() {
     fetchUsuarios();
   }, []);
 
-  const handleUsuarioCriado = () => {
-    setIsModalOpen(false);
-    setToast({
-      message: 'Usuário criado com sucesso! A conta já está ativa e pronta para acesso.',
-      type: 'success',
-    });
-    fetchUsuarios();
+  const handleConviteCriado = () => {
+    setToast({ message: 'Convite gerado! Copie o link e mande pra pessoa.', type: 'success' });
   };
 
   // Verifica se o usuário logado tem permissão god/admin
@@ -70,15 +65,15 @@ export default function UsuariosPage() {
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-ocre text-brand-dark text-xs font-bold hover:bg-brand-ocre/90 transition-all shadow-lg shadow-brand-ocre/10 cursor-pointer"
           >
-            <UserPlus size={16} /> Novo Usuário
+            <UserPlus size={16} /> Convidar Usuário
           </button>
         </div>
       </div>
 
-      <ModalNovoUsuario 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onUsuarioCriado={handleUsuarioCriado} 
+      <ModalNovoConvite
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConviteCriado={handleConviteCriado}
       />
 
       <div className="bg-card border border-card-border rounded-2xl overflow-hidden shadow-sm">

@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/shared/contexts/ThemeContext';
 import ThemeToggle from '@/shared/components/ThemeToggle';
 import { useAuth } from '@/core/auth/AuthProvider';
 import { useConectividade } from '@/shared/hooks/useConectividade';
+import { primeiroNome } from '@/shared/lib/nomes';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout({
@@ -54,7 +55,7 @@ export default function AppLayout({
               <span className="text-xs font-semibold uppercase tracking-wider text-sub">{ambienteName}</span>
               {profile?.role === 'convidado' && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-6 w-6 rounded-full object-cover ml-1" />
+                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-9 w-9 rounded-full object-cover ml-1 shadow-sm" />
               )}
             </div>
           </div>
@@ -71,7 +72,11 @@ export default function AppLayout({
             <div className="h-8 w-px bg-card-border" />
 
             <div className="flex flex-col text-right">
-              <span className="text-sm font-bold text-main">{user?.user_metadata?.full_name || user?.email || 'Usuário'}</span>
+              {/* Só o primeiro nome aqui — é onde o ambiente "fala" com a
+                  pessoa; o cargo completo abaixo já dá o resto do contexto. */}
+              <span className="text-sm font-bold text-main">
+                {primeiroNome(profile?.nome || user?.user_metadata?.full_name) || user?.email || 'Usuário'}
+              </span>
               <span className="text-[10px] text-brand-ocre font-semibold uppercase tracking-wide">
                 {cargo}
               </span>

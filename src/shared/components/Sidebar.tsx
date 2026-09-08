@@ -294,7 +294,9 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
           subItems: [
             { label: 'Painel de Configurações', href: '/configuracoes', active: true },
             { label: 'Gestão de Usuários', href: '/configuracoes/usuarios', active: true },
-            { label: 'Perfis e Acessos', href: '#', active: false, badge: 'Breve' }
+            { label: 'Convites', href: '/configuracoes/convites', active: true },
+            { label: 'Perfis e Acessos', href: '#', active: false, badge: 'Breve' },
+            { label: 'Log de Atividades', href: '#', active: false, badge: 'Breve' }
           ]
         }
       ]
@@ -361,7 +363,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
               <>
                 <span className="text-card-border text-2xl font-light">×</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-14 w-14 rounded-full object-cover shadow-sm" />
+                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-20 w-20 rounded-full object-cover shadow-md" />
               </>
             )}
           </div>
