@@ -37,9 +37,14 @@ export default function UsuariosPage() {
     fetchUsuarios();
   }, []);
 
-  const handleUsuarioCriado = () => {
+  const handleUsuarioCriado = (sessaoTrocada: boolean) => {
     setIsModalOpen(false);
-    setToast({ message: 'Usuário criado com sucesso! Lembre-se de refazer seu login.', type: 'success' });
+    setToast({
+      message: sessaoTrocada
+        ? 'Usuário criado com sucesso! Lembre-se de refazer seu login.'
+        : 'Usuário criado! A pessoa precisa confirmar o e-mail (verificar caixa de entrada/spam) antes de conseguir entrar.',
+      type: 'success',
+    });
     fetchUsuarios();
   };
 

@@ -7,7 +7,15 @@ import { supabase } from '@/shared/lib/supabaseClient';
 interface ModalNovoUsuarioProps {
   isOpen: boolean;
   onClose: () => void;
-  onUsuarioCriado: () => void;
+  /**
+   * `sessaoTrocada` diz se o cadastro trocou a sessão atual pela do usuário
+   * novo — só acontece quando o projeto do Supabase NÃO exige confirmação de
+   * e-mail. Em produção a confirmação está ligada (descoberto testando ao
+   * vivo: `signUp` aqui nunca devolve `session`), então isso normalmente vem
+   * `false` — o admin continua logado, mas a pessoa nova só consegue entrar
+   * depois de confirmar o e-mail.
+   */
+  onUsuarioCriado: (sessaoTrocada: boolean) => void;
 }
 
 export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: ModalNovoUsuarioProps) {
@@ -35,10 +43,13 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
     try {
       if (!supabase) throw new Error('Supabase client não inicializado.');
 
-      // O cadastro pelo client-side via signUp automaticamente loga o novo usuário
-      // e desloga o atual. Avisaremos o usuário sobre isso ou usaríamos Edge Functions / Admin API.
-      // Por enquanto, como não temos a Service Role Key, seguimos com a API normal.
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Se o projeto exigir confirmação de e-mail (é o caso em produção),
+      // `signUp` NÃO devolve sessão — a conta fica pendente até a pessoa
+      // clicar no link do e-mail, e a sessão atual (do admin) não muda. Só
+      // quando não exige confirmação (`data.session` vem preenchido) que o
+      // cadastro loga automaticamente na conta nova, trocando quem está
+      // logado neste navegador.
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password: senha,
         options: {
@@ -52,7 +63,7 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
       if (signUpError) throw signUpError;
 
       // Sucesso
-      onUsuarioCriado();
+      onUsuarioCriado(!!data.session);
     } catch (err: any) {
       console.error('Erro ao cadastrar usuário:', err);
       setError(err.message || 'Erro desconhecido ao tentar cadastrar usuário.');
@@ -103,7 +114,7 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
           <div className="mb-6 p-4 bg-brand-ocre/10 border border-brand-ocre/20 rounded-xl flex items-start gap-3">
             <AlertTriangle size={18} className="text-brand-ocre shrink-0 mt-0.5" />
             <p className="text-xs text-brand-ocre leading-relaxed">
-              <strong>Atenção:</strong> Como estamos utilizando o cadastro via interface cliente (sem chave de administrador servidor), ao cadastrar um novo usuário (por qualquer um dos botões abaixo) <strong>você será desconectado da sua conta atual</strong> e logado na nova conta.
+              <strong>Atenção:</strong> Como estamos utilizando o cadastro via interface cliente (sem chave de administrador servidor), ao cadastrar um novo usuário (por qualquer um dos botões abaixo), se a confirmação de e-mail estiver desligada no projeto <strong>você será desconectado da sua conta atual</strong> e logado na nova. Se estiver ligada (caso mais comum em produção), a pessoa só consegue entrar depois de confirmar o e-mail recebido — e você continua logado normalmente.
             </p>
           </div>
 

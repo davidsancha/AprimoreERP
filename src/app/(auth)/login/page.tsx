@@ -14,6 +14,9 @@ export default function LoginPage() {
   const [parceiroEgf, setParceiroEgf] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Cadastro feito, mas precisa confirmar o e-mail antes de conseguir
+  // entrar (projeto em produção exige confirmação — ver handleSubmit).
+  const [cadastroPendenteConfirmacao, setCadastroPendenteConfirmacao] = useState(false);
 
   // Biometria — só existe dentro do app nativo instalado (ver src/shared/lib/biometria.ts)
   const [biometriaOk, setBiometriaOk] = useState(false);
@@ -55,6 +58,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setCadastroPendenteConfirmacao(false);
 
     if (!supabase) {
       setError('Supabase não configurado.');
@@ -82,7 +86,7 @@ export default function LoginPage() {
         router.push('/');
       }
     } else {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -101,10 +105,17 @@ export default function LoginPage() {
       if (error) {
         setError(error.message);
         setLoading(false);
-      } else {
-        // Se auto confirm enabled, já faz login. Senão precisa checar email.
-        // No nosso caso não tem confirmação de email no localhost.
+      } else if (data.session) {
+        // Confirmação de e-mail desligada no projeto — já veio logado.
         router.push('/');
+      } else {
+        // Em produção a confirmação de e-mail está ligada: `signUp` não
+        // devolve sessão nesse caso. Sem isso, a tela simplesmente voltava
+        // pro login sem explicação nenhuma (parecia que o cadastro tinha
+        // falhado silenciosamente).
+        setLoading(false);
+        setIsLogin(true);
+        setCadastroPendenteConfirmacao(true);
       }
     }
   };
@@ -152,17 +163,17 @@ export default function LoginPage() {
                 ? 'border-brand-ocre text-brand-ocre' 
                 : 'border-transparent text-sub hover:text-main'
             }`}
-            onClick={() => { setIsLogin(true); setError(null); }}
+            onClick={() => { setIsLogin(true); setError(null); setCadastroPendenteConfirmacao(false); }}
           >
             Entrar
           </button>
           <button
             className={`flex-1 py-2 text-sm font-bold border-b-2 transition-colors ${
-              !isLogin 
-                ? 'border-brand-ocre text-brand-ocre' 
+              !isLogin
+                ? 'border-brand-ocre text-brand-ocre'
                 : 'border-transparent text-sub hover:text-main'
             }`}
-            onClick={() => { setIsLogin(false); setError(null); }}
+            onClick={() => { setIsLogin(false); setError(null); setCadastroPendenteConfirmacao(false); }}
           >
             Primeiro Acesso
           </button>
@@ -180,9 +191,19 @@ export default function LoginPage() {
           </button>
         )}
 
+        {cadastroPendenteConfirmacao && (
+          <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 text-sm text-center">
+            Conta criada! Confirme seu e-mail (verifique a caixa de entrada e o spam) antes de entrar.
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center">
-            {error === 'Invalid login credentials' ? 'Email ou senha inválidos' : error}
+            {error === 'Invalid login credentials'
+              ? 'Email ou senha inválidos'
+              : error === 'Email not confirmed'
+                ? 'Confirme seu e-mail antes de entrar — verifique a caixa de entrada e o spam.'
+                : error}
           </div>
         )}
 
