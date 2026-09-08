@@ -347,13 +347,23 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
       {/* Bloco Superior: Logo */}
       <div className="h-32 flex flex-col justify-center items-center py-2 px-4 border-b border-card-border bg-slate-500/5 dark:bg-white/[0.01] shrink-0 relative">
         {mounted && !logoError ? (
-          <div className="relative h-28 w-full flex items-center justify-center">
+          <div className="relative h-28 w-full flex items-center justify-center gap-3">
             <img
               src={getLogoSrc()}
               alt="Aprimore Construtora"
               className="h-24 w-auto object-contain transition-all duration-200"
               onError={() => setLogoError(true)}
             />
+            {/* Parceiro EGF entra num ambiente restrito (só os próprios
+                relatórios + Cowork) — a logo da EGF ao lado deixa claro de
+                cara que é o espaço deles, não o ERP interno da Aprimore. */}
+            {profile?.role === 'convidado' && (
+              <>
+                <span className="text-card-border text-2xl font-light">×</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-14 w-14 rounded-full object-cover shadow-sm" />
+              </>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-3">

@@ -52,6 +52,10 @@ export default function AppLayout({
             <div className="hidden md:flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-brand-ocre animate-ping"></span>
               <span className="text-xs font-semibold uppercase tracking-wider text-sub">{ambienteName}</span>
+              {profile?.role === 'convidado' && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/brand/egflogo.jpg" alt="EGF Construtora" className="h-6 w-6 rounded-full object-cover ml-1" />
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">

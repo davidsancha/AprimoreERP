@@ -264,9 +264,13 @@ export default function LoginPage() {
                 onChange={(e) => setParceiroEgf(e.target.checked)}
                 className="mt-0.5 w-4 h-4 rounded text-brand-ocre focus:ring-brand-ocre border-card-border cursor-pointer accent-brand-ocre shrink-0"
               />
-              <span>
-                Sou <strong className="text-main">Parceiro EGF</strong> — acesso convidado, só aos meus próprios
-                relatórios (e aos que compartilharem comigo).
+              <span className="flex items-start gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/brand/egflogo.jpg" alt="" className="h-5 w-5 rounded-full object-cover shrink-0 mt-0.5" />
+                <span>
+                  Sou <strong className="text-main">Parceiro EGF</strong> — acesso convidado, só aos meus próprios
+                  relatórios (e aos que compartilharem comigo).
+                </span>
               </span>
             </label>
           )}

@@ -15,30 +15,36 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [role, setRole] = useState<'god' | 'admin' | 'engenheiro' | 'financeiro'>('engenheiro');
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /**
+   * `metaRole` sobrescreve o valor do `<select>` — usado pelo botão "Criar
+   * como Parceiro EGF", que sempre manda 'convidado' pra trigger
+   * `handle_new_user()` (ver migration 00014), independente do que estiver
+   * selecionado em Nível de Acesso (que não se aplica a convidado: vira
+   * sempre acesso restrito, só aos próprios relatórios + Cowork).
+   */
+  const criarUsuario = async (metaRole: string) => {
     setLoading(true);
     setError(null);
 
     try {
       if (!supabase) throw new Error('Supabase client não inicializado.');
 
-      // O cadastro pelo client-side via signUp automaticamente loga o novo usuário 
+      // O cadastro pelo client-side via signUp automaticamente loga o novo usuário
       // e desloga o atual. Avisaremos o usuário sobre isso ou usaríamos Edge Functions / Admin API.
       // Por enquanto, como não temos a Service Role Key, seguimos com a API normal.
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password: senha,
         options: {
           data: {
             full_name: nome,
-            role: role // Isso deve ser validado na trigger, mas o ideal é gerenciar a role por admin
+            role: metaRole // Isso deve ser validado na trigger, mas o ideal é gerenciar a role por admin
           }
         }
       });
@@ -53,6 +59,19 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    criarUsuario(role);
+  };
+
+  const handleCriarParceiroEgf = () => {
+    if (!nome || !email || !senha) {
+      setError('Preencha nome, e-mail e senha antes de criar como Parceiro EGF.');
+      return;
+    }
+    criarUsuario('convidado');
   };
 
   return (
@@ -84,7 +103,7 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
           <div className="mb-6 p-4 bg-brand-ocre/10 border border-brand-ocre/20 rounded-xl flex items-start gap-3">
             <AlertTriangle size={18} className="text-brand-ocre shrink-0 mt-0.5" />
             <p className="text-xs text-brand-ocre leading-relaxed">
-              <strong>Atenção:</strong> Como estamos utilizando o cadastro via interface cliente (sem chave de administrador servidor), ao cadastrar um novo usuário <strong>você será desconectado da sua conta atual</strong> e logado na nova conta.
+              <strong>Atenção:</strong> Como estamos utilizando o cadastro via interface cliente (sem chave de administrador servidor), ao cadastrar um novo usuário (por qualquer um dos botões abaixo) <strong>você será desconectado da sua conta atual</strong> e logado na nova conta.
             </p>
           </div>
 
@@ -150,16 +169,32 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
           </form>
         </div>
 
-        <div className="p-6 border-t border-card-border bg-slate-50/50 dark:bg-white/[0.02] flex justify-end gap-3">
-          <button 
-            type="button" 
+        <div className="p-6 border-t border-card-border bg-slate-50/50 dark:bg-white/[0.02] flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl font-bold text-sm text-sub hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors"
           >
             Cancelar
           </button>
-          <button 
-            type="submit" 
+          {/* Ignora o seletor de Role acima — Parceiro EGF é sempre acesso
+              convidado (restrito aos próprios relatórios + Cowork), nunca um
+              dos níveis internos. Mesmo cadastro que o formulário público de
+              login já oferece (checkbox "Sou Parceiro EGF"), só que disparado
+              pelo admin em vez do próprio convidado. */}
+          <button
+            type="button"
+            onClick={handleCriarParceiroEgf}
+            disabled={loading}
+            title="Cria a conta com acesso restrito de convidado — só aos próprios relatórios e aos compartilhados via Cowork"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-brand-ocre/40 text-brand-ocre hover:bg-brand-ocre/10 transition-all disabled:opacity-50"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/egflogo.jpg" alt="" className="h-5 w-5 rounded-full object-cover" />
+            {loading ? 'Criando...' : 'Criar como Parceiro EGF'}
+          </button>
+          <button
+            type="submit"
             form="form-novo-usuario"
             disabled={loading}
             className="px-6 py-2.5 rounded-xl font-bold text-sm bg-brand-ocre text-brand-dark hover:bg-brand-ocre/90 transition-all shadow-lg shadow-brand-ocre/20 disabled:opacity-50"
