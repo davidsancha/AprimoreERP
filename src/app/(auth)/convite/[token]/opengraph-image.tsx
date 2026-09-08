@@ -10,8 +10,9 @@ export const contentType = 'image/png';
 // imagem roda no servidor e precisa de uma URL absoluta pra buscar a logo.
 const ORIGEM = 'https://aprimore.vercel.app';
 
-export default async function Image({ params }: { params: { token: string } }) {
-  const convite = await buscarConvite(params.token);
+export default async function Image({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const convite = await buscarConvite(token);
   const valido = !!convite?.valido;
   const primeiroNome = valido ? convite!.nome?.split(' ')[0] || 'Você' : null;
   const ehParceiroEgf = valido && convite!.role === 'convidado';
