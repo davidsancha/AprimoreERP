@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Folder,
+  GripVertical,
   Image as ImageIcon,
   List,
   Loader2,
@@ -895,6 +896,7 @@ function RelatorioFotograficoContent() {
 
   // passo 4 — equipamentos (infra) / serviços e ambientes (reforma)
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
+  const [equipArrastando, setEquipArrastando] = useState<number | null>(null);
   const [servicosGlobais, setServicosGlobais] = useState<string[]>([]);
   const [novoServico, setNovoServico] = useState('');
   const [servicoOcupado, setServicoOcupado] = useState<string | null>(null);
@@ -1500,6 +1502,19 @@ function RelatorioFotograficoContent() {
     } catch (e) {
       setErro((e as Error).message);
     }
+  }
+
+  /** Reordena os equipamentos (ordem = ordem dos slides no PowerPoint final). */
+  function reordenarEquipamento(de: number, para: number) {
+    if (de === para || de < 0 || para < 0 || de >= equipamentos.length || para >= equipamentos.length) return;
+    const novos = equipamentos.slice();
+    const [mov] = novos.splice(de, 1);
+    novos.splice(para, 0, mov);
+    salvarEquipamentos(novos);
+  }
+
+  function moverEquipamento(i: number, passo: number) {
+    reordenarEquipamento(i, i + passo);
   }
 
   /** Infraestrutura: cada ponto vira 1 slide (antes+depois). Sem os dois, fica em rascunho local até completar o par. */
@@ -3065,8 +3080,42 @@ function RelatorioFotograficoContent() {
       {estrutura && tipoProjeto === 'infraestrutura' && (
         <div className={secao}>
           <h3 className={tituloSecao}>{badge(4)} Equipamentos e pontos</h3>
+          {/* ordem aqui = ordem dos slides no PowerPoint final — arraste pela alça ou use as setas */}
           {equipamentos.map((eq, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div
+              key={i}
+              draggable
+              onDragStart={() => setEquipArrastando(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (equipArrastando !== null) reordenarEquipamento(equipArrastando, i);
+                setEquipArrastando(null);
+              }}
+              onDragEnd={() => setEquipArrastando(null)}
+              className={`flex items-center gap-2 ${equipArrastando === i ? 'opacity-40' : ''}`}
+            >
+              <GripVertical size={15} className="text-desc shrink-0 cursor-grab active:cursor-grabbing" />
+              <div className="flex flex-col shrink-0">
+                <button
+                  type="button"
+                  disabled={i === 0}
+                  onClick={() => moverEquipamento(i, -1)}
+                  className="text-desc hover:text-main disabled:opacity-30"
+                  title="Mover para cima"
+                >
+                  <ChevronUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  disabled={i === equipamentos.length - 1}
+                  onClick={() => moverEquipamento(i, 1)}
+                  className="text-desc hover:text-main disabled:opacity-30"
+                  title="Mover para baixo"
+                >
+                  <ChevronDown size={13} />
+                </button>
+              </div>
               <input
                 type="text"
                 value={eq.nome}
@@ -3128,6 +3177,22 @@ function RelatorioFotograficoContent() {
                           className={input}
                           placeholder="Local — ex.: Salão, Tesouraria"
                         />
+                        {iP > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const acima = eq.pontos[iP - 1].local;
+                              const novos = equipamentos.map((x) =>
+                                x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: acima } : pp)) } : x,
+                              );
+                              salvarEquipamentos(novos);
+                            }}
+                            title={`Repetir o local do ponto ${eq.pontos[iP - 1].numero}`}
+                            className="shrink-0 px-2 py-1.5 rounded-lg border border-card-border text-[10px] font-bold text-main hover:bg-card-hover whitespace-nowrap"
+                          >
+                            ↑ acima
+                          </button>
+                        )}
                         <SlotFoto
                           rotulo="Antes"
                           caminho={slide?.foto_antes_path ?? rascunho?.antes}
