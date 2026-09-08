@@ -37,12 +37,10 @@ export default function UsuariosPage() {
     fetchUsuarios();
   }, []);
 
-  const handleUsuarioCriado = (sessaoTrocada: boolean) => {
+  const handleUsuarioCriado = () => {
     setIsModalOpen(false);
     setToast({
-      message: sessaoTrocada
-        ? 'Usuário criado com sucesso! Lembre-se de refazer seu login.'
-        : 'Usuário criado! A pessoa precisa confirmar o e-mail (verificar caixa de entrada/spam) antes de conseguir entrar.',
+      message: 'Usuário criado com sucesso! A conta já está ativa e pronta para acesso.',
       type: 'success',
     });
     fetchUsuarios();

@@ -1,20 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, UserPlus, AlertTriangle } from 'lucide-react';
+import { X, UserPlus, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 interface ModalNovoUsuarioProps {
   isOpen: boolean;
   onClose: () => void;
-  /**
-   * `sessaoTrocada` diz se o cadastro trocou a sessão atual pela do usuário
-   * novo — só acontece quando o projeto do Supabase NÃO exige confirmação de
-   * e-mail. Em produção a confirmação está ligada (descoberto testando ao
-   * vivo: `signUp` aqui nunca devolve `session`), então isso normalmente vem
-   * `false` — o admin continua logado, mas a pessoa nova só consegue entrar
-   * depois de confirmar o e-mail.
-   */
   onUsuarioCriado: (sessaoTrocada: boolean) => void;
 }
 
@@ -30,11 +22,10 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
   if (!isOpen) return null;
 
   /**
-   * `metaRole` sobrescreve o valor do `<select>` — usado pelo botão "Criar
-   * como Parceiro EGF", que sempre manda 'convidado' pra trigger
-   * `handle_new_user()` (ver migration 00014), independente do que estiver
-   * selecionado em Nível de Acesso (que não se aplica a convidado: vira
-   * sempre acesso restrito, só aos próprios relatórios + Cowork).
+   * Cria o usuário chamando a RPC `admin_criar_usuario`.
+   * Benefícios:
+   * 1. A conta já é criada com e-mail confirmado (zero e-mails enviados, sem rate limit).
+   * 2. A sessão do administrador no navegador permanece intacta (não é deslogado).
    */
   const criarUsuario = async (metaRole: string) => {
     setLoading(true);
@@ -43,27 +34,17 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
     try {
       if (!supabase) throw new Error('Supabase client não inicializado.');
 
-      // Se o projeto exigir confirmação de e-mail (é o caso em produção),
-      // `signUp` NÃO devolve sessão — a conta fica pendente até a pessoa
-      // clicar no link do e-mail, e a sessão atual (do admin) não muda. Só
-      // quando não exige confirmação (`data.session` vem preenchido) que o
-      // cadastro loga automaticamente na conta nova, trocando quem está
-      // logado neste navegador.
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: senha,
-        options: {
-          data: {
-            full_name: nome,
-            role: metaRole // Isso deve ser validado na trigger, mas o ideal é gerenciar a role por admin
-          }
-        }
+      const { data, error: rpcError } = await supabase.rpc('admin_criar_usuario', {
+        p_email: email,
+        p_password: senha,
+        p_nome: nome,
+        p_role: metaRole
       });
 
-      if (signUpError) throw signUpError;
+      if (rpcError) throw rpcError;
 
-      // Sucesso
-      onUsuarioCriado(!!data.session);
+      // Sucesso — a sessão nunca é trocada
+      onUsuarioCriado(false);
     } catch (err: any) {
       console.error('Erro ao cadastrar usuário:', err);
       setError(err.message || 'Erro desconhecido ao tentar cadastrar usuário.');
@@ -98,7 +79,7 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
             </div>
             <div>
               <h2 className="text-xl font-bold text-main font-vomzom">Novo Usuário</h2>
-              <p className="text-xs text-sub">Adicione um novo colaborador ao sistema</p>
+              <p className="text-xs text-sub">Adicione um novo colaborador ou parceiro ao sistema</p>
             </div>
           </div>
           <button 
@@ -111,10 +92,10 @@ export default function ModalNovoUsuario({ isOpen, onClose, onUsuarioCriado }: M
 
         <div className="overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-card-border">
           
-          <div className="mb-6 p-4 bg-brand-ocre/10 border border-brand-ocre/20 rounded-xl flex items-start gap-3">
-            <AlertTriangle size={18} className="text-brand-ocre shrink-0 mt-0.5" />
-            <p className="text-xs text-brand-ocre leading-relaxed">
-              <strong>Atenção:</strong> Como estamos utilizando o cadastro via interface cliente (sem chave de administrador servidor), ao cadastrar um novo usuário (por qualquer um dos botões abaixo), se a confirmação de e-mail estiver desligada no projeto <strong>você será desconectado da sua conta atual</strong> e logado na nova. Se estiver ligada (caso mais comum em produção), a pessoa só consegue entrar depois de confirmar o e-mail recebido — e você continua logado normalmente.
+          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-3">
+            <CheckCircle2 size={18} className="text-emerald-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 leading-relaxed">
+              <strong>Ativação Instantânea:</strong> A conta é criada já ativada, sem necessidade de confirmação por e-mail e sem limite de envios. Sua sessão atual de administrador não é interrompida.
             </p>
           </div>
 
