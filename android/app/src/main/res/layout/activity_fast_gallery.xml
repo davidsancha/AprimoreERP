@@ -5,63 +5,47 @@
     android:orientation="vertical"
     android:background="#FFFFFF">
 
-    <!-- cabeçalho único (a tela usava a barra de título nativa do Android POR CIMA
-         deste bloco, duplicando "Escolher fotos" numa faixa separada, pequena e
-         mal posicionada — a Activity agora usa AppTheme.NoActionBar, então este é
-         o único cabeçalho) -->
-    <LinearLayout
+    <!-- cabeçalho único, estilo WhatsApp: X redondo pra fechar à esquerda,
+         pílula do álbum centralizada — sem título de texto ("Escolher
+         fotos" foi removido, o X já comunica "fechar/cancelar"). -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="14dp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp"
         android:elevation="2dp"
         android:background="#002F6C">
 
         <TextView
-            android:id="@+id/textCancelar"
+            android:id="@+id/textFechar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:text="✕"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/bg_botao_fechar_galeria"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/textTrocarAlbum"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cancelar"
+            android:layout_centerInParent="true"
+            android:text="Câmera ▾"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:alpha="0.85"
-            android:padding="4dp"
-            android:layout_marginBottom="6dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Escolher fotos"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:textSize="20sp" />
-
-            <!-- seletor de álbum — pílula bem visível e com área de toque grande, ao lado do título -->
-            <TextView
-                android:id="@+id/textTrocarAlbum"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Câmera ▾"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:textSize="14sp"
-                android:background="#33FFFFFF"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="10dp"
-                android:minWidth="48dp"
-                android:minHeight="40dp"
-                android:gravity="center" />
-        </LinearLayout>
-    </LinearLayout>
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:background="@drawable/bg_pill_album_galeria"
+            android:paddingHorizontal="18dp"
+            android:paddingVertical="10dp"
+            android:minHeight="40dp"
+            android:gravity="center" />
+    </RelativeLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerFotos"

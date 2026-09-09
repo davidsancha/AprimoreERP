@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botão circular de fechar da FastGalleryActivity — substitui o texto "Cancelar"/título por um X redondo, estilo WhatsApp. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#55FFFFFF">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#22FFFFFF" />
+        </shape>
+    </item>
+</ripple>

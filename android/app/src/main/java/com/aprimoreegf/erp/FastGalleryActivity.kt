@@ -52,7 +52,7 @@ class FastGalleryActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.recyclerFotos)
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
 
-        findViewById<TextView>(R.id.textCancelar).setOnClickListener {
+        findViewById<TextView>(R.id.textFechar).setOnClickListener {
             setResult(RESULT_CANCELED)
             finish()
         }

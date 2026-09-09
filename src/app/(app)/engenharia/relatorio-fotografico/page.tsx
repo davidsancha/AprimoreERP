@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  Folder,
   GripVertical,
   Image as ImageIcon,
   List,
@@ -269,7 +268,6 @@ function ModalEscolhaOrigemFoto({
 }) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
-  const filesRef = useRef<HTMLInputElement>(null);
   const [fotoCapturada, setFotoCapturada] = useState<File | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [abrindoGaleriaNativa, setAbrindoGaleriaNativa] = useState(false);
@@ -363,18 +361,6 @@ function ModalEscolhaOrigemFoto({
           if (file) onEscolher(file);
         }}
       />
-      {/* 3. Explorador de arquivos do aparelho (DCIM / Câmera / Downloads locais) */}
-      <input
-        ref={filesRef}
-        type="file"
-        accept=".jpg,.jpeg,.png,.webp,.heic,image/jpeg,image/png"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) onEscolher(file);
-        }}
-      />
     </>
   );
 
@@ -443,21 +429,6 @@ function ModalEscolhaOrigemFoto({
         </button>
         {erroGaleriaNativa && (
           <p className="text-[10px] text-red-500 font-semibold text-center leading-tight">{erroGaleriaNativa}</p>
-        )}
-        {!nativo && (
-          <button
-            type="button"
-            onClick={() => filesRef.current?.click()}
-            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-card-border text-sm font-bold text-main hover:bg-background"
-          >
-            <Folder size={16} className="text-brand-ocre" />
-            Arquivos do aparelho (DCIM / Pastas)
-          </button>
-        )}
-        {!nativo && (
-          <p className="text-[10px] text-desc text-center pt-1 leading-tight">
-            No Android, se abrir o seletor padrão, toque no menu (⋮) para abrir a Galeria do aparelho.
-          </p>
         )}
         <button type="button" onClick={onFechar} className="w-full px-4 py-2 rounded-lg text-xs font-bold text-sub">
           Cancelar
@@ -902,6 +873,11 @@ function RelatorioFotograficoContent() {
   // passo 4 — equipamentos (infra) / serviços e ambientes (reforma)
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [equipArrastando, setEquipArrastando] = useState<number | null>(null);
+  // Rascunho do campo "nº de pontos" enquanto o usuário digita — sem isso o
+  // valor exibido vem direto de eq.pontos.length, então apagar o último
+  // dígito já commitava 0 pontos na hora e o campo "prendia" no zero
+  // (nunca ficava vazio de verdade pra digitar um número novo por cima).
+  const [numeroPontosRascunho, setNumeroPontosRascunho] = useState<Record<number, string>>({});
   const [servicosGlobais, setServicosGlobais] = useState<string[]>([]);
   const [novoServico, setNovoServico] = useState('');
   const [servicoOcupado, setServicoOcupado] = useState<string | null>(null);
@@ -3220,20 +3196,34 @@ function RelatorioFotograficoContent() {
                 onChange={(e) =>
                   salvarEquipamentos(equipamentos.map((x, j) => (j === i ? { ...x, nome: e.target.value.toUpperCase() } : x)))
                 }
-                className={input}
+                className={input.replace('w-full', 'flex-1 min-w-0')}
                 placeholder="ex.: Sensor de Presença"
               />
               <input
-                type="number"
-                min={0}
-                max={999}
-                value={eq.pontos.length}
-                onChange={(e) =>
-                  salvarEquipamentos(
-                    equipamentos.map((x, j) => (j === i ? { ...x, pontos: ajustaPontos(x.pontos, parseInt(e.target.value || '0', 10)) } : x)),
-                  )
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={3}
+                value={numeroPontosRascunho[i] ?? String(eq.pontos.length)}
+                onChange={(e) => {
+                  const digitos = e.target.value.replace(/\D/g, '').slice(0, 3);
+                  setNumeroPontosRascunho((r) => ({ ...r, [i]: digitos }));
+                  // só aplica com pelo menos 1 dígito — deixa o campo ficar
+                  // vazio de verdade enquanto o usuário troca o número, em
+                  // vez de zerar os pontos a cada tecla apagada
+                  if (digitos !== '') {
+                    salvarEquipamentos(
+                      equipamentos.map((x, j) => (j === i ? { ...x, pontos: ajustaPontos(x.pontos, parseInt(digitos, 10)) } : x)),
+                    );
+                  }
+                }}
+                onBlur={() =>
+                  setNumeroPontosRascunho((r) => {
+                    const { [i]: _removido, ...resto } = r;
+                    return resto;
+                  })
                 }
-                className={input + ' w-24'}
+                className={input.replace('w-full', 'w-14 shrink-0') + ' text-center'}
               />
               <button type="button" onClick={() => salvarEquipamentos(equipamentos.filter((_, j) => j !== i))} className="text-red-500 text-xs font-bold px-2">
                 ✕
@@ -3272,7 +3262,7 @@ function RelatorioFotograficoContent() {
                         className="flex flex-col gap-2 pb-3 border-b border-card-border/40 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:border-0 sm:pb-0"
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="shrink-0 text-[10px] font-mono bg-card-border/40 rounded px-2 py-1">{p.numero}</span>
+                          <span className="shrink-0 w-9 text-center text-[10px] font-mono bg-card-border/40 rounded px-1 py-1">{p.numero}</span>
                           <input
                             type="text"
                             value={p.local}
@@ -3302,7 +3292,7 @@ function RelatorioFotograficoContent() {
                             </button>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 sm:shrink-0">
+                        <div className="flex items-center gap-2 ml-11 sm:ml-0 sm:shrink-0">
                           <SlotFoto
                             rotulo="Antes"
                             caminho={slide?.foto_antes_path ?? rascunho?.antes}
