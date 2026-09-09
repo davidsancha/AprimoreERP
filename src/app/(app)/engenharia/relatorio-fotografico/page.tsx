@@ -1557,6 +1557,10 @@ function RelatorioFotograficoContent() {
     const [mov] = novos.splice(de, 1);
     novos.splice(para, 0, mov);
     salvarEquipamentos(novos);
+    // o rascunho do campo "nº de pontos" é indexado pela posição na lista —
+    // reordenar embaralha essas posições, então descarta qualquer rascunho
+    // em edição pra não vazar pro equipamento errado
+    setNumeroPontosRascunho({});
   }
 
   function moverEquipamento(i: number, passo: number) {
@@ -3225,7 +3229,16 @@ function RelatorioFotograficoContent() {
                 }
                 className={input.replace('w-full', 'w-14 shrink-0') + ' text-center'}
               />
-              <button type="button" onClick={() => salvarEquipamentos(equipamentos.filter((_, j) => j !== i))} className="text-red-500 text-xs font-bold px-2">
+              <button
+                type="button"
+                onClick={() => {
+                  salvarEquipamentos(equipamentos.filter((_, j) => j !== i));
+                  // mesmo motivo do reordenar: excluir desloca os índices dos
+                  // que vêm depois, então descarta rascunhos em edição
+                  setNumeroPontosRascunho({});
+                }}
+                className="text-red-500 text-xs font-bold px-2"
+              >
                 ✕
               </button>
             </div>
