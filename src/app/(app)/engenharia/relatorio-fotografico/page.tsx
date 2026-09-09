@@ -3261,48 +3261,61 @@ function RelatorioFotograficoContent() {
                     const slide = progresso.find((pr) => pr.equipamento === eq.nome && pr.numero_ponto === p.numero);
                     const rascunho = rascunhosFotoRef.current[chave];
                     return (
-                      <div key={iP} className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono bg-card-border/40 rounded px-2 py-1">{p.numero}</span>
-                        <input
-                          type="text"
-                          value={p.local}
-                          onChange={(e) => {
-                            const novos = equipamentos.map((x) =>
-                              x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: e.target.value } : pp)) } : x,
-                            );
-                            salvarEquipamentos(novos);
-                          }}
-                          className={input}
-                          placeholder="Local — ex.: Salão, Tesouraria"
-                        />
-                        {iP > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const acima = eq.pontos[iP - 1].local;
+                      // No celular em pé, a linha inteira (número + local +
+                      // "↑ acima" + 2 fotos) não cabia lado a lado — o campo
+                      // de local espremia até sumir. Agora empilha em duas
+                      // fileiras no mobile (dados em cima, fotos embaixo,
+                      // com espaço de sobra pra tocar) e volta a ficar tudo
+                      // numa linha só a partir do `sm:` (tablet/desktop).
+                      <div
+                        key={iP}
+                        className="flex flex-col gap-2 pb-3 border-b border-card-border/40 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:border-0 sm:pb-0"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="shrink-0 text-[10px] font-mono bg-card-border/40 rounded px-2 py-1">{p.numero}</span>
+                          <input
+                            type="text"
+                            value={p.local}
+                            onChange={(e) => {
                               const novos = equipamentos.map((x) =>
-                                x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: acima } : pp)) } : x,
+                                x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: e.target.value } : pp)) } : x,
                               );
                               salvarEquipamentos(novos);
                             }}
-                            title={`Repetir o local do ponto ${eq.pontos[iP - 1].numero}`}
-                            className="shrink-0 px-2 py-1.5 rounded-lg border border-card-border text-[10px] font-bold text-main hover:bg-card-hover whitespace-nowrap"
-                          >
-                            ↑ acima
-                          </button>
-                        )}
-                        <SlotFoto
-                          rotulo="Antes"
-                          caminho={slide?.foto_antes_path ?? rascunho?.antes}
-                          ocupado={fotoOcupada === chave + 'antes'}
-                          onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'antes', file)}
-                        />
-                        <SlotFoto
-                          rotulo="Depois"
-                          caminho={slide?.foto_depois_path ?? rascunho?.depois}
-                          ocupado={fotoOcupada === chave + 'depois'}
-                          onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'depois', file)}
-                        />
+                            className={input + ' flex-1 min-w-0'}
+                            placeholder="Local — ex.: Salão, Tesouraria"
+                          />
+                          {iP > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const acima = eq.pontos[iP - 1].local;
+                                const novos = equipamentos.map((x) =>
+                                  x.nome === eq.nome ? { ...x, pontos: x.pontos.map((pp, k) => (k === iP ? { ...pp, local: acima } : pp)) } : x,
+                                );
+                                salvarEquipamentos(novos);
+                              }}
+                              title={`Repetir o local do ponto ${eq.pontos[iP - 1].numero}`}
+                              className="shrink-0 px-2 py-1.5 rounded-lg border border-card-border text-[10px] font-bold text-main hover:bg-card-hover whitespace-nowrap"
+                            >
+                              ↑ acima
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 sm:shrink-0">
+                          <SlotFoto
+                            rotulo="Antes"
+                            caminho={slide?.foto_antes_path ?? rascunho?.antes}
+                            ocupado={fotoOcupada === chave + 'antes'}
+                            onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'antes', file)}
+                          />
+                          <SlotFoto
+                            rotulo="Depois"
+                            caminho={slide?.foto_depois_path ?? rascunho?.depois}
+                            ocupado={fotoOcupada === chave + 'depois'}
+                            onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'depois', file)}
+                          />
+                        </div>
                       </div>
                     );
                   })}
