@@ -20,6 +20,7 @@ export default function ModalNovoConvite({ isOpen, onClose, onConviteCriado }: M
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [genero, setGenero] = useState<'m' | 'f' | ''>('');
   const [parceiroEgf, setParceiroEgf] = useState(false);
   const [role, setRole] = useState<'admin' | 'engenheiro' | 'financeiro' | 'god'>('engenheiro');
 
@@ -34,6 +35,7 @@ export default function ModalNovoConvite({ isOpen, onClose, onConviteCriado }: M
     setNome('');
     setEmail('');
     setTelefone('');
+    setGenero('');
     setParceiroEgf(false);
     setRole('engenheiro');
     setError(null);
@@ -55,6 +57,7 @@ export default function ModalNovoConvite({ isOpen, onClose, onConviteCriado }: M
         p_nome: nome,
         p_telefone: telefone || null,
         p_role: parceiroEgf ? 'convidado' : role,
+        p_genero: genero || null,
       });
 
       if (rpcError) throw rpcError;
@@ -172,6 +175,21 @@ export default function ModalNovoConvite({ isOpen, onClose, onConviteCriado }: M
                     className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-main focus:ring-2 focus:ring-brand-ocre focus:outline-none"
                     placeholder="XX XXXXX-XXXX"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-sub">
+                    Gênero <span className="normal-case font-normal text-[11px]">(opcional — personaliza a mensagem do convite)</span>
+                  </label>
+                  <select
+                    value={genero}
+                    onChange={(e) => setGenero(e.target.value as 'm' | 'f' | '')}
+                    className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-main focus:ring-2 focus:ring-brand-ocre focus:outline-none"
+                  >
+                    <option value="">Prefiro não informar</option>
+                    <option value="f">Feminino (convidada)</option>
+                    <option value="m">Masculino (convidado)</option>
+                  </select>
                 </div>
 
                 {/* Parceiro EGF logo no início do formulário — decide o convite

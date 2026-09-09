@@ -107,6 +107,7 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
   }
 
   const regras = regrasSenha(senha);
+  const podeSubmeter = nome.trim().length > 0 && senha.length > 0 && senha === confirmarSenha && senhaForte(senha);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -182,7 +183,7 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
 
           <button
             type="submit"
-            disabled={enviando}
+            disabled={enviando || !podeSubmeter}
             className="w-full bg-brand-ocre text-brand-dark font-bold py-3 px-4 rounded-xl hover:bg-brand-ocre/90 hover:-translate-y-0.5 transition-all shadow-lg shadow-brand-ocre/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {enviando ? 'Criando sua conta...' : 'Concluir cadastro e entrar'}

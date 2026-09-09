@@ -7,6 +7,14 @@ export interface ConviteInfo {
   nome?: string;
   telefone?: string | null;
   role?: string;
+  genero?: 'm' | 'f' | null;
+}
+
+/** "convidado"/"convidada" quando o gênero foi informado, senão o neutro "convidado(a)". */
+export function palavraConvidado(genero: string | null | undefined): string {
+  if (genero === 'm') return 'convidado';
+  if (genero === 'f') return 'convidada';
+  return 'convidado(a)';
 }
 
 /** Usado tanto no Server Component (generateMetadata/page) quanto na imagem de preview (opengraph-image.tsx). */

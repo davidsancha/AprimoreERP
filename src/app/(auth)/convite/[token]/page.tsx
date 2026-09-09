@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { buscarConvite } from './dados';
+import { buscarConvite, palavraConvidado } from './dados';
 import ConviteLanding from './ConviteLanding';
 
 type Params = { params: Promise<{ token: string }> };
@@ -20,10 +20,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
   const primeiroNome = convite.nome?.split(' ')[0] || 'Você';
   const ehParceiroEgf = convite.role === 'convidado';
-  const titulo = `${primeiroNome}, você foi convidado(a)! — Aprimore ERP`;
+  const convidadoPalavra = palavraConvidado(convite.genero);
+  const titulo = `${primeiroNome}, você foi ${convidadoPalavra}! — Aprimore ERP`;
   const descricao = ehParceiroEgf
-    ? 'A EGF Construtora foi convidada a fazer parte do Aprimore ERP — acesse seus relatórios fotográficos.'
-    : 'Você foi convidado(a) para acessar o Aprimore ERP. Toque para completar seu cadastro.';
+    ? 'A EGF Construtora foi convidada a fazer parte do Aprimore ERP — acesse o módulo de Relatórios Fotográficos.'
+    : `Você foi ${convidadoPalavra} para acessar o Aprimore ERP. Toque para completar seu cadastro.`;
 
   return {
     title: titulo,

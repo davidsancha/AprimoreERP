@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, X } from 'lucide-react';
-import type { ConviteInfo } from './dados';
+import { palavraConvidado, type ConviteInfo } from './dados';
 
 const MOTIVO_MENSAGEM: Record<string, string> = {
   nao_encontrado: 'Não encontramos esse convite. Confira se copiou o link certinho.',
@@ -13,18 +12,6 @@ const MOTIVO_MENSAGEM: Record<string, string> = {
 };
 
 export default function ConviteLanding({ token, convite }: { token: string; convite: ConviteInfo | null }) {
-  // Fora do ThemeProvider (só envolve as rotas autenticadas) — lê a
-  // preferência salva direto, mesmo padrão da tela de login.
-  const [logoSrc, setLogoSrc] = useState('/brand/LogoVbranco.png');
-  useEffect(() => {
-    try {
-      const salvo = localStorage.getItem('aprimore-theme');
-      setLogoSrc(salvo === 'light' ? '/brand/LogoVpreto.png' : '/brand/LogoVbranco.png');
-    } catch {
-      // localStorage indisponível — mantém o padrão
-    }
-  }, []);
-
   if (!convite?.valido) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -44,6 +31,7 @@ export default function ConviteLanding({ token, convite }: { token: string; conv
 
   const ehParceiroEgf = convite.role === 'convidado';
   const primeiroNome = convite.nome?.split(' ')[0] || '';
+  const convidadoPalavra = palavraConvidado(convite.genero);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center p-4">
@@ -52,7 +40,7 @@ export default function ConviteLanding({ token, convite }: { token: string; conv
 
       <div className="relative z-10 w-full max-w-lg bg-card border border-card-border rounded-2xl shadow-xl p-8 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={logoSrc} alt="Aprimore" className="h-16 w-auto mx-auto mb-5 object-contain" />
+        <img src="/brand/Logo1.png" alt="Aprimore" className="h-16 w-auto mx-auto mb-5 object-contain" />
 
         {ehParceiroEgf ? (
           <>
@@ -62,17 +50,20 @@ export default function ConviteLanding({ token, convite }: { token: string; conv
               <Sparkles className="text-brand-ocre" size={22} />
             </div>
             <h1 className="text-xl font-bold text-main">
-              Olá, {primeiroNome}! Você foi convidado(a) pra fazer parte do Aprimore ERP
+              Olá, {primeiroNome}! Você foi {convidadoPalavra} pra fazer parte do Aprimore ERP
             </h1>
             <p className="text-sm text-sub mt-3 leading-relaxed">
               A EGF Construtora é uma parceira que a Aprimore tem muito orgulho de ter por perto — e por isso
-              queremos te dar acesso direto aos relatórios fotográficos das obras que a gente compartilha com
-              vocês. É um espaço seu, pra acompanhar o que for combinado com a gente.
+              queremos te dar acesso ao nosso módulo de Relatórios Fotográficos, tanto pra estruturar os
+              relatórios das obras de vocês, mesmo sem a gente envolvido, quanto pra acompanhar os que a
+              Aprimore compartilhar com vocês por aqui.
             </p>
           </>
         ) : (
           <>
-            <h1 className="text-xl font-bold text-main">Olá, {primeiroNome}! Você foi convidado(a) pro Aprimore ERP</h1>
+            <h1 className="text-xl font-bold text-main">
+              Olá, {primeiroNome}! Você foi {convidadoPalavra} pro Aprimore ERP
+            </h1>
             <p className="text-sm text-sub mt-3 leading-relaxed">Complete seu cadastro pra começar a usar o sistema.</p>
           </>
         )}

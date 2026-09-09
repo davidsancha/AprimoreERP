@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { buscarConvite } from './dados';
+import { buscarConvite, palavraConvidado } from './dados';
 
 export const runtime = 'edge';
 export const alt = 'Convite — Aprimore ERP';
@@ -47,7 +47,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
           Aprimore ERP
         </div>
         <div style={{ fontSize: 56, fontWeight: 800, color: '#FFFFFF', marginTop: 20, lineHeight: 1.2, display: 'flex' }}>
-          {valido ? `${primeiroNome}, você foi convidado(a)!` : 'Convite'}
+          {valido ? `${primeiroNome}, você foi ${palavraConvidado(convite!.genero)}!` : 'Convite'}
         </div>
         {ehParceiroEgf && (
           <div style={{ fontSize: 30, color: '#C7D2E0', marginTop: 24, display: 'flex' }}>Parceria Aprimore × EGF Construtora</div>

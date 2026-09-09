@@ -12,19 +12,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Logo tema-claro/escuro — esta página fica fora do ThemeProvider (só
-  // envolve as rotas autenticadas, ver src/app/(app)/layout.tsx), então lê
-  // a preferência salva direto do localStorage em vez de usar useTheme().
-  const [logoSrc, setLogoSrc] = useState('/brand/LogoVbranco.png');
+  // Logo colorida fixa — o badge tem fundo claro (bg-brand-ocre/10) sempre,
+  // então não precisa variar por tema como a logo branca/preta da Sidebar.
   const [logoError, setLogoError] = useState(false);
-  useEffect(() => {
-    try {
-      const salvo = localStorage.getItem('aprimore-theme');
-      setLogoSrc(salvo === 'light' ? '/brand/LogoVpreto.png' : '/brand/LogoVbranco.png');
-    } catch {
-      // localStorage indisponível — mantém o padrão (logo branca)
-    }
-  }, []);
 
   // Biometria — só existe dentro do app nativo instalado (ver src/shared/lib/biometria.ts)
   const [biometriaOk, setBiometriaOk] = useState(false);
@@ -121,7 +111,7 @@ export default function LoginPage() {
           <div className="w-20 h-20 bg-brand-ocre/10 rounded-2xl border border-brand-ocre/20 flex items-center justify-center mb-4 p-2">
             {!logoError ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoSrc} alt="Aprimore" className="h-full w-full object-contain" onError={() => setLogoError(true)} />
+              <img src="/brand/Logo1.png" alt="Aprimore" className="h-full w-full object-contain" onError={() => setLogoError(true)} />
             ) : (
               <span className="text-brand-ocre font-bold text-2xl">A</span>
             )}
