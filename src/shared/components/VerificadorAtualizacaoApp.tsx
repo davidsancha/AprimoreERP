@@ -102,14 +102,27 @@ export default function VerificadorAtualizacaoApp() {
         directory: Directory.External,
         recursive: true,
       });
-      // Dispara o instalador do Android direto — a primeira vez ainda pede
-      // pro usuário liberar "instalar apps desconhecidos" (o Android exige
-      // essa confirmação, não dá pra pular), mas depois disso passa a
-      // instalar direto a cada atualização, sem precisar caçar o arquivo.
-      await abrirArquivoNativo(uri.replace(/^file:\/\//, ''), 'application/vnd.android.package-archive');
-      // Fecha a notificação assim que o instalador abre — não precisa mais
-      // ficar na tela, o Android já assumiu o resto do fluxo.
-      setAtualizacao(null);
+      const caminhoLocal = uri.replace(/^file:\/\//, '');
+
+      // O plugin nativo (AbrirArquivo) só existe a partir desta própria
+      // atualização — quem ainda está numa versão do app anterior a ele não
+      // tem o plugin instalado (o JS carrega remoto e atualiza na hora, mas
+      // plugin nativo só entra com um APK novo de verdade), e chamá-lo
+      // quebraria com "plugin is not implemented on Android". Checa antes:
+      // se não tiver, cai pro fluxo manual de sempre (só dessa vez — depois
+      // que a pessoa instalar esta versão, as próximas já vêm com o plugin
+      // e instalam sozinhas).
+      if (Capacitor.isPluginAvailable('AbrirArquivo')) {
+        await abrirArquivoNativo(caminhoLocal, 'application/vnd.android.package-archive');
+        // Fecha a notificação assim que o instalador abre — não precisa
+        // mais ficar na tela, o Android já assumiu o resto do fluxo.
+        setAtualizacao(null);
+      } else {
+        setMensagemBaixar({
+          texto: 'Baixado! Abra o arquivo pelo app Arquivos do celular pra instalar (a partir da próxima atualização isso já acontece sozinho).',
+          erro: false,
+        });
+      }
     } catch (err) {
       setMensagemBaixar({ texto: err instanceof Error ? err.message : 'Não foi possível baixar a atualização.', erro: true });
     } finally {
