@@ -17,7 +17,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Assinatura fixa do keystore de debug (arquivo versionado no repo,
+    // android/app/debug.keystore) — sem isso, cada `assembleDebug` roda com
+    // o keystore de debug efêmero de ~/.android/debug.keystore, que o
+    // Gradle recria do zero sempre que não existe (todo runner do GitHub
+    // Actions começa "limpo"). Cada build ficava assinado com uma chave
+    // diferente, e o Android recusa instalar update cuja assinatura mudou
+    // ("Como o pacote tem um conflito com um pacote já existente..."),
+    // obrigando o usuário a desinstalar manualmente a cada nova versão.
+    // Usar um keystore fixo garante a mesma assinatura em toda build, local
+    // ou CI, então o update in-place volta a funcionar.
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

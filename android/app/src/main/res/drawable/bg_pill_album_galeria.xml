@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pílula do seletor de álbum da FastGalleryActivity — bem arredondada (estilo WhatsApp), com feedback de toque. -->
-<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#55FFFFFF">
+<!-- Pílula do seletor de álbum da FastGalleryActivity — dourado ocre da marca (#C69214), bem arredondada (estilo WhatsApp), com feedback de toque. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FFFFFF">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#33FFFFFF" />
+            <solid android:color="#C69214" />
             <corners android:radius="20dp" />
         </shape>
     </item>

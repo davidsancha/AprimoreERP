@@ -7,12 +7,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -51,6 +54,20 @@ class FastGalleryActivity : AppCompatActivity() {
 
         recyclerView = findViewById(R.id.recyclerFotos)
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
+
+        // App roda edge-to-edge (targetSdk 36 exige) — sem isso o cabeçalho
+        // desenha atrás da status bar e o X/pílula do álbum ficam
+        // parcialmente escondidos atrás do relógio e ícones do sistema.
+        // Soma o inset da status bar ao paddingTop original do XML em vez
+        // de substituir, senão o header fica colado demais no topo em
+        // aparelhos com status bar baixa.
+        val headerGaleria = findViewById<View>(R.id.headerGaleria)
+        val paddingTopOriginal = headerGaleria.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(headerGaleria) { view, insets ->
+            val statusBarInsets = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+            view.setPadding(view.paddingLeft, paddingTopOriginal + statusBarInsets.top, view.paddingRight, view.paddingBottom)
+            insets
+        }
 
         findViewById<TextView>(R.id.textFechar).setOnClickListener {
             setResult(RESULT_CANCELED)

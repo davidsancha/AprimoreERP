@@ -6,20 +6,30 @@
     android:background="#FFFFFF">
 
     <!-- cabeçalho único, estilo WhatsApp: X redondo pra fechar à esquerda,
-         pílula do álbum centralizada — sem título de texto ("Escolher
-         fotos" foi removido, o X já comunica "fechar/cancelar"). -->
+         pílula do álbum centralizada, sem título de texto. Preto (não o
+         azul da marca) pra combinar com o picker de mídia do WhatsApp que
+         serviu de referência. RelativeLayout (não LinearLayout com peso)
+         pra pílula ficar compacta/centralizada de verdade, sem esticar pra
+         virar uma barra larga. paddingTop é somado em runtime pelo inset
+         da status bar (ver FastGalleryActivity.kt) — o app roda edge-to-edge
+         (targetSdk 36), então sem isso o conteúdo desenha atrás da status
+         bar e o X/pílula ficam parcialmente escondidos atrás do relógio e
+         dos ícones do sistema. -->
     <RelativeLayout
+        android:id="@+id/headerGaleria"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="12dp"
-        android:paddingVertical="10dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
+        android:minHeight="68dp"
         android:elevation="2dp"
-        android:background="#002F6C">
+        android:background="#000000">
 
         <TextView
             android:id="@+id/textFechar"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
             android:text="✕"
@@ -37,13 +47,13 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:text="Câmera ▾"
-            android:textColor="#FFFFFF"
+            android:textColor="#1A1A1A"
             android:textStyle="bold"
             android:textSize="14sp"
             android:background="@drawable/bg_pill_album_galeria"
             android:paddingHorizontal="18dp"
-            android:paddingVertical="10dp"
-            android:minHeight="40dp"
+            android:paddingVertical="12dp"
+            android:minHeight="44dp"
             android:gravity="center" />
     </RelativeLayout>
 
