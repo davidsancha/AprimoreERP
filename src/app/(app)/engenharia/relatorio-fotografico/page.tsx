@@ -64,6 +64,7 @@ import type {
   CamposRelatorio,
   Equipamento,
   EstruturaFotografica,
+  EstruturaFotograficaComProjeto,
   ModeloRelatorioOpcao,
   ProgressoSlide,
   ProjetoResumo,
@@ -824,9 +825,10 @@ function RelatorioFotograficoContent() {
   // avulsos (nunca vinculados a projeto corporativo); ver README.md.
   const ehParceiroEgf = profile?.role === 'convidado';
 
-  // "Meus relatórios" — só carregado/mostrado pro Parceiro EGF, no topo,
-  // antes de decidir criar um novo
-  const [meusRelatorios, setMeusRelatorios] = useState<EstruturaFotografica[]>([]);
+  // "Meus relatórios" — mostrado pra qualquer usuário, no topo, antes de
+  // decidir criar um novo (compartilhamento não é mais exclusivo de
+  // Parceiro EGF, ver botão "Compartilhar" no resumo compacto abaixo).
+  const [meusRelatorios, setMeusRelatorios] = useState<EstruturaFotograficaComProjeto[]>([]);
   const [carregandoMeusRelatorios, setCarregandoMeusRelatorios] = useState(false);
 
   // Cowork — compartilhamento do relatório atual com outros usuários
@@ -984,12 +986,15 @@ function RelatorioFotograficoContent() {
     lerAmbientesGlobais().then(setAmbientesGlobais).catch(() => {});
   }, []);
 
-  // Parceiro EGF nunca vincula a projeto corporativo — força avulso e
-  // carrega os relatórios que ele mesmo já criou, pra retomar sem precisar
-  // recriar do zero
+  // Parceiro EGF nunca vincula a projeto corporativo — força avulso
   useEffect(() => {
     if (!ehParceiroEgf) return;
     setIsAvulso(true);
+  }, [ehParceiroEgf]);
+
+  // "Meus relatórios" (próprios + compartilhados comigo) — pra qualquer
+  // usuário retomar sem precisar recriar do zero, não só Parceiro EGF.
+  useEffect(() => {
     if (!user?.id) return;
     setCarregandoMeusRelatorios(true);
     listarRelatoriosDoUsuario(user.id)
@@ -1156,10 +1161,16 @@ function RelatorioFotograficoContent() {
   }
 
   /** "Meus Relatórios" (Parceiro EGF) — retoma um relatório avulso já criado por ele. */
-  function abrirMeuRelatorio(r: EstruturaFotografica) {
-    setIsAvulso(true);
-    setObraNome(r.obra_nome || '');
+  async function abrirMeuRelatorio(r: EstruturaFotografica) {
+    setIsAvulso(r.is_avulso);
+    if (r.is_avulso) {
+      setObraNome(r.obra_nome || '');
+    } else if (r.projeto_id) {
+      const p = await buscarProjetoPorId(r.projeto_id);
+      if (p) setProjetoSelecionado(p);
+    }
     carregarEstruturaNoFormulario(r);
+    setResumoExpandido(false);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -1889,10 +1900,15 @@ function RelatorioFotograficoContent() {
     </span>
   );
   const label = 'text-[10px] font-bold text-desc uppercase tracking-wider text-brand-ocre';
+  // `appearance-none` + `disabled:*` explícitos porque sem isso o WebView do
+  // app Android usa a própria aparência nativa de campo desabilitado (cinza
+  // chumbo, texto quase ilegível) em vez das cores que a gente define —
+  // acontecia até nos <select> que nem tinham classe nenhuma de "desativado"
+  // (ex.: Modelo de Relatório antes do banco ser escolhido).
   const input =
-    'w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-bold';
+    'w-full appearance-none px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-main placeholder-slate-500 focus:outline-none focus:border-brand-ocre focus:ring-1 focus:ring-brand-ocre transition-all font-bold disabled:opacity-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:border-card-border/60 dark:disabled:bg-zinc-800/70 dark:disabled:text-zinc-400';
   const inputSomenteLeitura =
-    'w-full px-3 py-2 bg-slate-100 dark:bg-zinc-800/70 border border-card-border/80 rounded-lg text-xs text-main font-semibold cursor-not-allowed opacity-90 transition-all';
+    'w-full appearance-none px-3 py-2 bg-slate-100 dark:bg-zinc-800/70 border border-card-border/80 rounded-lg text-xs text-slate-700 dark:text-zinc-200 font-semibold cursor-not-allowed opacity-100 transition-all';
 
   const somenteLeituraObra = !isAvulso && !habilitarEdicaoObra;
   const classeCampoObra = somenteLeituraObra ? inputSomenteLeitura : input;
@@ -1979,7 +1995,7 @@ function RelatorioFotograficoContent() {
         <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold rounded-lg p-3">{erro}</div>
       )}
 
-      {ehParceiroEgf && !estrutura && (
+      {!estrutura && (
         <div className={secao}>
           <h3 className={tituloSecao}>Meus relatórios</h3>
           {carregandoMeusRelatorios ? (
@@ -1994,9 +2010,12 @@ function RelatorioFotograficoContent() {
                   className="flex items-stretch gap-1.5 rounded-lg border border-card-border bg-background hover:border-brand-ocre/50 transition-colors overflow-hidden"
                 >
                   <button type="button" onClick={() => abrirMeuRelatorio(r)} className="flex-1 min-w-0 text-left px-3 py-2.5">
-                    <div className="text-xs font-bold text-main truncate">{r.obra_nome || 'Sem nome'}</div>
+                    <div className="text-xs font-bold text-main truncate">
+                      {r.is_avulso ? r.obra_nome || 'Sem nome' : r.projetos?.nome || 'Projeto vinculado'}
+                    </div>
                     <div className="text-[10px] text-sub">
                       {r.tipo_projeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'} ·{' '}
+                      {r.is_avulso ? 'Avulso' : `OS ${r.projetos?.os ?? '—'}`} ·{' '}
                       {new Date(r.updated_at).toLocaleDateString('pt-BR')}
                     </div>
                   </button>
@@ -2039,16 +2058,20 @@ function RelatorioFotograficoContent() {
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            {(!ehParceiroEgf || estrutura.user_id === user?.id) && (
-              <button
-                type="button"
-                onClick={abrirCompartilhar}
-                className="flex items-center gap-1 text-[10px] font-bold text-sub hover:text-brand-ocre whitespace-nowrap"
-                title="Compartilhar este relatório com outro usuário"
-              >
-                <Share2 size={12} /> Compartilhar
-              </button>
-            )}
+            {/* Compartilhar fica visível pra qualquer um (dono, staff
+                interno ou Parceiro EGF, qualquer papel) — quem realmente
+                decide se pode compartilhar é o servidor
+                (adicionar_colaborador_relatorio via pode_editar_relatorio),
+                não a tela. Antes só o dono via aqui quando fosse Parceiro
+                EGF, o que impedia até um colaborador admin re-compartilhar. */}
+            <button
+              type="button"
+              onClick={abrirCompartilhar}
+              className="flex items-center gap-1 text-[10px] font-bold text-sub hover:text-brand-ocre whitespace-nowrap"
+              title="Compartilhar este relatório com outro usuário"
+            >
+              <Share2 size={12} /> Compartilhar
+            </button>
             <button
               type="button"
               onClick={() => duplicarRelatorio(estrutura)}

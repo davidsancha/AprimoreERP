@@ -14,7 +14,7 @@
 import * as api from "./apiRelatorioFotografico";
 import type { DadosNovaEstrutura, DadosNovoProgresso } from "./apiRelatorioFotografico";
 import { limpaNome } from "../calc";
-import type { EstruturaFotografica, FiltrosBuscaProjeto, ProgressoSlide, ProjetoResumo } from "../types";
+import type { EstruturaFotografica, EstruturaFotograficaComProjeto, FiltrosBuscaProjeto, ProgressoSlide, ProjetoResumo } from "../types";
 import {
   ehIdLocal,
   enfileirar,
@@ -239,8 +239,8 @@ export async function obterEstrutura(id: string): Promise<EstruturaFotografica |
   }
 }
 
-export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotografica[]> {
-  let remotos: EstruturaFotografica[] = [];
+export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotograficaComProjeto[]> {
+  let remotos: EstruturaFotograficaComProjeto[] = [];
   try {
     remotos = await api.listarRelatoriosDoUsuario(userId);
     for (const r of remotos) await salvarEstruturaCache(r);
@@ -248,8 +248,13 @@ export async function listarRelatoriosDoUsuario(userId: string): Promise<Estrutu
     if (!pareceErroDeRede(e)) throw e;
   }
   const todosCache = await listarEstruturasCache<EstruturaFotografica>();
-  const pendentesLocais = todosCache.filter((e) => ehIdLocal(e.id) && e.user_id === userId);
-  const mapa = new Map<string, EstruturaFotografica>();
+  // Rascunhos ainda não sincronizados não têm o join de `projetos` (nunca
+  // passaram pelo servidor) — `projetos: null` cai no fallback "Projeto
+  // vinculado" da listagem em vez de quebrar o tipo.
+  const pendentesLocais = todosCache
+    .filter((e) => ehIdLocal(e.id) && e.user_id === userId)
+    .map((e) => ({ ...e, projetos: null }) as EstruturaFotograficaComProjeto);
+  const mapa = new Map<string, EstruturaFotograficaComProjeto>();
   for (const r of remotos) mapa.set(r.id, r);
   for (const p of pendentesLocais) mapa.set(p.id, p);
   return Array.from(mapa.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());

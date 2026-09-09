@@ -72,6 +72,16 @@ export interface EstruturaFotografica {
 }
 
 /**
+ * `EstruturaFotografica` com o nome/OS do projeto vinculado já embutido
+ * (join via PostgREST) — usado só em listagens (ex.: "Meus relatórios"),
+ * pra mostrar um nome reconhecível mesmo em relatórios vinculados a
+ * projeto (que não têm `obra_nome` preenchido, só os avulsos têm).
+ */
+export interface EstruturaFotograficaComProjeto extends EstruturaFotografica {
+  projetos: { nome: string; os: string } | null;
+}
+
+/**
  * Campos de obra que vivem em `projetos` (migration 00010) quando o
  * relatório está vinculado — Agência/UPE/SAP/gestor/fiscalização/
  * construtora/responsável são dados da obra, úteis pra empresa toda, não

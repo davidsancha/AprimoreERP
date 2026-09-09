@@ -5,6 +5,7 @@ import type {
   CamposObraProjeto,
   Equipamento,
   EstruturaFotografica,
+  EstruturaFotograficaComProjeto,
   FiltrosBuscaProjeto,
   ModeloRelatorioOpcao,
   ProgressoSlide,
@@ -173,10 +174,15 @@ export async function obterEstrutura(id: string): Promise<EstruturaFotografica |
  * complexo, porque a RLS de `engenharia_relatorio_colaboradores` já resolve
  * a visibilidade — aqui só precisamos juntar os dois conjuntos de ids.
  */
-export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotografica[]> {
+// `obra_nome` só existe pra relatório avulso — o vinculado a projeto
+// precisa desse join pra ter um nome reconhecível na listagem (ver
+// EstruturaFotograficaComProjeto em types.ts).
+const CAMPOS_ESTRUTURA_COM_PROJETO = "*, projetos(nome, os)";
+
+export async function listarRelatoriosDoUsuario(userId: string): Promise<EstruturaFotograficaComProjeto[]> {
   const sb = exigirSupabase();
   const [proprios, colaboracoes] = await Promise.all([
-    sb.from("engenharia_estrutura_fotografica").select("*").eq("user_id", userId),
+    sb.from("engenharia_estrutura_fotografica").select(CAMPOS_ESTRUTURA_COM_PROJETO).eq("user_id", userId),
     sb.from("engenharia_relatorio_colaboradores").select("relatorio_id").eq("user_id", userId),
   ]);
   if (proprios.error) throw proprios.error;
@@ -186,14 +192,14 @@ export async function listarRelatoriosDoUsuario(userId: string): Promise<Estrutu
   const idsProprios = new Set((proprios.data || []).map((r) => r.id));
   const idsFaltantes = idsCompartilhados.filter((id) => !idsProprios.has(id));
 
-  let compartilhados: EstruturaFotografica[] = [];
+  let compartilhados: EstruturaFotograficaComProjeto[] = [];
   if (idsFaltantes.length) {
-    const { data, error } = await sb.from("engenharia_estrutura_fotografica").select("*").in("id", idsFaltantes);
+    const { data, error } = await sb.from("engenharia_estrutura_fotografica").select(CAMPOS_ESTRUTURA_COM_PROJETO).in("id", idsFaltantes);
     if (error) throw error;
-    compartilhados = data || [];
+    compartilhados = (data as unknown as EstruturaFotograficaComProjeto[]) || [];
   }
 
-  return [...(proprios.data || []), ...compartilhados].sort(
+  return [...((proprios.data as unknown as EstruturaFotograficaComProjeto[]) || []), ...compartilhados].sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
 }
