@@ -24,6 +24,17 @@ export function descricaoReforma(servico: string, ambiente: string, caixa: "alta
 }
 
 /**
+ * Só pra montar a CHAVE do Storage (nunca pro que aparece na tela) — o
+ * bucket é S3-compatível e rejeita bytes fora de ASCII na chave com
+ * "Invalid key" (ex.: "SENSOR DE PRESENÇA" tem "Ç"). NFD separa a letra do
+ * acento (Ç -> C + combining cedilla) e o replace descarta só a marca
+ * combinante, sobrando "C" puro.
+ */
+function paraChaveAscii(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
  * Caminho do arquivo no bucket `relatorios-fotograficos` — não existe mais
  * "pasta a criar" (Storage não precisa de pasta vazia pré-existente, é só
  * um prefixo de caminho), mas a convenção de nome continua a mesma:
@@ -34,6 +45,6 @@ export function caminhoStorage(
   segmento: string[],
   nomeArquivo: string,
 ): string {
-  const partes = [relatorioId, ...segmento.map((s) => limpaNome(s).toUpperCase()), nomeArquivo];
+  const partes = [relatorioId, ...segmento.map((s) => paraChaveAscii(limpaNome(s).toUpperCase())), nomeArquivo];
   return partes.join("/");
 }
