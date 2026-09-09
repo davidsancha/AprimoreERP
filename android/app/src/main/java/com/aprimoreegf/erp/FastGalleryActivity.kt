@@ -69,18 +69,32 @@ class FastGalleryActivity : AppCompatActivity() {
         // App roda edge-to-edge (targetSdk 36 exige) — sem isso o cabeçalho
         // desenha atrás da status bar/entalhe e o X/pílula do álbum ficam
         // parcialmente escondidos atrás do relógio, ícones do sistema ou da
-        // câmera furo-na-tela. Soma o MAIOR entre o inset da status bar e o
-        // do entalhe (statusBars sozinho às vezes não cobre entalhes mais
-        // altos que a status bar padrão) ao paddingTop original do XML — soma
-        // em vez de substituir, senão o header fica colado no topo em
-        // aparelhos com status bar baixa. requestApplyInsets força o cálculo
-        // já na primeira exibição, sem depender de um evento de layout
-        // posterior pra "empurrar" o cabeçalho pra baixo.
+        // câmera furo-na-tela. A primeira tentativa (só o listener de
+        // WindowInsets) não resolveu num aparelho real — o dispatch pode não
+        // chegar a tempo da primeira exibição em alguns fabricantes/versões.
+        // Agora soma DUAS fontes independentes, ficando com a maior: (1) a
+        // altura clássica da status bar via recurso do sistema, que não
+        // depende de nenhum dispatch de inset e sempre existe; (2) o inset
+        // seguro do entalhe/câmera furo-na-tela, quando maior que a status
+        // bar padrão. Aplica de imediato via `post` (não espera o listener) e
+        // mantém o listener como reforço pra reagir a rotação/mudança de
+        // inset depois.
         val headerGaleria = findViewById<View>(R.id.headerGaleria)
         val paddingTopOriginal = headerGaleria.paddingTop
+
+        fun alturaSeguraDoTopo(): Int {
+            val idStatusBar = resources.getIdentifier("status_bar_height", "dimen", "android")
+            val alturaStatusBar = if (idStatusBar > 0) resources.getDimensionPixelSize(idStatusBar) else 0
+            val alturaEntalhe = ViewCompat.getRootWindowInsets(headerGaleria)?.displayCutout?.safeInsetTop ?: 0
+            return maxOf(alturaStatusBar, alturaEntalhe)
+        }
+
+        headerGaleria.post {
+            headerGaleria.setPadding(headerGaleria.paddingLeft, paddingTopOriginal + alturaSeguraDoTopo(), headerGaleria.paddingRight, headerGaleria.paddingBottom)
+        }
         ViewCompat.setOnApplyWindowInsetsListener(headerGaleria) { view, insets ->
             val barras = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(view.paddingLeft, paddingTopOriginal + barras.top, view.paddingRight, view.paddingBottom)
+            view.setPadding(view.paddingLeft, paddingTopOriginal + maxOf(barras.top, alturaSeguraDoTopo()), view.paddingRight, view.paddingBottom)
             insets
         }
         ViewCompat.requestApplyInsets(headerGaleria)
