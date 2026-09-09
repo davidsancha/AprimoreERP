@@ -288,6 +288,46 @@ export interface DadosNovaEstrutura extends Partial<CamposObraProjeto> {
 
 export async function criarEstrutura(dados: DadosNovaEstrutura): Promise<EstruturaFotografica> {
   const sb = exigirSupabase();
+
+  // Relatório avulso passa pela RPC (SECURITY DEFINER) em vez do insert
+  // direto — contorna o bug de RLS bloqueando Parceiro EGF ("new row
+  // violates row-level security policy") mesmo com payload correto
+  // (is_avulso=true, user_id=auth.uid()). Ver migration
+  // 00026_criar_relatorio_avulso_rpc.sql — a função já força is_avulso e
+  // user_id por dentro, então não abre brecha nenhuma nova de segurança.
+  if (dados.isAvulso) {
+    const { data, error } = await sb.rpc("criar_relatorio_avulso", {
+      p_obra_nome: dados.obraNome,
+      p_tipo_projeto: dados.tipoProjeto,
+      p_banco: dados.banco ?? null,
+      p_modelo_relatorio: dados.modeloRelatorio ?? null,
+      p_agencia: dados.agencia ?? null,
+      p_programa: dados.programa ?? null,
+      p_upe: dados.upe ?? null,
+      p_sap: dados.sap ?? null,
+      p_gestor: dados.gestor ?? null,
+      p_fiscalizacao_empresa: dados.fiscalizacao_empresa ?? null,
+      p_fiscal: dados.fiscal ?? null,
+      p_construtora: dados.construtora ?? null,
+      p_responsavel: dados.responsavel ?? null,
+      p_data_inicio_obra: dados.data_inicio_obra ?? null,
+      p_data_termino_obra: dados.data_termino_obra ?? null,
+      p_uniorg: dados.uniorg ?? null,
+      p_mantenedor: dados.mantenedor ?? null,
+      p_chamado: dados.chamado ?? null,
+      p_relatorio_titulo: dados.relatorio_titulo ?? null,
+      p_data_relatorio: dados.data_relatorio ?? null,
+      p_descricao_problema: dados.descricao_problema ?? null,
+      p_causa_origem: dados.causa_origem ?? null,
+      p_danos: dados.danos ?? null,
+      p_paliativo_retirada_risco: dados.paliativo_retirada_risco ?? null,
+      p_escopo_proposta: dados.escopo_proposta ?? null,
+      p_cronograma: dados.cronograma ?? null,
+    });
+    if (error) throw error;
+    return data;
+  }
+
   const { data, error } = await sb
     .from("engenharia_estrutura_fotografica")
     .insert([
