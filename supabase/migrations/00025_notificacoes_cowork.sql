@@ -115,7 +115,7 @@ BEGIN
   );
 
   RETURN QUERY
-  SELECT erc.id, erc.relatorio_id, erc.user_id, erc.papel, pr.nome, au.email::text
+  SELECT erc.id, erc.relatorio_id, erc.user_id, erc.papel, pr.nome::text, au.email::text
   FROM public.engenharia_relatorio_colaboradores erc
   JOIN public.profiles pr ON pr.id = erc.user_id
   JOIN auth.users au ON au.id = erc.user_id

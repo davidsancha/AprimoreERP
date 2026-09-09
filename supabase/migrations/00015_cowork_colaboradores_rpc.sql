@@ -49,7 +49,7 @@ BEGIN
   ON CONFLICT (relatorio_id, user_id) DO UPDATE SET papel = excluded.papel;
 
   RETURN QUERY
-  SELECT c.id, c.relatorio_id, c.user_id, c.papel, pr.nome, u.email::text
+  SELECT c.id, c.relatorio_id, c.user_id, c.papel, pr.nome::text, u.email::text
   FROM public.engenharia_relatorio_colaboradores c
   JOIN public.profiles pr ON pr.id = c.user_id
   JOIN auth.users u ON u.id = c.user_id
@@ -74,7 +74,7 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT c.id, c.relatorio_id, c.user_id, c.papel, pr.nome, u.email::text
+  SELECT c.id, c.relatorio_id, c.user_id, c.papel, pr.nome::text, u.email::text
   FROM public.engenharia_relatorio_colaboradores c
   JOIN public.profiles pr ON pr.id = c.user_id
   JOIN auth.users u ON u.id = c.user_id
