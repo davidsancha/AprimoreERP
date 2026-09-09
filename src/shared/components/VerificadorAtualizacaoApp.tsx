@@ -90,36 +90,39 @@ export default function VerificadorAtualizacaoApp() {
       const nomeArquivo = atualizacao.apkUrl.split('/').pop()?.split('?')[0] || 'aprimore-erp.apk';
       const base64 = await blobParaBase64(blob);
       const caminho = `AprimoreERP/${nomeArquivo}`;
-      // Directory.External (armazenamento externo PRÓPRIO do app) em vez de
-      // Directory.Documents (pasta pública) — a pública esbarra no escopo de
-      // storage do Android 10+ e dava "open failed: EACCES" ao tentar abrir
-      // o arquivo de volta pra instalar (Directory.Documents só funciona sem
-      // travas com android:requestLegacyExternalStorage, que este app não
-      // tem). Directory.External não precisa de permissão nenhuma.
-      const { uri } = await Filesystem.writeFile({
-        path: caminho,
-        data: base64,
-        directory: Directory.External,
-        recursive: true,
-      });
-      const caminhoLocal = uri.replace(/^file:\/\//, '');
 
       // O plugin nativo (AbrirArquivo) só existe a partir desta própria
       // atualização — quem ainda está numa versão do app anterior a ele não
       // tem o plugin instalado (o JS carrega remoto e atualiza na hora, mas
-      // plugin nativo só entra com um APK novo de verdade), e chamá-lo
-      // quebraria com "plugin is not implemented on Android". Checa antes:
-      // se não tiver, cai pro fluxo manual de sempre (só dessa vez — depois
-      // que a pessoa instalar esta versão, as próximas já vêm com o plugin
-      // e instalam sozinhas).
-      if (Capacitor.isPluginAvailable('AbrirArquivo')) {
+      // plugin nativo só entra com um APK novo de verdade). Decide ANTES de
+      // salvar, porque a pasta certa muda conforme o caso:
+      // - Com plugin: Directory.External (armazenamento próprio do app) —
+      //   não esbarra no escopo de storage do Android 10+ (era o
+      //   "open failed: EACCES" de antes), e quem abre o arquivo é o
+      //   próprio app via FileProvider, então não precisa aparecer pro
+      //   usuário em lugar nenhum.
+      // - Sem plugin (instalação manual, só na 1ª vez pra quem ainda não
+      //   tem o plugin): Directory.Documents (pasta pública) — precisa ser
+      //   visível no app Arquivos do celular pra pessoa conseguir abrir na
+      //   mão; Directory.External fica escondido em Android/data, que os
+      //   apps de Arquivos não mostram por padrão a partir do Android 11.
+      const pluginDisponivel = Capacitor.isPluginAvailable('AbrirArquivo');
+      const { uri } = await Filesystem.writeFile({
+        path: caminho,
+        data: base64,
+        directory: pluginDisponivel ? Directory.External : Directory.Documents,
+        recursive: true,
+      });
+
+      if (pluginDisponivel) {
+        const caminhoLocal = uri.replace(/^file:\/\//, '');
         await abrirArquivoNativo(caminhoLocal, 'application/vnd.android.package-archive');
         // Fecha a notificação assim que o instalador abre — não precisa
         // mais ficar na tela, o Android já assumiu o resto do fluxo.
         setAtualizacao(null);
       } else {
         setMensagemBaixar({
-          texto: 'Baixado! Abra o arquivo pelo app Arquivos do celular pra instalar (a partir da próxima atualização isso já acontece sozinho).',
+          texto: `Baixado em Documentos/AprimoreERP/${nomeArquivo} — abra pelo app Arquivos do celular pra instalar (a partir da próxima atualização isso já acontece sozinho).`,
           erro: false,
         });
       }
