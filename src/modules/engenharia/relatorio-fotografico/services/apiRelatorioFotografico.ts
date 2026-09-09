@@ -209,6 +209,14 @@ export interface ColaboradorRelatorio {
   email: string;
 }
 
+/** Busca um relatório específico pelo id — usado ao abrir a partir de uma notificação de compartilhamento. */
+export async function buscarEstruturaPorId(id: string): Promise<EstruturaFotografica | null> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("engenharia_estrutura_fotografica").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function listarColaboradores(relatorioId: string): Promise<ColaboradorRelatorio[]> {
   const sb = exigirSupabase();
   const { data, error } = await sb.rpc("listar_colaboradores_relatorio", { p_relatorio_id: relatorioId });

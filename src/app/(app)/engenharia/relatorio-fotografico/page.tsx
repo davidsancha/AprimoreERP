@@ -9,6 +9,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Copy,
+  FileText,
   Folder,
   GripVertical,
   Image as ImageIcon,
@@ -30,6 +32,7 @@ import {
   atualizarEquipamentos,
   atualizarEstrutura,
   atualizarProgresso,
+  buscarEstruturaPorId,
   buscarProjetoPorId,
   buscarProjetos,
   buscarProjetosComFiltros,
@@ -817,6 +820,7 @@ function RelatorioFotograficoContent() {
   const { offline, pendencias: pendenciasOffline, sincronizando: sincronizandoOffline, ultimoResultado, sincronizarAgora } = useSincronizacaoOffline();
   const searchParams = useSearchParams();
   const projetoIdUrl = searchParams.get('projetoId');
+  const relatorioIdUrl = searchParams.get('relatorio');
   // Parceiro EGF — acesso convidado, restrito aos próprios relatórios
   // avulsos (nunca vinculados a projeto corporativo); ver README.md.
   const ehParceiroEgf = profile?.role === 'convidado';
@@ -946,6 +950,8 @@ function RelatorioFotograficoContent() {
   const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
   const [sucessoPptx, setSucessoPptx] = useState<string | null>(null);
+  const [montandoPdf, setMontandoPdf] = useState(false);
+  const [sucessoPdf, setSucessoPdf] = useState<string | null>(null);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
   // reforma "clássica" tem servico+ambiente; Santander só ambiente (sem
@@ -1019,6 +1025,18 @@ function RelatorioFotograficoContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoIdUrl]);
+
+  // Vindo de uma notificação de compartilhamento (?relatorio=<id>) — abre
+  // direto o relatório em questão, sem o usuário precisar procurar na lista.
+  useEffect(() => {
+    if (!relatorioIdUrl) return;
+    buscarEstruturaPorId(relatorioIdUrl)
+      .then((r) => {
+        if (r) carregarEstruturaNoFormulario(r);
+      })
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatorioIdUrl]);
 
   // autocomplete de projeto — mesmo padrão do FormProjeto (busca + dropdown)
   useEffect(() => {
@@ -1136,6 +1154,41 @@ function RelatorioFotograficoContent() {
     setIsAvulso(true);
     setObraNome(r.obra_nome || '');
     carregarEstruturaNoFormulario(r);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /**
+   * Duplica os dados de cabeçalho de um relatório já existente (banco,
+   * modelo, agência, gestor etc.) pra começar um novo relatório avulso sem
+   * redigitar tudo numa obra parecida — não copia fotos nem equipamentos/
+   * serviços, só o cabeçalho, e não salva nada ainda: fica um rascunho novo
+   * até o próprio usuário revisar e clicar em "Iniciar relatório".
+   */
+  function duplicarRelatorio(r: EstruturaFotografica) {
+    setEstrutura(null);
+    setProjetoSelecionado(null);
+    setVinculoPendenteNome(null);
+    setHabilitarEdicaoObra(false);
+    setIsAvulso(true);
+    setObraNome(r.obra_nome ? `Cópia de ${r.obra_nome}` : '');
+    setTipoProjeto(r.tipo_projeto);
+    setBanco(r.banco || '');
+    setModeloRelatorio(r.modelo_relatorio || '');
+    setPrograma(r.programa || '');
+    setAgencia(r.agencia || '');
+    setUpe(r.upe || '');
+    setSap(r.sap || '');
+    setGestor(r.gestor || '');
+    setFiscEmpresa(r.fiscalizacao_empresa || '');
+    setFiscal(r.fiscal || '');
+    setConstrutora(r.construtora || '');
+    setResponsavel(r.responsavel || '');
+    setDataInicioObra('');
+    setDataTerminoObra('');
+    setResumoExpandido(true);
+    setDadosExpandido(true);
+    setModoSlides(false);
+    setTipoExpandido(true);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -1817,6 +1870,77 @@ function RelatorioFotograficoContent() {
     }
   }
 
+  /**
+   * Exportação em PDF — não depende de template configurado no Storage
+   * (ao contrário do PowerPoint), então fica disponível pra qualquer banco/
+   * modelo assim que os slides tiverem as duas fotos.
+   */
+  async function exportarPdf() {
+    if (!estrutura) return;
+    if (progresso.some((s) => !slideCompleto(s))) {
+      setErro('Há slide(s) sem foto — complete antes de exportar.');
+      return;
+    }
+    setMontandoPdf(true);
+    setErro(null);
+    setSucessoPdf(null);
+    try {
+      const linhasCapa: [string, string | undefined][] = ehSantander
+        ? [
+            ['Mantenedor', mantenedor || undefined],
+            ['Chamado', chamado || undefined],
+            ['Relatório', relatorioTitulo || undefined],
+            ['Data do relatório', dataRelatorio || undefined],
+          ]
+        : [
+            ['Gestor de obras', gestor || undefined],
+            ['Responsável', responsavel || undefined],
+            ['Construtora', construtora || undefined],
+            ['Início da obra', formatarData(dataInicioObra) || undefined],
+            ['Término da obra', formatarData(dataTerminoObra) || undefined],
+          ];
+      const slides = ehSantander
+        ? progresso.map((s) => ({
+            ambiente: s.ambiente || '',
+            comentario: s.comentario || '',
+            fotoAntesPath: s.foto_antes_path,
+            fotoDepoisPath: s.foto_depois_path,
+            fotoDurantePath: s.foto_durante_path,
+          }))
+        : progresso.map((s) => ({
+            descricao: s.equipamento
+              ? descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'alta')
+              : descricaoReforma(s.servico || '', s.ambiente || '', 'alta'),
+            fotoAntesPath: s.foto_antes_path,
+            fotoDepoisPath: s.foto_depois_path,
+          }));
+
+      const resp = await fetch('/api/relatorio-fotografico/gerar-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          linhasCapa,
+          slides,
+          banco,
+          subtitulo: [agencia, uniorg].filter(Boolean).join(' · ') || undefined,
+          nomeFallback: isAvulso ? obraNome : projetoSelecionado?.nome || 'projeto',
+        }),
+      });
+      if (!resp.ok) {
+        const dados = await resp.json().catch(() => ({}) as { erro?: string });
+        throw new Error(dados.erro || 'Falha ao exportar o PDF.');
+      }
+      const blob = await resp.blob();
+      const nomeCabecalho = resp.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1];
+      const nomeArquivo = nomeCabecalho ? decodeURIComponent(nomeCabecalho) : 'relatorio.pdf';
+      setSucessoPdf(await salvarArquivoNoAparelho(blob, nomeArquivo));
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setMontandoPdf(false);
+    }
+  }
+
   const secao = 'bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm';
   const tituloSecao =
     'text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom';
@@ -1868,6 +1992,23 @@ function RelatorioFotograficoContent() {
       )}
       {sucessoPptx && !montandoPptx && (
         <p className="text-[10px] text-emerald-600 font-semibold text-center">{sucessoPptx}</p>
+      )}
+    </div>
+  );
+
+  const botaoExportarPdf = estrutura && (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        disabled={!!motivoBloqueioPptx || montandoPdf}
+        onClick={exportarPdf}
+        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-background border border-card-border text-main text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:border-brand-ocre transition-colors"
+      >
+        {montandoPdf ? <Loader2 className="animate-spin" size={16} /> : <FileText size={16} />}
+        {montandoPdf ? 'Exportando…' : 'Exportar PDF'}
+      </button>
+      {sucessoPdf && !montandoPdf && (
+        <p className="text-[10px] text-emerald-600 font-semibold text-center">{sucessoPdf}</p>
       )}
     </div>
   );
@@ -1930,18 +2071,26 @@ function RelatorioFotograficoContent() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {meusRelatorios.map((r) => (
-                <button
+                <div
                   key={r.id}
-                  type="button"
-                  onClick={() => abrirMeuRelatorio(r)}
-                  className="text-left px-3 py-2.5 rounded-lg border border-card-border bg-background hover:border-brand-ocre/50 transition-colors"
+                  className="flex items-stretch gap-1.5 rounded-lg border border-card-border bg-background hover:border-brand-ocre/50 transition-colors overflow-hidden"
                 >
-                  <div className="text-xs font-bold text-main truncate">{r.obra_nome || 'Sem nome'}</div>
-                  <div className="text-[10px] text-sub">
-                    {r.tipo_projeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'} ·{' '}
-                    {new Date(r.updated_at).toLocaleDateString('pt-BR')}
-                  </div>
-                </button>
+                  <button type="button" onClick={() => abrirMeuRelatorio(r)} className="flex-1 min-w-0 text-left px-3 py-2.5">
+                    <div className="text-xs font-bold text-main truncate">{r.obra_nome || 'Sem nome'}</div>
+                    <div className="text-[10px] text-sub">
+                      {r.tipo_projeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'} ·{' '}
+                      {new Date(r.updated_at).toLocaleDateString('pt-BR')}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => duplicarRelatorio(r)}
+                    title="Duplicar cabeçalho pra um relatório novo"
+                    className="px-2.5 flex items-center justify-center text-sub hover:text-brand-ocre border-l border-card-border shrink-0"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -1982,6 +2131,14 @@ function RelatorioFotograficoContent() {
                 <Share2 size={12} /> Compartilhar
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => duplicarRelatorio(estrutura)}
+              className="flex items-center gap-1 text-[10px] font-bold text-sub hover:text-brand-ocre whitespace-nowrap"
+              title="Duplicar o cabeçalho pra um relatório novo"
+            >
+              <Copy size={12} /> Duplicar
+            </button>
             <button
               type="button"
               onClick={() => setResumoExpandido(true)}
@@ -2927,7 +3084,12 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
-      {estrutura && tipoProjeto === 'reforma' && botaoMontarPptx}
+      {estrutura && tipoProjeto === 'reforma' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {botaoMontarPptx}
+          {botaoExportarPdf}
+        </div>
+      )}
 
       {/* lista dos slides de reforma já gerados, logo abaixo da etapa 6 —
           reordenar, pré-visualizar clicando, editar ambiente/etapa, excluir */}
@@ -3214,7 +3376,12 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
-      {estrutura && tipoProjeto === 'infraestrutura' && botaoMontarPptx}
+      {estrutura && tipoProjeto === 'infraestrutura' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {botaoMontarPptx}
+          {botaoExportarPdf}
+        </div>
+      )}
       </div>
 
       {/* coluna direita — miniaturas dos slides já criados, empilhadas, na

@@ -8,6 +8,7 @@ import ThemeToggle from '@/shared/components/ThemeToggle';
 import { useAuth } from '@/core/auth/AuthProvider';
 import { useConectividade } from '@/shared/hooks/useConectividade';
 import { primeiroNome } from '@/shared/lib/nomes';
+import SininhoNotificacoes from '@/shared/components/SininhoNotificacoes';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout({
@@ -73,6 +74,8 @@ export default function AppLayout({
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
+            <SininhoNotificacoes />
+
             <div className="flex flex-col text-right">
               {/* Só o primeiro nome aqui — é onde o ambiente "fala" com a
                   pessoa; o cargo completo abaixo já dá o resto do contexto. */}
