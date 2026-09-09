@@ -1031,8 +1031,16 @@ function RelatorioFotograficoContent() {
   useEffect(() => {
     if (!relatorioIdUrl) return;
     buscarEstruturaPorId(relatorioIdUrl)
-      .then((r) => {
-        if (r) carregarEstruturaNoFormulario(r);
+      .then(async (r) => {
+        if (!r) return;
+        setIsAvulso(r.is_avulso);
+        if (r.is_avulso) {
+          setObraNome(r.obra_nome || '');
+        } else if (r.projeto_id) {
+          const p = await buscarProjetoPorId(r.projeto_id);
+          if (p) setProjetoSelecionado(p);
+        }
+        carregarEstruturaNoFormulario(r);
       })
       .catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
