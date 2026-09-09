@@ -11,7 +11,14 @@ const ouvintes = new Set<Ouvinte>();
 let ultimoEstadoConhecido = typeof navigator !== "undefined" ? navigator.onLine : true;
 
 export function estaOnlineSegundoNavegador(): boolean {
-  return typeof navigator !== "undefined" ? navigator.onLine : true;
+  // Node 21+ já tem um `navigator` global mínimo (compat com Web APIs) sem
+  // `.onLine` — checar só `typeof navigator` não bastava e fazia esse valor
+  // sair `undefined` (≈ falsy) na renderização no servidor, batendo
+  // "Offline" ali contra o "Online" real do navegador no cliente. Isso
+  // disparava um mismatch de hidratação (React descartava e re-renderizava
+  // a árvore inteira do cabeçalho a cada carregamento de página) — o erro
+  // "benigno" #418 que aparecia o tempo todo era esse.
+  return typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" ? navigator.onLine : true;
 }
 
 /** Ping leve e rápido (timeout curto) — usado antes de tentar sincronizar, não em toda interação. */

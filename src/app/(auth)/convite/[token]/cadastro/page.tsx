@@ -12,7 +12,18 @@ const MOTIVO_MENSAGEM: Record<string, string> = {
   ja_aceito: 'Esse convite já foi usado — se é você, é só entrar normalmente.',
   revogado: 'Esse convite foi cancelado. Peça um novo pra quem te convidou.',
   expirado: 'Esse convite expirou. Peça um novo pra quem te convidou.',
+  erro_rede: 'Não deu pra carregar o convite agora — pode ser a conexão. Tente de novo.',
 };
+
+/** Nunca deixa a tela girando pra sempre — se a rede cair ou o Supabase
+ *  demorar demais, corta em 12s e mostra erro com botão de tentar de novo
+ *  em vez de um spinner infinito sem explicação nenhuma. */
+function comLimiteDeTempo<T>(promessa: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promessa),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('tempo_esgotado')), ms)),
+  ]);
+}
 
 export default function CadastroConvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -20,6 +31,7 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
 
   const [carregando, setCarregando] = useState(true);
   const [convite, setConvite] = useState<ConviteInfo | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -29,19 +41,44 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!supabase) return;
+    let cancelado = false;
+    setCarregando(true);
+
     (async () => {
-      const { data, error } = await supabase.rpc('obter_convite_por_token', { p_token: token });
-      if (error) {
-        setConvite({ valido: false, motivo: 'nao_encontrado' });
-      } else {
-        setConvite(data as ConviteInfo);
-        setNome(data?.nome || '');
-        setTelefone(data?.telefone || '');
+      if (!supabase) {
+        if (!cancelado) {
+          setConvite({ valido: false, motivo: 'erro_rede' });
+          setCarregando(false);
+        }
+        return;
       }
-      setCarregando(false);
+      try {
+        const { data, error } = await comLimiteDeTempo(
+          supabase.rpc('obter_convite_por_token', { p_token: token }),
+          12_000,
+        );
+        if (cancelado) return;
+        if (error) {
+          setConvite({ valido: false, motivo: 'nao_encontrado' });
+        } else {
+          setConvite(data as ConviteInfo);
+          setNome(data?.nome || '');
+          setTelefone(data?.telefone || '');
+        }
+      } catch {
+        // rede caiu ou o Supabase não respondeu a tempo — nunca deixa
+        // "carregando" preso pra sempre, sempre resolve pra um estado
+        // que a pessoa consegue ver e tentar de novo.
+        if (!cancelado) setConvite({ valido: false, motivo: 'erro_rede' });
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
     })();
-  }, [token]);
+
+    return () => {
+      cancelado = true;
+    };
+  }, [token, tentativa]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,20 +100,26 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
 
     setEnviando(true);
     try {
-      const { error: aceitarError } = await supabase.rpc('aceitar_convite', {
-        p_token: token,
-        p_nome: nome,
-        p_telefone: telefone || null,
-        p_password: senha,
-      });
+      const { error: aceitarError } = await comLimiteDeTempo(
+        supabase.rpc('aceitar_convite', {
+          p_token: token,
+          p_nome: nome,
+          p_telefone: telefone || null,
+          p_password: senha,
+        }),
+        15_000,
+      );
       if (aceitarError) throw aceitarError;
 
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email: convite!.email!, password: senha });
+      const { error: loginError } = await comLimiteDeTempo(
+        supabase.auth.signInWithPassword({ email: convite!.email!, password: senha }),
+        15_000,
+      );
       if (loginError) throw loginError;
 
       router.push('/');
     } catch (err: any) {
-      setErro(err.message || 'Não foi possível completar o cadastro.');
+      setErro(err?.message === 'tempo_esgotado' ? 'Demorou demais pra responder — confira sua conexão e tente de novo.' : err.message || 'Não foi possível completar o cadastro.');
       setEnviando(false);
     }
   };
@@ -96,11 +139,23 @@ export default function CadastroConvitePage({ params }: { params: Promise<{ toke
           <div className="mx-auto h-14 w-14 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center">
             <X size={26} />
           </div>
-          <h1 className="text-lg font-bold text-main">Convite indisponível</h1>
+          <h1 className="text-lg font-bold text-main">
+            {convite?.motivo === 'erro_rede' ? 'Não deu pra carregar' : 'Convite indisponível'}
+          </h1>
           <p className="text-sm text-sub">{MOTIVO_MENSAGEM[convite?.motivo || 'nao_encontrado']}</p>
-          <a href="/login" className="inline-block mt-2 text-sm font-bold text-brand-ocre hover:underline">
-            Ir para o login
-          </a>
+          {convite?.motivo === 'erro_rede' ? (
+            <button
+              type="button"
+              onClick={() => setTentativa((t) => t + 1)}
+              className="inline-block mt-2 bg-brand-ocre text-brand-dark font-bold text-sm py-2.5 px-6 rounded-xl hover:bg-brand-ocre/90 transition-all"
+            >
+              Tentar de novo
+            </button>
+          ) : (
+            <a href="/login" className="inline-block mt-2 text-sm font-bold text-brand-ocre hover:underline">
+              Ir para o login
+            </a>
+          )}
         </div>
       </div>
     );

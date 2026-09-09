@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Sem isso, o Tailwind v4 usa `prefers-color-scheme` (tema do aparelho) como
+   variante `dark:` por padrão — não a classe `.dark` que o ThemeContext liga
+   no <html> quando a pessoa escolhe o tema aqui dentro do app. Resultado
+   bem confuso: toda classe `dark:*` do projeto inteiro (não só os campos
+   desabilitados que o David notou) seguia o tema do CELULAR, enquanto o
+   resto da interface (que usa as variáveis CSS abaixo, não `dark:*`)
+   seguia certinho o tema escolhido no app — os dois podiam divergir. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   /* Tema Claro (Light Mode) - Elegância e Sobriedade */
   --background: #f5f7fa; /* Cinza suave e fosco, muito agradável visualmente */
