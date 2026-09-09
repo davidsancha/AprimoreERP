@@ -9,6 +9,7 @@ import { useAuth } from '@/core/auth/AuthProvider';
 import { useConectividade } from '@/shared/hooks/useConectividade';
 import { primeiroNome } from '@/shared/lib/nomes';
 import SininhoNotificacoes from '@/shared/components/SininhoNotificacoes';
+import SugestaoInstalarApp from '@/shared/components/SugestaoInstalarApp';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout({
@@ -96,6 +97,8 @@ export default function AppLayout({
             </button>
           </div>
         </header>
+
+        <SugestaoInstalarApp />
 
         {/* Páginas do ERP */}
         <main className="flex-1 p-4 md:p-8 bg-background">

@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(FastGalleryPlugin.class);
+        registerPlugin(AbrirArquivoPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Garante que o WebView do app mantenha toda a navegação interna

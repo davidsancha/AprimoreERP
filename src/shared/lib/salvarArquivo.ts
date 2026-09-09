@@ -35,7 +35,7 @@ export async function salvarArquivoNoAparelho(blob: Blob, nomeArquivo: string): 
   return `"${nomeArquivo}" baixado.`;
 }
 
-function blobParaBase64(blob: Blob): Promise<string> {
+export function blobParaBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {

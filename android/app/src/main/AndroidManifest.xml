@@ -46,6 +46,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Instalar a atualização do próprio app assim que o APK termina de
+         baixar (ver AbrirArquivoPlugin.kt) — sem isso o Android bloqueia o
+         ACTION_VIEW do instalador de pacotes em vez de só pedir permissão. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Fast Gallery — leitura de fotos pra listar a pasta da câmera (DCIM/Camera) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

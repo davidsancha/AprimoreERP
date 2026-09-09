@@ -3,22 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Download, Sparkles, X } from 'lucide-react';
-import { salvarArquivoNoAparelho } from '@/shared/lib/salvarArquivo';
-
-interface VersaoRemota {
-  versionCode: number;
-  versionName: string;
-  apkUrl: string;
-  notes?: string;
-  publishedAt?: string;
-}
-
-const URL_VERSAO_JSON =
-  'https://fbctoskurwbdlqwrdbqg.supabase.co/storage/v1/object/public/relatorios-fotograficos/apk/version.json';
+import { abrirArquivoNativo } from '@/shared/lib/abrirArquivo';
+import { blobParaBase64 } from '@/shared/lib/salvarArquivo';
+import { URL_VERSAO_APK_JSON, type VersaoRemotaApk } from '@/shared/lib/apkAtualizacao';
 
 export default function VerificadorAtualizacaoApp() {
-  const [atualizacao, setAtualizacao] = useState<VersaoRemota | null>(null);
+  const [atualizacao, setAtualizacao] = useState<VersaoRemotaApk | null>(null);
   const [versaoInstalada, setVersaoInstalada] = useState<string>('');
   const [baixando, setBaixando] = useState(false);
   const [mensagemBaixar, setMensagemBaixar] = useState<{ texto: string; erro: boolean } | null>(null);
@@ -35,12 +27,12 @@ export default function VerificadorAtualizacaoApp() {
         if (cancelado) return;
         setVersaoInstalada(info.version || info.build);
 
-        const resp = await fetch(`${URL_VERSAO_JSON}?_t=${Date.now()}`, {
+        const resp = await fetch(`${URL_VERSAO_APK_JSON}?_t=${Date.now()}`, {
           cache: 'no-store',
         });
         if (!resp.ok) return;
 
-        const remota: VersaoRemota = await resp.json();
+        const remota: VersaoRemotaApk = await resp.json();
         if (!remota || !remota.apkUrl) return;
 
         const buildAtual = parseInt(info.build, 10) || 0;
@@ -96,8 +88,20 @@ export default function VerificadorAtualizacaoApp() {
       if (!resp.ok) throw new Error(`Falha ao baixar (HTTP ${resp.status})`);
       const blob = await resp.blob();
       const nomeArquivo = atualizacao.apkUrl.split('/').pop()?.split('?')[0] || 'aprimore-erp.apk';
-      const texto = await salvarArquivoNoAparelho(blob, nomeArquivo);
-      setMensagemBaixar({ texto: `${texto} Abra o arquivo pra instalar.`, erro: false });
+      const base64 = await blobParaBase64(blob);
+      const caminho = `AprimoreERP/${nomeArquivo}`;
+      const { uri } = await Filesystem.writeFile({
+        path: caminho,
+        data: base64,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      // Dispara o instalador do Android direto — a primeira vez ainda pede
+      // pro usuário liberar "instalar apps desconhecidos" (o Android exige
+      // essa confirmação, não dá pra pular), mas depois disso passa a
+      // instalar direto a cada atualização, sem precisar caçar o arquivo.
+      await abrirArquivoNativo(uri.replace(/^file:\/\//, ''), 'application/vnd.android.package-archive');
+      setMensagemBaixar({ texto: 'Baixado! Abrindo o instalador…', erro: false });
     } catch (err) {
       setMensagemBaixar({ texto: err instanceof Error ? err.message : 'Não foi possível baixar a atualização.', erro: true });
     } finally {
