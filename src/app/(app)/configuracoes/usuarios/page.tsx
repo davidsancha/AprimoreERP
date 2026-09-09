@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, ShieldAlert, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Shield, ShieldAlert, Loader2, Lock, Unlock, Trash2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useAuth } from '@/core/auth/AuthProvider';
 import ModalNovoConvite from '@/modules/configuracoes/components/ModalNovoConvite';
+import ConfirmButton from '@/shared/components/ConfirmButton';
 import Toast, { ToastType } from '@/shared/components/Toast';
 
 export default function UsuariosPage() {
@@ -39,6 +40,42 @@ export default function UsuariosPage() {
 
   const handleConviteCriado = () => {
     setToast({ message: 'Convite gerado! Copie o link e mande pra pessoa.', type: 'success' });
+  };
+
+  const bloquear = async (id: string) => {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.rpc('bloquear_usuario', { p_user_id: id });
+      if (error) throw error;
+      setToast({ message: 'Usuário bloqueado.', type: 'success' });
+      fetchUsuarios();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Erro ao bloquear usuário.', type: 'error' });
+    }
+  };
+
+  const desbloquear = async (id: string) => {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.rpc('desbloquear_usuario', { p_user_id: id });
+      if (error) throw error;
+      setToast({ message: 'Usuário desbloqueado.', type: 'success' });
+      fetchUsuarios();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Erro ao desbloquear usuário.', type: 'error' });
+    }
+  };
+
+  const excluir = async (id: string) => {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.rpc('excluir_usuario', { p_user_id: id });
+      if (error) throw error;
+      setToast({ message: 'Usuário excluído.', type: 'success' });
+      fetchUsuarios();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Erro ao excluir usuário.', type: 'error' });
+    }
   };
 
   // Verifica se o usuário logado tem permissão god/admin
@@ -90,12 +127,13 @@ export default function UsuariosPage() {
                   <th className="p-4 font-bold">E-mail</th>
                   <th className="p-4 font-bold">Nível de Acesso</th>
                   <th className="p-4 font-bold">Data de Cadastro</th>
+                  <th className="p-4 font-bold">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
                 {usuarios.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-sub">Nenhum usuário encontrado.</td>
+                    <td colSpan={5} className="p-8 text-center text-sub">Nenhum usuário encontrado.</td>
                   </tr>
                 ) : (
                   usuarios.map((u) => (
@@ -106,7 +144,14 @@ export default function UsuariosPage() {
                             {u.nome?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div>
-                            <div className="font-bold text-main">{u.nome || 'Usuário Sem Nome'}</div>
+                            <div className="font-bold text-main flex items-center gap-1.5">
+                              {u.nome || 'Usuário Sem Nome'}
+                              {u.bloqueado && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                  <Lock size={9} /> Bloqueado
+                                </span>
+                              )}
+                            </div>
                             {u.cargo && <div className="text-[10px] text-sub font-semibold">{u.cargo}</div>}
                           </div>
                         </div>
@@ -126,6 +171,41 @@ export default function UsuariosPage() {
                       </td>
                       <td className="p-4 text-sm text-sub">
                         {new Date(u.created_at).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="p-4">
+                        {u.role === 'god' || u.id === user?.id ? (
+                          <span className="text-[10px] text-sub italic">—</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {u.bloqueado ? (
+                              <button
+                                type="button"
+                                onClick={() => desbloquear(u.id)}
+                                title="Desbloquear acesso"
+                                className="p-2 rounded-lg border border-card-border bg-background hover:bg-emerald-500/10 text-desc hover:text-emerald-500 transition-colors"
+                              >
+                                <Unlock size={13} />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => bloquear(u.id)}
+                                title="Bloquear acesso"
+                                className="p-2 rounded-lg border border-card-border bg-background hover:bg-amber-500/10 text-desc hover:text-amber-500 transition-colors"
+                              >
+                                <Lock size={13} />
+                              </button>
+                            )}
+                            <ConfirmButton
+                              onConfirm={() => excluir(u.id)}
+                              confirmLabel="Confirmar?"
+                              icon={Trash2}
+                              className="p-2 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors"
+                              confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-2"
+                              title="Excluir cadastro definitivamente"
+                            />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

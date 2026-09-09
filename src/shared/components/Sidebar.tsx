@@ -103,12 +103,24 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
     {
       title: 'Principal',
       items: [
-        { 
-          label: 'Visão Geral', 
-          icon: LayoutDashboard, 
+        {
+          label: 'Visão Geral',
+          icon: LayoutDashboard,
           roles: ['god', 'admin', 'engenheiro', 'financeiro'],
           subItems: [
             { label: 'Dashboard Central', href: '/', active: true }
+          ]
+        },
+        // Parceiro EGF tem a própria home (não o dashboard financeiro
+        // acima) — item à parte pra não misturar roles no mesmo subItems
+        // (o filtro de acesso hoje é por item inteiro, não por subItem).
+        {
+          label: 'Meu Espaço',
+          icon: LayoutDashboard,
+          roles: ['convidado'],
+          subItems: [
+            { label: 'Início', href: '/', active: true },
+            { label: 'Tutorial', href: '/tutorial', active: true }
           ]
         }
       ]
@@ -296,7 +308,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
             { label: 'Gestão de Usuários', href: '/configuracoes/usuarios', active: true },
             { label: 'Convites', href: '/configuracoes/convites', active: true },
             { label: 'Perfis e Acessos', href: '#', active: false, badge: 'Breve' },
-            { label: 'Log de Atividades', href: '#', active: false, badge: 'Breve' }
+            { label: 'Log de Atividades', href: '/configuracoes/log-atividades', active: true }
           ]
         }
       ]

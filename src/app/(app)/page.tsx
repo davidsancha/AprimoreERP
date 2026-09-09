@@ -47,6 +47,8 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import ValorPremium from '@/shared/components/ValorPremium';
 import ConfirmButton from '@/shared/components/ConfirmButton';
 import Toast, { ToastType } from '@/shared/components/Toast';
+import { useAuth } from '@/core/auth/AuthProvider';
+import DashboardParceiroEgf from './DashboardParceiroEgf';
 
 interface ProjetoComFinanceiro extends Projeto {
   custoPrevisto: number;
@@ -55,7 +57,19 @@ interface ProjetoComFinanceiro extends Projeto {
   saudePercentual: number;
 }
 
+/**
+ * Parceiro EGF (role 'convidado') tem uma home própria — nunca vê o
+ * dashboard financeiro/operacional abaixo (nem faz sentido pra ele, nem
+ * ele tem RLS pra essas tabelas). Checagem aqui, antes de `DashboardInterno`
+ * montar e disparar os fetches financeiros à toa.
+ */
 export default function DashboardPage() {
+  const { profile } = useAuth();
+  if (profile?.role === 'convidado') return <DashboardParceiroEgf />;
+  return <DashboardInterno />;
+}
+
+function DashboardInterno() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [projetos, setProjetos] = useState<ProjetoComFinanceiro[]>([]);

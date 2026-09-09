@@ -11,6 +11,9 @@ export type UserProfile = {
   nome: string;
   role: string;
   cargo: string;
+  telefone?: string | null;
+  bloqueado?: boolean;
+  tutorial_visto?: boolean;
 };
 
 type AuthContextType = {
