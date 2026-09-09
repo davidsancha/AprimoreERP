@@ -53,10 +53,12 @@ export default function AppLayout({
               <Menu size={24} />
             </button>
 
-            {/* Tema e sinal de conectividade ficam à esquerda, colados no
-                menu, em qualquer tamanho de tela — ordem: tema, depois
-                sinal (pedido explícito, já foi assim antes). */}
+            {/* Ordem à esquerda, colada no menu, em qualquer tamanho de
+                tela (pedido explícito): tema, notificações, sinal de
+                conectividade por último. */}
             <ThemeToggle />
+
+            <SininhoNotificacoes />
 
             <div className="flex flex-col items-center gap-0.5" title={online ? 'Conectado' : 'Sem conexão — alterações ficam salvas neste aparelho'}>
               <span className={`h-2.5 w-2.5 rounded-full shrink-0 transition-colors ${online ? 'bg-emerald-500/70' : 'bg-amber-500 animate-pulse'}`} />
@@ -75,8 +77,6 @@ export default function AppLayout({
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
-            <SininhoNotificacoes />
-
             <div className="flex flex-col text-right">
               {/* Só o primeiro nome aqui — é onde o ambiente "fala" com a
                   pessoa; o cargo completo abaixo já dá o resto do contexto. */}

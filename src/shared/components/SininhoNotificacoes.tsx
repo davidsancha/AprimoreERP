@@ -84,7 +84,12 @@ export default function SininhoNotificacoes() {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[85vw] bg-card border border-card-border rounded-xl shadow-2xl z-50 overflow-hidden">
+        // `fixed` + margens da viewport no mobile — `absolute right-0`
+        // sozinho cortava a caixa pra fora da tela quando o sino ficou perto
+        // da borda esquerda do cabeçalho (cabia de sobra quando ele morava
+        // lá na direita, perto do usuário). A partir de `sm` volta a ser um
+        // dropdown ancorado no botão, com espaço de tela de sobra.
+        <div className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[85vw] bg-card border border-card-border rounded-xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-card-border">
             <span className="text-xs font-bold text-main">Notificações</span>
             {naoLidas > 0 && (

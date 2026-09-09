@@ -90,10 +90,16 @@ export default function VerificadorAtualizacaoApp() {
       const nomeArquivo = atualizacao.apkUrl.split('/').pop()?.split('?')[0] || 'aprimore-erp.apk';
       const base64 = await blobParaBase64(blob);
       const caminho = `AprimoreERP/${nomeArquivo}`;
+      // Directory.External (armazenamento externo PRÓPRIO do app) em vez de
+      // Directory.Documents (pasta pública) — a pública esbarra no escopo de
+      // storage do Android 10+ e dava "open failed: EACCES" ao tentar abrir
+      // o arquivo de volta pra instalar (Directory.Documents só funciona sem
+      // travas com android:requestLegacyExternalStorage, que este app não
+      // tem). Directory.External não precisa de permissão nenhuma.
       const { uri } = await Filesystem.writeFile({
         path: caminho,
         data: base64,
-        directory: Directory.Documents,
+        directory: Directory.External,
         recursive: true,
       });
       // Dispara o instalador do Android direto — a primeira vez ainda pede
@@ -101,7 +107,9 @@ export default function VerificadorAtualizacaoApp() {
       // essa confirmação, não dá pra pular), mas depois disso passa a
       // instalar direto a cada atualização, sem precisar caçar o arquivo.
       await abrirArquivoNativo(uri.replace(/^file:\/\//, ''), 'application/vnd.android.package-archive');
-      setMensagemBaixar({ texto: 'Baixado! Abrindo o instalador…', erro: false });
+      // Fecha a notificação assim que o instalador abre — não precisa mais
+      // ficar na tela, o Android já assumiu o resto do fluxo.
+      setAtualizacao(null);
     } catch (err) {
       setMensagemBaixar({ texto: err instanceof Error ? err.message : 'Não foi possível baixar a atualização.', erro: true });
     } finally {

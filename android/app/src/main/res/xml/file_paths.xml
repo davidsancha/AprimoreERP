@@ -2,4 +2,10 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- Armazenamento externo próprio do app (getExternalFilesDir) — usado
+         pra salvar o .apk de atualização. Diferente de <external-path>
+         (armazenamento público compartilhado): esse aqui não esbarra no
+         escopo de storage do Android 10+ (era a causa do "open failed:
+         EACCES" ao tentar abrir o arquivo salvo em Directory.Documents). -->
+    <external-files-path name="my_files" path="." />
 </paths>
