@@ -72,60 +72,48 @@ export default function VerificadorAtualizacaoApp() {
     setAtualizacao(null);
   }
 
+  // O plugin nativo (AbrirArquivo) só existe a partir da atualização que o
+  // introduziu — quem ainda está numa versão do app anterior a ele não tem
+  // o plugin instalado (o JS carrega remoto e atualiza na hora, mas plugin
+  // nativo só entra com um APK novo de verdade). Sem ele, tentar salvar o
+  // .apk de dentro do próprio app (Filesystem.writeFile, em qualquer pasta
+  // — Documents ou External) deu "open failed: EACCES" nesse aparelho: o
+  // app nunca declarou a permissão de escrita legada que o Android exige
+  // pra isso em várias versões, e não dá pra corrigir isso plugin nenhum
+  // sem antes já ter o plugin (mesmo problema do ovo e da galinha). Única
+  // saída confiável pra essa primeira instalação: baixar pelo navegador de
+  // verdade do celular (Chrome), que tem seu próprio gerenciador de
+  // download/instalação sem essas restrições — em vez de tentar salvar o
+  // arquivo de dentro do WebView do app.
+  const pluginDisponivel = Capacitor.isPluginAvailable('AbrirArquivo');
+
   async function baixarAtualizacao() {
     if (!atualizacao?.apkUrl) return;
     setBaixando(true);
     setMensagemBaixar(null);
     try {
-      // `window.location.href = apkUrl` funcionava antes porque navegar pra
-      // fora do domínio do app ejetava pro Chrome (que sabe baixar/instalar
-      // .apk) — ver Bridge.launchIntent(). Isso parou de acontecer quando
-      // `allowNavigation: ['*']` passou a manter toda navegação dentro do
-      // próprio WebView (fix do problema de SSO da Vercel): agora o link do
-      // APK "carrega" dentro do app, que não tem gerenciador de download, e
-      // o clique parecia não fazer nada — mesma causa raiz do bug do PPTX.
       const resp = await fetch(atualizacao.apkUrl);
       if (!resp.ok) throw new Error(`Falha ao baixar (HTTP ${resp.status})`);
       const blob = await resp.blob();
       const nomeArquivo = atualizacao.apkUrl.split('/').pop()?.split('?')[0] || 'aprimore-erp.apk';
       const base64 = await blobParaBase64(blob);
       const caminho = `AprimoreERP/${nomeArquivo}`;
-
-      // O plugin nativo (AbrirArquivo) só existe a partir desta própria
-      // atualização — quem ainda está numa versão do app anterior a ele não
-      // tem o plugin instalado (o JS carrega remoto e atualiza na hora, mas
-      // plugin nativo só entra com um APK novo de verdade). Decide ANTES de
-      // salvar, porque a pasta certa muda conforme o caso:
-      // - Com plugin: Directory.External (armazenamento próprio do app) —
-      //   não esbarra no escopo de storage do Android 10+ (era o
-      //   "open failed: EACCES" de antes), e quem abre o arquivo é o
-      //   próprio app via FileProvider, então não precisa aparecer pro
-      //   usuário em lugar nenhum.
-      // - Sem plugin (instalação manual, só na 1ª vez pra quem ainda não
-      //   tem o plugin): Directory.Documents (pasta pública) — precisa ser
-      //   visível no app Arquivos do celular pra pessoa conseguir abrir na
-      //   mão; Directory.External fica escondido em Android/data, que os
-      //   apps de Arquivos não mostram por padrão a partir do Android 11.
-      const pluginDisponivel = Capacitor.isPluginAvailable('AbrirArquivo');
+      // Directory.External (armazenamento externo PRÓPRIO do app) — não
+      // precisa de nenhuma permissão especial, ao contrário da pasta
+      // pública. Só chega até aqui quando o plugin já existe (ver botão
+      // abaixo), então quem abre o arquivo de volta é o próprio app via
+      // FileProvider — ninguém precisa navegar até essa pasta na mão.
       const { uri } = await Filesystem.writeFile({
         path: caminho,
         data: base64,
-        directory: pluginDisponivel ? Directory.External : Directory.Documents,
+        directory: Directory.External,
         recursive: true,
       });
-
-      if (pluginDisponivel) {
-        const caminhoLocal = uri.replace(/^file:\/\//, '');
-        await abrirArquivoNativo(caminhoLocal, 'application/vnd.android.package-archive');
-        // Fecha a notificação assim que o instalador abre — não precisa
-        // mais ficar na tela, o Android já assumiu o resto do fluxo.
-        setAtualizacao(null);
-      } else {
-        setMensagemBaixar({
-          texto: `Baixado em Documentos/AprimoreERP/${nomeArquivo} — abra pelo app Arquivos do celular pra instalar (a partir da próxima atualização isso já acontece sozinho).`,
-          erro: false,
-        });
-      }
+      const caminhoLocal = uri.replace(/^file:\/\//, '');
+      await abrirArquivoNativo(caminhoLocal, 'application/vnd.android.package-archive');
+      // Fecha a notificação assim que o instalador abre — não precisa mais
+      // ficar na tela, o Android já assumiu o resto do fluxo.
+      setAtualizacao(null);
     } catch (err) {
       setMensagemBaixar({ texto: err instanceof Error ? err.message : 'Não foi possível baixar a atualização.', erro: true });
     } finally {
@@ -175,25 +163,67 @@ export default function VerificadorAtualizacaoApp() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={dispensar}
-            className="flex-1 py-3 px-4 rounded-xl border border-card-border text-xs font-bold text-sub hover:text-main hover:bg-card-hover transition-colors"
-          >
-            Lembrar depois
-          </button>
+        {pluginDisponivel ? (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={dispensar}
+              className="flex-1 py-3 px-4 rounded-xl border border-card-border text-xs font-bold text-sub hover:text-main hover:bg-card-hover transition-colors"
+            >
+              Lembrar depois
+            </button>
 
-          <button
-            type="button"
-            onClick={baixarAtualizacao}
-            disabled={baixando}
-            className="flex-1 py-3 px-4 rounded-xl bg-brand-ocre hover:bg-brand-ocre/90 text-white text-xs font-bold shadow-lg shadow-brand-ocre/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-          >
-            <Download size={16} />
-            {baixando ? 'Baixando...' : 'Atualizar Agora'}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={baixarAtualizacao}
+              disabled={baixando}
+              className="flex-1 py-3 px-4 rounded-xl bg-brand-ocre hover:bg-brand-ocre/90 text-white text-xs font-bold shadow-lg shadow-brand-ocre/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            >
+              <Download size={16} />
+              {baixando ? 'Baixando...' : 'Atualizar Agora'}
+            </button>
+          </div>
+        ) : (
+          // Sem o plugin, nada que a gente faça de dentro do WebView do app
+          // consegue baixar/instalar sozinho (nem navegação de link comum
+          // funciona pra ejetar pro navegador — allowNavigation: ['*']
+          // mantém tudo dentro do próprio app). Único caminho confiável:
+          // a pessoa abrir esse link no navegador de verdade do celular.
+          <div className="space-y-2.5">
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">
+              Essa é a primeira atualização depois de uma mudança grande — dessa vez precisa ser pelo navegador do celular, fora do app. Copie o link abaixo e abra no Chrome (ou outro navegador). Depois de instalar, as próximas atualizações já acontecem sozinhas por aqui.
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={atualizacao.apkUrl}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-background border border-card-border text-[10px] text-main"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(atualizacao.apkUrl);
+                    setMensagemBaixar({ texto: 'Link copiado! Cole no navegador do celular.', erro: false });
+                  } catch {
+                    setMensagemBaixar({ texto: 'Não deu pra copiar automaticamente — selecione o link acima na mão.', erro: true });
+                  }
+                }}
+                className="shrink-0 px-3 py-2.5 rounded-lg bg-brand-ocre text-white text-[11px] font-bold"
+              >
+                Copiar
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={dispensar}
+              className="w-full py-2.5 rounded-xl border border-card-border text-xs font-bold text-sub hover:text-main hover:bg-card-hover transition-colors"
+            >
+              Lembrar depois
+            </button>
+          </div>
+        )}
         {mensagemBaixar && (
           <p className={`mt-3 text-[11px] font-semibold text-center ${mensagemBaixar.erro ? 'text-red-600' : 'text-emerald-600'}`}>
             {mensagemBaixar.texto}
