@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -50,24 +51,39 @@ class FastGalleryActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Deixa o conteúdo desenhar de propósito por baixo do entalhe/furo de
+        // câmera (em vez do comportamento padrão do Android, que varia por
+        // fabricante) — o inset abaixo é quem garante o afastamento real dos
+        // botões, então esse modo só evita uma faixa preta extra que alguns
+        // aparelhos inserem em cima do cabeçalho.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         setContentView(R.layout.activity_fast_gallery)
 
         recyclerView = findViewById(R.id.recyclerFotos)
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
 
         // App roda edge-to-edge (targetSdk 36 exige) — sem isso o cabeçalho
-        // desenha atrás da status bar e o X/pílula do álbum ficam
-        // parcialmente escondidos atrás do relógio e ícones do sistema.
-        // Soma o inset da status bar ao paddingTop original do XML em vez
-        // de substituir, senão o header fica colado demais no topo em
-        // aparelhos com status bar baixa.
+        // desenha atrás da status bar/entalhe e o X/pílula do álbum ficam
+        // parcialmente escondidos atrás do relógio, ícones do sistema ou da
+        // câmera furo-na-tela. Soma o MAIOR entre o inset da status bar e o
+        // do entalhe (statusBars sozinho às vezes não cobre entalhes mais
+        // altos que a status bar padrão) ao paddingTop original do XML — soma
+        // em vez de substituir, senão o header fica colado no topo em
+        // aparelhos com status bar baixa. requestApplyInsets força o cálculo
+        // já na primeira exibição, sem depender de um evento de layout
+        // posterior pra "empurrar" o cabeçalho pra baixo.
         val headerGaleria = findViewById<View>(R.id.headerGaleria)
         val paddingTopOriginal = headerGaleria.paddingTop
         ViewCompat.setOnApplyWindowInsetsListener(headerGaleria) { view, insets ->
-            val statusBarInsets = insets.getInsets(WindowInsetsCompat.Type.statusBars())
-            view.setPadding(view.paddingLeft, paddingTopOriginal + statusBarInsets.top, view.paddingRight, view.paddingBottom)
+            val barras = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+            view.setPadding(view.paddingLeft, paddingTopOriginal + barras.top, view.paddingRight, view.paddingBottom)
             insets
         }
+        ViewCompat.requestApplyInsets(headerGaleria)
 
         findViewById<TextView>(R.id.textFechar).setOnClickListener {
             setResult(RESULT_CANCELED)
