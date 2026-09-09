@@ -44,13 +44,26 @@ export default function AppLayout({
         {/* Header Superior */}
         <header className="h-16 border-b border-header-border bg-header backdrop-blur-md flex items-center justify-between px-4 md:px-8 sticky top-0 z-40 transition-colors duration-300">
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="md:hidden text-sub hover:text-main p-1"
             >
               <Menu size={24} />
             </button>
-            <div className="hidden md:flex items-center gap-2">
+
+            {/* Tema e sinal de conectividade ficam à esquerda, colados no
+                menu, em qualquer tamanho de tela — ordem: tema, depois
+                sinal (pedido explícito, já foi assim antes). */}
+            <ThemeToggle />
+
+            <div className="flex flex-col items-center gap-0.5" title={online ? 'Conectado' : 'Sem conexão — alterações ficam salvas neste aparelho'}>
+              <span className={`h-2.5 w-2.5 rounded-full shrink-0 transition-colors ${online ? 'bg-emerald-500/70' : 'bg-amber-500 animate-pulse'}`} />
+              <span className={`text-[9px] font-bold uppercase tracking-wide ${online ? 'text-emerald-600 dark:text-emerald-500' : 'text-amber-600 dark:text-amber-500'}`}>
+                {online ? 'Online' : 'Offline'}
+              </span>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 ml-1">
               <span className="h-2.5 w-2.5 rounded-full bg-brand-ocre animate-ping"></span>
               <span className="text-xs font-semibold uppercase tracking-wider text-sub">{ambienteName}</span>
               {profile?.role === 'convidado' && (
@@ -60,17 +73,6 @@ export default function AppLayout({
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
-            {/* Indicador sutil de conectividade — só um ponto discreto, não chama atenção quando está tudo normal (online) */}
-            <span
-              title={online ? 'Conectado' : 'Sem conexão — alterações ficam salvas neste aparelho'}
-              className={`h-1.5 w-1.5 rounded-full shrink-0 transition-colors ${online ? 'bg-emerald-500/50' : 'bg-amber-500 animate-pulse'}`}
-            />
-
-            {/* Alternador de Tema (Light / Dark Mode) */}
-            <ThemeToggle />
-
-            <div className="h-8 w-px bg-card-border" />
-
             <div className="flex flex-col text-right">
               {/* Só o primeiro nome aqui — é onde o ambiente "fala" com a
                   pessoa; o cargo completo abaixo já dá o resto do contexto. */}
