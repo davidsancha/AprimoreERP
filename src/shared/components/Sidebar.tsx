@@ -94,6 +94,12 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
   // Função para verificar acesso aos módulos
   const hasAccess = (allowedRoles: string[]) => {
     if (!profile) return false;
+    // Item exclusivo do Parceiro EGF (só 'convidado' na lista) — não abre pro
+    // bypass de god/admin abaixo, senão "Meu Espaço" aparece duplicado na
+    // sidebar do David junto com "Visão Geral", que já é o home dele.
+    if (allowedRoles.length === 1 && allowedRoles[0] === 'convidado') {
+      return profile.role === 'convidado';
+    }
     // O cargo "god" e "admin" tem acesso total irrestrito a todos os módulos
     if (['god', 'admin'].includes(profile.role)) return true;
     return allowedRoles.includes(profile.role);

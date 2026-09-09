@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  FileText,
   Folder,
   GripVertical,
   Image as ImageIcon,
@@ -950,8 +949,6 @@ function RelatorioFotograficoContent() {
   const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
   const [sucessoPptx, setSucessoPptx] = useState<string | null>(null);
-  const [montandoPdf, setMontandoPdf] = useState(false);
-  const [sucessoPdf, setSucessoPdf] = useState<string | null>(null);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
   // reforma "clássica" tem servico+ambiente; Santander só ambiente (sem
@@ -1879,77 +1876,6 @@ function RelatorioFotograficoContent() {
     }
   }
 
-  /**
-   * Exportação em PDF — não depende de template configurado no Storage
-   * (ao contrário do PowerPoint), então fica disponível pra qualquer banco/
-   * modelo assim que os slides tiverem as duas fotos.
-   */
-  async function exportarPdf() {
-    if (!estrutura) return;
-    if (progresso.some((s) => !slideCompleto(s))) {
-      setErro('Há slide(s) sem foto — complete antes de exportar.');
-      return;
-    }
-    setMontandoPdf(true);
-    setErro(null);
-    setSucessoPdf(null);
-    try {
-      const linhasCapa: [string, string | undefined][] = ehSantander
-        ? [
-            ['Mantenedor', mantenedor || undefined],
-            ['Chamado', chamado || undefined],
-            ['Relatório', relatorioTitulo || undefined],
-            ['Data do relatório', dataRelatorio || undefined],
-          ]
-        : [
-            ['Gestor de obras', gestor || undefined],
-            ['Responsável', responsavel || undefined],
-            ['Construtora', construtora || undefined],
-            ['Início da obra', formatarData(dataInicioObra) || undefined],
-            ['Término da obra', formatarData(dataTerminoObra) || undefined],
-          ];
-      const slides = ehSantander
-        ? progresso.map((s) => ({
-            ambiente: s.ambiente || '',
-            comentario: s.comentario || '',
-            fotoAntesPath: s.foto_antes_path,
-            fotoDepoisPath: s.foto_depois_path,
-            fotoDurantePath: s.foto_durante_path,
-          }))
-        : progresso.map((s) => ({
-            descricao: s.equipamento
-              ? descricaoDe(s.equipamento, s.numero_ponto || '0', s.local || '', 'alta')
-              : descricaoReforma(s.servico || '', s.ambiente || '', 'alta'),
-            fotoAntesPath: s.foto_antes_path,
-            fotoDepoisPath: s.foto_depois_path,
-          }));
-
-      const resp = await fetch('/api/relatorio-fotografico/gerar-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          linhasCapa,
-          slides,
-          banco,
-          subtitulo: [agencia, uniorg].filter(Boolean).join(' · ') || undefined,
-          nomeFallback: isAvulso ? obraNome : projetoSelecionado?.nome || 'projeto',
-        }),
-      });
-      if (!resp.ok) {
-        const dados = await resp.json().catch(() => ({}) as { erro?: string });
-        throw new Error(dados.erro || 'Falha ao exportar o PDF.');
-      }
-      const blob = await resp.blob();
-      const nomeCabecalho = resp.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1];
-      const nomeArquivo = nomeCabecalho ? decodeURIComponent(nomeCabecalho) : 'relatorio.pdf';
-      setSucessoPdf(await salvarArquivoNoAparelho(blob, nomeArquivo));
-    } catch (e) {
-      setErro((e as Error).message);
-    } finally {
-      setMontandoPdf(false);
-    }
-  }
-
   const secao = 'bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm';
   const tituloSecao =
     'text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom';
@@ -2001,23 +1927,6 @@ function RelatorioFotograficoContent() {
       )}
       {sucessoPptx && !montandoPptx && (
         <p className="text-[10px] text-emerald-600 font-semibold text-center">{sucessoPptx}</p>
-      )}
-    </div>
-  );
-
-  const botaoExportarPdf = estrutura && (
-    <div className="space-y-1.5">
-      <button
-        type="button"
-        disabled={!!motivoBloqueioPptx || montandoPdf}
-        onClick={exportarPdf}
-        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-background border border-card-border text-main text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:border-brand-ocre transition-colors"
-      >
-        {montandoPdf ? <Loader2 className="animate-spin" size={16} /> : <FileText size={16} />}
-        {montandoPdf ? 'Exportando…' : 'Exportar PDF'}
-      </button>
-      {sucessoPdf && !montandoPdf && (
-        <p className="text-[10px] text-emerald-600 font-semibold text-center">{sucessoPdf}</p>
       )}
     </div>
   );
@@ -3093,12 +3002,7 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
-      {estrutura && tipoProjeto === 'reforma' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {botaoMontarPptx}
-          {botaoExportarPdf}
-        </div>
-      )}
+      {estrutura && tipoProjeto === 'reforma' && botaoMontarPptx}
 
       {/* lista dos slides de reforma já gerados, logo abaixo da etapa 6 —
           reordenar, pré-visualizar clicando, editar ambiente/etapa, excluir */}
@@ -3385,12 +3289,7 @@ function RelatorioFotograficoContent() {
         </div>
       )}
 
-      {estrutura && tipoProjeto === 'infraestrutura' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {botaoMontarPptx}
-          {botaoExportarPdf}
-        </div>
-      )}
+      {estrutura && tipoProjeto === 'infraestrutura' && botaoMontarPptx}
       </div>
 
       {/* coluna direita — miniaturas dos slides já criados, empilhadas, na
