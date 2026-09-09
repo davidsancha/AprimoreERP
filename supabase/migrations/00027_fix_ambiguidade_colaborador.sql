@@ -37,6 +37,7 @@ RETURNS TABLE (
   nome text,
   email text
 ) AS $$
+#variable_conflict use_column
 DECLARE
   v_user_id uuid;
   v_colaborador_id uuid;
@@ -61,21 +62,20 @@ BEGIN
     RAISE EXCEPTION 'Você já tem acesso ao próprio relatório.';
   END IF;
 
-  -- Upsert manual — nunca usa ON CONFLICT, então "relatorio_id" nunca
-  -- aparece desqualificado em posição nenhuma (ver comentário acima).
+  -- Upsert manual com alias erc explícito
   SELECT erc.id INTO v_existente_id
   FROM public.engenharia_relatorio_colaboradores erc
   WHERE erc.relatorio_id = p_relatorio_id AND erc.user_id = v_user_id;
 
   IF v_existente_id IS NOT NULL THEN
-    UPDATE public.engenharia_relatorio_colaboradores
+    UPDATE public.engenharia_relatorio_colaboradores AS erc
     SET papel = p_papel
-    WHERE id = v_existente_id;
+    WHERE erc.id = v_existente_id;
     v_colaborador_id := v_existente_id;
   ELSE
-    INSERT INTO public.engenharia_relatorio_colaboradores (relatorio_id, user_id, papel)
+    INSERT INTO public.engenharia_relatorio_colaboradores AS erc (relatorio_id, user_id, papel)
     VALUES (p_relatorio_id, v_user_id, p_papel)
-    RETURNING id INTO v_colaborador_id;
+    RETURNING erc.id INTO v_colaborador_id;
   END IF;
 
   SELECT COALESCE(e.obra_nome, 'um relatório') INTO v_obra_nome
