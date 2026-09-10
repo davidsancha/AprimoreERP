@@ -20,6 +20,17 @@ export async function fetchProjetos(): Promise<Projeto[]> {
   return data || [];
 }
 
+/**
+ * Grava projeto + orçamento + cronograma numa única chamada transacional
+ * (RPC `salvar_projeto_completo`, migration 00028) — antes eram várias
+ * chamadas Supabase independentes (delete-e-recria), sem transação: uma
+ * falha no meio deixava dados financeiros parcialmente apagados, e editar
+ * o cabeçalho do projeto podia reverter silenciosamente um pagamento
+ * registrado em `/recebimentos` enquanto a tela estava aberta em outra
+ * aba. A RPC nunca sobrescreve `status`/`data_pagamento` de uma parcela já
+ * existente, e só apaga parcela que sumiu do formulário se ainda estiver
+ * "pendente".
+ */
 export async function salvarProjetoCompleto(
   projeto: Projeto,
   orcamentos: Record<CategoriaCusto, number>,
@@ -29,121 +40,62 @@ export async function salvarProjetoCompleto(
     throw new Error('Supabase client not initialized');
   }
 
-  try {
-    let projetoId = projeto.id;
+  const orcamentosPayload = Object.entries(orcamentos).map(([categoria, valor_previsto]) => ({
+    categoria,
+    valor_previsto
+  }));
 
-    if (projetoId) {
-      // Atualizar projeto existente
-      const { error } = await supabase
-        .from('projetos')
-        .update({
-          cliente_id: projeto.cliente_id,
-          cliente_final_id: projeto.cliente_final_id,
-          nome: projeto.nome,
-          os: projeto.os,
-          data_prevista_inicio: projeto.data_prevista_inicio,
-          data_prevista_termino: projeto.data_prevista_termino,
-          data_efetiva_inicio: projeto.data_efetiva_inicio,
-          data_efetiva_termino: projeto.data_efetiva_termino,
-          valor_total_contrato: projeto.valor_total_contrato,
-          cep: projeto.cep,
-          logradouro: projeto.logradouro,
-          bairro: projeto.bairro,
-          cidade: projeto.cidade,
-          uf: projeto.uf,
-          numero: projeto.numero,
-          complemento: projeto.complemento,
-          status: projeto.status,
-          tipologia: projeto.tipologia,
-          uniorg: projeto.uniorg,
-          agencia: projeto.agencia,
-          upe: projeto.upe,
-          sap: projeto.sap,
-          gestor: projeto.gestor,
-          fiscalizacao_empresa: projeto.fiscalizacao_empresa,
-          fiscal: projeto.fiscal,
-          construtora: projeto.construtora,
-          responsavel: projeto.responsavel
-        })
-        .eq('id', projetoId);
+  const recebimentosPayload = recebimentos.map((rec, idx) => ({
+    id: rec.id ?? null,
+    parcela_numero: idx + 1,
+    percentual: rec.percentual,
+    valor: rec.valor,
+    data_prevista: rec.data_prevista,
+    status: rec.status,
+    data_pagamento: rec.data_pagamento ?? null
+  }));
 
-      if (error) throw error;
-    } else {
-      // Inserir novo projeto
-      const { data, error } = await supabase
-        .from('projetos')
-        .insert([
-          {
-            cliente_id: projeto.cliente_id,
-            cliente_final_id: projeto.cliente_final_id,
-            nome: projeto.nome,
-            os: projeto.os,
-            data_prevista_inicio: projeto.data_prevista_inicio,
-            data_prevista_termino: projeto.data_prevista_termino,
-            data_efetiva_inicio: projeto.data_efetiva_inicio,
-            data_efetiva_termino: projeto.data_efetiva_termino,
-            valor_total_contrato: projeto.valor_total_contrato,
-            cep: projeto.cep,
-            logradouro: projeto.logradouro,
-            bairro: projeto.bairro,
-            cidade: projeto.cidade,
-            uf: projeto.uf,
-            numero: projeto.numero,
-            complemento: projeto.complemento,
-            status: projeto.status,
-            tipologia: projeto.tipologia,
-            uniorg: projeto.uniorg,
-            agencia: projeto.agencia,
-            upe: projeto.upe,
-            sap: projeto.sap,
-            gestor: projeto.gestor,
-            fiscalizacao_empresa: projeto.fiscalizacao_empresa,
-            fiscal: projeto.fiscal,
-            construtora: projeto.construtora,
-            responsavel: projeto.responsavel
-          }
-        ])
-        .select();
+  const { data: projetoId, error } = await supabase.rpc('salvar_projeto_completo', {
+    p_projeto_id: projeto.id ?? null,
+    p_projeto: {
+      cliente_id: projeto.cliente_id ?? null,
+      cliente_final_id: projeto.cliente_final_id ?? null,
+      nome: projeto.nome,
+      os: projeto.os,
+      data_prevista_inicio: projeto.data_prevista_inicio,
+      data_prevista_termino: projeto.data_prevista_termino,
+      data_efetiva_inicio: projeto.data_efetiva_inicio ?? null,
+      data_efetiva_termino: projeto.data_efetiva_termino ?? null,
+      valor_total_contrato: projeto.valor_total_contrato,
+      cep: projeto.cep,
+      logradouro: projeto.logradouro,
+      bairro: projeto.bairro,
+      cidade: projeto.cidade,
+      uf: projeto.uf,
+      numero: projeto.numero,
+      complemento: projeto.complemento ?? null,
+      status: projeto.status,
+      tipologia: projeto.tipologia,
+      uniorg: projeto.uniorg ?? null,
+      agencia: projeto.agencia ?? null,
+      upe: projeto.upe ?? null,
+      sap: projeto.sap ?? null,
+      gestor: projeto.gestor ?? null,
+      fiscalizacao_empresa: projeto.fiscalizacao_empresa ?? null,
+      fiscal: projeto.fiscal ?? null,
+      construtora: projeto.construtora ?? null,
+      responsavel: projeto.responsavel ?? null
+    },
+    p_orcamentos: orcamentosPayload,
+    p_recebimentos: recebimentosPayload
+  });
 
-      if (error) throw error;
-      projetoId = data[0].id;
-    }
-
-    // Salvar Orçamentos (Supabase)
-    // 1. Excluir antigos
-    await supabase.from('orcamentos_custos').delete().eq('projeto_id', projetoId);
-    
-    // 2. Inserir novos
-    const orcamentosInsert = Object.entries(orcamentos).map(([categoria, valor]) => ({
-      projeto_id: projetoId!,
-      categoria: categoria as CategoriaCusto,
-      valor_previsto: valor
-    }));
-    const { error: orcError } = await supabase.from('orcamentos_custos').insert(orcamentosInsert);
-    if (orcError) throw orcError;
-
-    // Salvar Cronograma (Supabase)
-    // 1. Excluir antigos
-    await supabase.from('cronograma_recebimentos').delete().eq('projeto_id', projetoId);
-
-    // 2. Inserir novos
-    const recebimentosInsert = recebimentos.map((rec, idx) => ({
-      projeto_id: projetoId!,
-      parcela_numero: idx + 1,
-      percentual: rec.percentual,
-      valor: rec.valor,
-      data_prevista: rec.data_prevista,
-      status: rec.status,
-      data_pagamento: rec.data_pagamento
-    }));
-    const { error: recError } = await supabase.from('cronograma_recebimentos').insert(recebimentosInsert);
-    if (recError) throw recError;
-
-    return { ...projeto, id: projetoId };
-  } catch (error) {
-    console.error('Erro na transação de salvar projeto:', error);
+  if (error) {
+    console.error('Erro na RPC salvar_projeto_completo:', error);
     throw error;
   }
+
+  return { ...projeto, id: projetoId as string };
 }
 
 export async function fetchOrcamentosByProjeto(projetoId: string): Promise<OrcamentoCusto[]> {

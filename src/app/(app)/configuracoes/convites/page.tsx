@@ -39,6 +39,7 @@ export default function ConvitesPage() {
       setConvites(data || []);
     } catch (err) {
       console.error('Erro ao buscar convites:', err);
+      setToast({ message: 'Não foi possível carregar os convites. Tente novamente.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -90,7 +91,7 @@ export default function ConvitesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="hidden md:table-header-group">
                 <tr className="bg-background/50 text-xs uppercase tracking-wider text-sub border-b border-card-border">
                   <th className="p-4 font-bold">Nome</th>
                   <th className="p-4 font-bold">E-mail</th>
@@ -100,44 +101,57 @@ export default function ConvitesPage() {
                   <th className="p-4 font-bold">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-card-border">
+              <tbody className="block md:table-row-group divide-y divide-card-border">
                 {convites.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-sub">Nenhum convite ainda.</td>
+                  <tr className="block md:table-row">
+                    <td colSpan={6} className="p-8 text-center text-sub block md:table-cell">Nenhum convite ainda.</td>
                   </tr>
                 ) : (
                   convites.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
-                      <td className="p-4 font-bold text-main">{c.nome}</td>
-                      <td className="p-4 text-sm text-sub">{c.email}</td>
-                      <td className="p-4 text-sm text-sub">{c.role === 'convidado' ? 'Parceiro EGF' : c.role}</td>
-                      <td className="p-4">
+                    <tr key={c.id} className="flex flex-col md:table-row hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors py-3 md:py-0 border-b border-card-border/60 md:border-0">
+                      <td className="px-4 py-1.5 md:p-4 font-bold text-main md:table-cell">{c.nome}</td>
+                      <td className="px-4 py-1.5 md:p-4 text-sm text-sub flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">E-mail</span>
+                        {c.email}
+                      </td>
+                      <td className="px-4 py-1.5 md:p-4 text-sm text-sub flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Nível</span>
+                        {c.role === 'convidado' ? 'Parceiro EGF' : c.role}
+                      </td>
+                      <td className="px-4 py-1.5 md:p-4 flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Status</span>
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${STATUS_LABEL[c.status].classe}`}>
                           {STATUS_LABEL[c.status].texto}
                         </span>
                       </td>
-                      <td className="p-4 text-sm text-sub">{new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
-                      <td className="p-4">
-                        {c.status === 'pendente' && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => copiarLink(c.token)}
-                              title="Copiar link do convite"
-                              className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-ocre/10 text-desc hover:text-brand-ocre transition-colors"
-                            >
-                              <Copy size={13} />
-                            </button>
-                            <ConfirmButton
-                              onConfirm={() => revogar(c.id)}
-                              confirmLabel="Confirmar?"
-                              icon={ShieldAlert}
-                              className="p-2 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors"
-                              confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-2"
-                              title="Revogar convite"
-                            />
-                          </div>
-                        )}
+                      <td className="px-4 py-1.5 md:p-4 text-sm text-sub flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Criado em</span>
+                        {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-2 md:p-4 flex justify-between items-center md:table-cell">
+                        {c.status === 'pendente' ? (
+                          <>
+                            <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Ações</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copiarLink(c.token)}
+                                title="Copiar link do convite"
+                                className="p-2 rounded-lg border border-card-border bg-background hover:bg-brand-ocre/10 text-desc hover:text-brand-ocre transition-colors"
+                              >
+                                <Copy size={13} />
+                              </button>
+                              <ConfirmButton
+                                onConfirm={() => revogar(c.id)}
+                                confirmLabel="Confirmar?"
+                                icon={ShieldAlert}
+                                className="p-2 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors"
+                                confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-2"
+                                title="Revogar convite"
+                              />
+                            </div>
+                          </>
+                        ) : <span className="hidden md:inline text-[10px] text-sub italic">—</span>}
                       </td>
                     </tr>
                   ))

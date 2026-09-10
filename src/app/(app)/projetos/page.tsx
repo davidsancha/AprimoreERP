@@ -45,6 +45,18 @@ import DespesaDetalhesModal from '@/modules/operacional/components/DespesaDetalh
 import { CustoRealizado } from '@/modules/operacional/types';
 
 
+/** Resumo do que some junto — exclusão de projeto tem ON DELETE CASCADE em custos, orçamento e recebimentos. */
+function rotuloImpactoExclusao(proj: ProjetoComFinanceiro): string {
+  const qtdCustos = proj.custosObra?.length ?? 0;
+  const qtdOrcamentos = proj.orcamentosObra?.length ?? 0;
+  const partes: string[] = [];
+  if (qtdCustos > 0) partes.push(`${qtdCustos} custo(s)`);
+  if (proj.qtdRecebimentos > 0) partes.push(`${proj.qtdRecebimentos} parcela(s)`);
+  if (qtdOrcamentos > 0) partes.push(`orçamento`);
+  if (partes.length === 0) return 'Confirmar exclusão?';
+  return `Apagar ${partes.join(', ')}?`;
+}
+
 interface ProjetoComFinanceiro extends Projeto {
   custoPrevisto: number;
   custoRealizado: number;
@@ -54,6 +66,7 @@ interface ProjetoComFinanceiro extends Projeto {
   custosObra?: any[];
   valorRecebido: number;
   pctRecebido: number;
+  qtdRecebimentos: number;
 }
 
 export default function ProjetosPage() {
@@ -73,6 +86,7 @@ export default function ProjetosPage() {
     categoriaLabel: string;
   } | null>(null);
   const [quickValor, setQuickValor] = useState<string>('');
+  const [quickDescricao, setQuickDescricao] = useState<string>('');
   const [salvandoQuick, setSalvandoQuick] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -128,7 +142,8 @@ export default function ProjetosPage() {
             orcamentosObra,
             custosObra,
             valorRecebido,
-            pctRecebido
+            pctRecebido,
+            qtdRecebimentos: recebimentosObra.length
           };
         })
       );
@@ -136,6 +151,7 @@ export default function ProjetosPage() {
       setProjetos(projetosComFinanceiro);
     } catch (err) {
       console.error('Erro ao buscar lista de projetos:', err);
+      showToast('Não foi possível carregar a lista de projetos. Tente novamente em instantes.', 'error');
     } finally {
       setLoading(false);
     }
@@ -154,13 +170,17 @@ export default function ProjetosPage() {
       showToast('Por favor, digite um valor maior que zero.', 'warning');
       return;
     }
+    if (quickDescricao.trim().length < 3) {
+      showToast('Descreva em poucas palavras o que é esse custo (ex.: "Aluguel de andaime").', 'warning');
+      return;
+    }
 
     setSalvandoQuick(true);
     try {
       await salvarCustoRealizado({
         projeto_id: quickCusto.projetoId,
         categoria: quickCusto.categoria,
-        descricao: `Lançamento Rápido - ${quickCusto.categoriaLabel}`,
+        descricao: `${quickDescricao.trim()} (Lançamento Rápido, sem NF)`,
         valor: valorNum,
         data_custo: new Date().toISOString().split('T')[0]
       });
@@ -168,6 +188,7 @@ export default function ProjetosPage() {
       showToast(`Custo de ${quickCusto.categoriaLabel} registrado com sucesso para o projeto ${quickCusto.projetoNome}!`, 'success');
       setQuickCusto(null);
       setQuickValor('');
+      setQuickDescricao('');
       carregarProjetos();
     } catch (err) {
       console.error('Erro ao salvar custo rápido:', err);
@@ -190,8 +211,9 @@ export default function ProjetosPage() {
 
   // Filtrar projetos com base na busca textual e seletor de status
   const projetosFiltrados = projetos.filter(p => {
-    const atendeBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) || 
+    const atendeBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) ||
                         p.os.toLowerCase().includes(busca.toLowerCase()) ||
+                        (p.uniorg ?? '').toLowerCase().includes(busca.toLowerCase()) ||
                         p.cidade.toLowerCase().includes(busca.toLowerCase());
                         
     const atendeStatus = filtroStatus === 'todos' || p.status === filtroStatus;
@@ -384,7 +406,7 @@ export default function ProjetosPage() {
                       </Link>
                       <ConfirmButton
                         onConfirm={() => handleExcluir(proj.id!)}
-                        confirmLabel="Confirmar?"
+                        confirmLabel={rotuloImpactoExclusao(proj)}
                         icon={Trash2}
                         className="p-2 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors shadow-xs cursor-pointer"
                         confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-2"
@@ -671,7 +693,7 @@ export default function ProjetosPage() {
                             </Link>
                             <ConfirmButton
                               onConfirm={() => handleExcluir(proj.id!)}
-                              confirmLabel="Confirmar?"
+                              confirmLabel={rotuloImpactoExclusao(proj)}
                               icon={Trash2}
                               className="p-1.5 rounded-lg border border-card-border bg-background hover:bg-red-500/10 text-desc hover:text-red-500 transition-colors shadow-xs"
                               confirmClassName="bg-red-500 text-white border-red-600 hover:bg-red-600 p-1.5"
@@ -1122,12 +1144,29 @@ export default function ProjetosPage() {
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-sub">
+                  Descrição *
+                </label>
+                <input
+                  type="text"
+                  required
+                  minLength={3}
+                  placeholder="ex.: Aluguel de andaime, frete de material…"
+                  value={quickDescricao}
+                  onChange={(e) => setQuickDescricao(e.target.value)}
+                  className="w-full bg-background border border-card-border rounded-xl px-4 py-2.5 text-main text-sm focus:outline-none focus:border-brand-ocre"
+                />
+                <p className="text-[10px] text-desc">Lançamento rápido não anexa nota fiscal — use <span className="font-semibold">Lançar Custo</span> quando tiver comprovante.</p>
+              </div>
+
               <div className="flex gap-2 justify-end pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setQuickCusto(null);
                     setQuickValor('');
+                    setQuickDescricao('');
                   }}
                   className="px-4 py-2 rounded-xl border border-card-border hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-bold text-sub cursor-pointer"
                 >

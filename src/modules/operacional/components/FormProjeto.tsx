@@ -540,6 +540,15 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
       return;
     }
 
+    if (dataPrevistaTermino < dataPrevistaInicio) {
+      showToast('O término previsto não pode ser antes do início previsto.', 'warning');
+      return;
+    }
+    if (dataEfetivaInicio && dataEfetivaTermino && dataEfetivaTermino < dataEfetivaInicio) {
+      showToast('O término efetivo não pode ser antes do início efetivo.', 'warning');
+      return;
+    }
+
     if (!cronogramaValido) {
       showToast('A soma das parcelas de recebimento deve ser exatamente igual a 100%!', 'warning');
       return;

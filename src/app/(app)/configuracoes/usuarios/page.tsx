@@ -29,6 +29,7 @@ export default function UsuariosPage() {
       setUsuarios(data || []);
     } catch (err) {
       console.error('Erro ao buscar usuários:', err);
+      setToast({ message: 'Não foi possível carregar a lista de usuários. Tente novamente.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -121,7 +122,7 @@ export default function UsuariosPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="hidden md:table-header-group">
                 <tr className="bg-background/50 text-xs uppercase tracking-wider text-sub border-b border-card-border">
                   <th className="p-4 font-bold">Usuário</th>
                   <th className="p-4 font-bold">E-mail</th>
@@ -130,17 +131,17 @@ export default function UsuariosPage() {
                   <th className="p-4 font-bold">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-card-border">
+              <tbody className="block md:table-row-group divide-y divide-card-border">
                 {usuarios.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-sub">Nenhum usuário encontrado.</td>
+                  <tr className="block md:table-row">
+                    <td colSpan={5} className="p-8 text-center text-sub block md:table-cell">Nenhum usuário encontrado.</td>
                   </tr>
                 ) : (
                   usuarios.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
-                      <td className="p-4">
+                    <tr key={u.id} className="flex flex-col md:table-row hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors py-3 md:py-0 border-b border-card-border/60 md:border-0">
+                      <td className="px-4 py-1.5 md:p-4 md:table-cell">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-brand-blue/10 dark:bg-brand-ocre/10 flex items-center justify-center text-brand-blue dark:text-brand-ocre font-bold border border-brand-blue/20 dark:border-brand-ocre/20">
+                          <div className="h-10 w-10 rounded-full bg-brand-blue/10 dark:bg-brand-ocre/10 flex items-center justify-center text-brand-blue dark:text-brand-ocre font-bold border border-brand-blue/20 dark:border-brand-ocre/20 shrink-0">
                             {u.nome?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div>
@@ -156,10 +157,14 @@ export default function UsuariosPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-sm text-sub">{u.email}</td>
-                      <td className="p-4">
+                      <td className="px-4 py-1.5 md:p-4 text-sm text-sub flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">E-mail</span>
+                        {u.email}
+                      </td>
+                      <td className="px-4 py-1.5 md:p-4 flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Nível</span>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
-                          u.role === 'god' 
+                          u.role === 'god'
                             ? 'bg-brand-ocre/10 text-brand-ocre border-brand-ocre/20'
                             : u.role === 'admin'
                             ? 'bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400'
@@ -169,10 +174,12 @@ export default function UsuariosPage() {
                           {u.role}
                         </span>
                       </td>
-                      <td className="p-4 text-sm text-sub">
+                      <td className="px-4 py-1.5 md:p-4 text-sm text-sub flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Cadastro</span>
                         {new Date(u.created_at).toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-2 md:p-4 flex justify-between items-center md:table-cell">
+                        <span className="md:hidden font-black text-[10px] text-desc uppercase tracking-wider">Ações</span>
                         {u.role === 'god' || u.id === user?.id ? (
                           <span className="text-[10px] text-sub italic">—</span>
                         ) : (
