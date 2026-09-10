@@ -40,24 +40,28 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 -- 2. RLS de projetos e das 3 tabelas financeiras -- só staff interno,
 --    nunca convidado, nunca anon.
 DROP POLICY IF EXISTS "acesso_irrestrito_projetos" ON public.projetos;
+DROP POLICY IF EXISTS "god_projetos" ON public.projetos;
 CREATE POLICY "acesso_staff_interno_projetos"
   ON public.projetos FOR ALL TO authenticated
   USING (public.is_internal_staff())
   WITH CHECK (public.is_internal_staff());
 
 DROP POLICY IF EXISTS "acesso_irrestrito_cronograma" ON public.cronograma_recebimentos;
+DROP POLICY IF EXISTS "god_cronograma" ON public.cronograma_recebimentos;
 CREATE POLICY "acesso_staff_interno_cronograma"
   ON public.cronograma_recebimentos FOR ALL TO authenticated
   USING (public.is_internal_staff())
   WITH CHECK (public.is_internal_staff());
 
 DROP POLICY IF EXISTS "acesso_irrestrito_orcamentos" ON public.orcamentos_custos;
+DROP POLICY IF EXISTS "god_orcamentos" ON public.orcamentos_custos;
 CREATE POLICY "acesso_staff_interno_orcamentos"
   ON public.orcamentos_custos FOR ALL TO authenticated
   USING (public.is_internal_staff())
   WITH CHECK (public.is_internal_staff());
 
 DROP POLICY IF EXISTS "acesso_irrestrito_custos" ON public.custos_realizados;
+DROP POLICY IF EXISTS "god_custos" ON public.custos_realizados;
 CREATE POLICY "acesso_staff_interno_custos"
   ON public.custos_realizados FOR ALL TO authenticated
   USING (public.is_internal_staff())
@@ -88,6 +92,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+#variable_conflict use_column
 DECLARE
   v_projeto_id uuid;
 BEGIN
