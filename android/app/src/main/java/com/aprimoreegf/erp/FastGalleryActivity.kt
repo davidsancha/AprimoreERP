@@ -67,37 +67,45 @@ class FastGalleryActivity : AppCompatActivity() {
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
 
         // App roda edge-to-edge (targetSdk 36 exige) — sem isso o cabeçalho
-        // desenha atrás da status bar/entalhe e o X/pílula do álbum ficam
-        // parcialmente escondidos atrás do relógio, ícones do sistema ou da
-        // câmera furo-na-tela. A primeira tentativa (só o listener de
-        // WindowInsets) não resolveu num aparelho real — o dispatch pode não
-        // chegar a tempo da primeira exibição em alguns fabricantes/versões.
-        // Agora soma DUAS fontes independentes, ficando com a maior: (1) a
-        // altura clássica da status bar via recurso do sistema, que não
-        // depende de nenhum dispatch de inset e sempre existe; (2) o inset
-        // seguro do entalhe/câmera furo-na-tela, quando maior que a status
-        // bar padrão. Aplica de imediato via `post` (não espera o listener) e
-        // mantém o listener como reforço pra reagir a rotação/mudança de
-        // inset depois.
-        val headerGaleria = findViewById<View>(R.id.headerGaleria)
-        val paddingTopOriginal = headerGaleria.paddingTop
+        // desenha atrás da status bar/entalhe. As duas tentativas anteriores
+        // (padding no próprio cabeçalho, via listener de WindowInsets e via
+        // status_bar_height) não moveram nada num aparelho real — sinal de
+        // que o problema pode não ser "que altura usar", e sim o padding não
+        // estar de fato re-layoutando o RelativeLayout (que recalcula
+        // centerVertical/alignParent dos filhos, mais frágil). Agora troca
+        // pra um `View` espaçador dedicado ANTES do cabeçalho (mexe só em
+        // `layoutParams.height`, sem depender de recentralizar nada) e usa
+        // `window.decorView.post` (mais garantido que postar na própria view)
+        // além do listener de insets. Toast de diagnóstico temporário — se
+        // ainda vier torto, o valor mostrado aqui diz se o cálculo do inset
+        // está errado ou se é outra causa.
+        val viewEspacoTopo = findViewById<View>(R.id.viewEspacoTopo)
 
         fun alturaSeguraDoTopo(): Int {
             val idStatusBar = resources.getIdentifier("status_bar_height", "dimen", "android")
             val alturaStatusBar = if (idStatusBar > 0) resources.getDimensionPixelSize(idStatusBar) else 0
-            val alturaEntalhe = ViewCompat.getRootWindowInsets(headerGaleria)?.displayCutout?.safeInsetTop ?: 0
-            return maxOf(alturaStatusBar, alturaEntalhe)
+            val alturaEntalhe = ViewCompat.getRootWindowInsets(viewEspacoTopo)?.displayCutout?.safeInsetTop ?: 0
+            val alturaStatusBarInsets = ViewCompat.getRootWindowInsets(viewEspacoTopo)
+                ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+            return maxOf(alturaStatusBar, alturaEntalhe, alturaStatusBarInsets)
         }
 
-        headerGaleria.post {
-            headerGaleria.setPadding(headerGaleria.paddingLeft, paddingTopOriginal + alturaSeguraDoTopo(), headerGaleria.paddingRight, headerGaleria.paddingBottom)
+        fun aplicarAlturaEspacoTopo(origem: String) {
+            val altura = alturaSeguraDoTopo()
+            val params = viewEspacoTopo.layoutParams
+            if (params.height != altura) {
+                params.height = altura
+                viewEspacoTopo.layoutParams = params
+            }
+            Toast.makeText(this, "[debug $origem] topo = ${altura}px", Toast.LENGTH_SHORT).show()
         }
-        ViewCompat.setOnApplyWindowInsetsListener(headerGaleria) { view, insets ->
-            val barras = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(view.paddingLeft, paddingTopOriginal + maxOf(barras.top, alturaSeguraDoTopo()), view.paddingRight, view.paddingBottom)
+
+        window.decorView.post { aplicarAlturaEspacoTopo("post") }
+        ViewCompat.setOnApplyWindowInsetsListener(viewEspacoTopo) { _, insets ->
+            aplicarAlturaEspacoTopo("insets")
             insets
         }
-        ViewCompat.requestApplyInsets(headerGaleria)
+        ViewCompat.requestApplyInsets(viewEspacoTopo)
 
         findViewById<TextView>(R.id.textFechar).setOnClickListener {
             setResult(RESULT_CANCELED)

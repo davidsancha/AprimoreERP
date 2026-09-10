@@ -5,16 +5,24 @@
     android:orientation="vertical"
     android:background="#FFFFFF">
 
+    <!-- Espaçador dedicado pro topo (status bar/entalhe) — mais confiável que
+         inflar o paddingTop do cabeçalho, porque não depende do
+         RelativeLayout recalcular o centerVertical/alignParent dos filhos:
+         aqui é só um bloco extra empurrando tudo pra baixo. Altura definida
+         em runtime (FastGalleryActivity.kt); preto igual ao cabeçalho pra
+         formar uma barra única visualmente. -->
+    <View
+        android:id="@+id/viewEspacoTopo"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="#000000" />
+
     <!-- cabeçalho único, estilo WhatsApp: X redondo pra fechar à esquerda,
          pílula do álbum centralizada, sem título de texto. Preto (não o
          azul da marca) pra combinar com o picker de mídia do WhatsApp que
          serviu de referência. RelativeLayout (não LinearLayout com peso)
          pra pílula ficar compacta/centralizada de verdade, sem esticar pra
-         virar uma barra larga. paddingTop é somado em runtime pelo inset
-         da status bar (ver FastGalleryActivity.kt) — o app roda edge-to-edge
-         (targetSdk 36), então sem isso o conteúdo desenha atrás da status
-         bar e o X/pílula ficam parcialmente escondidos atrás do relógio e
-         dos ícones do sistema. -->
+         virar uma barra larga. -->
     <RelativeLayout
         android:id="@+id/headerGaleria"
         android:layout_width="match_parent"

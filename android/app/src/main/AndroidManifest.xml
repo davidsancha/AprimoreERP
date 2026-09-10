@@ -28,7 +28,6 @@
         <activity
             android:name=".FastGalleryActivity"
             android:theme="@style/AppTheme.NoActionBar"
-            android:label="Escolher fotos"
             android:exported="false" />
 
         <provider
