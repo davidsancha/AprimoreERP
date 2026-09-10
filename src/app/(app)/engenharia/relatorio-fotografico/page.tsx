@@ -8,6 +8,7 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronUp,
   Copy,
   GripVertical,
@@ -45,6 +46,7 @@ import {
   lerModelosPorBanco,
   lerServicosGlobais,
   listarClientesFinaisUsados,
+  buscarNomeAutor,
   listarColaboradores,
   listarProgresso,
   listarRelatoriosDoUsuario,
@@ -862,6 +864,10 @@ function RelatorioFotograficoContent() {
   const [cronogramaSantander, setCronogramaSantander] = useState('');
 
   const [estrutura, setEstrutura] = useState<EstruturaFotografica | null>(null);
+  // Nome de quem criou o relatório — só buscado/mostrado quando não é o
+  // próprio usuário (ex.: Parceiro EGF colaborando num relatório de outra
+  // pessoa via Cowork), pra saber de quem é o relatório que está editando.
+  const [autorNome, setAutorNome] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resumoExpandido, setResumoExpandido] = useState(true);
@@ -988,6 +994,16 @@ function RelatorioFotograficoContent() {
     }
     listarProgresso(estrutura.id).then(setProgresso).catch(console.error);
   }, [estrutura?.id]);
+
+  // "Compartilhado por X" — só busca/mostra quando o relatório aberto não é
+  // do próprio usuário logado.
+  useEffect(() => {
+    if (!estrutura?.user_id || estrutura.user_id === user?.id) {
+      setAutorNome(null);
+      return;
+    }
+    buscarNomeAutor(estrutura.user_id).then(setAutorNome).catch(() => setAutorNome(null));
+  }, [estrutura?.user_id, user?.id]);
 
   useEffect(() => {
     verificarRolagem();
@@ -1127,6 +1143,26 @@ function RelatorioFotograficoContent() {
     setProjetoSelecionado(null);
     setProjetoBusca('');
     setEstrutura(null);
+    setHabilitarEdicaoObra(false);
+    setDataInicioObra('');
+    setDataTerminoObra('');
+    setResumoExpandido(true);
+    setDadosExpandido(true);
+    setModoSlides(false);
+    setTipoExpandido(true);
+  }
+
+  /**
+   * Fecha o relatório aberto e volta pra lista "Meus relatórios" — sem isso
+   * não tinha como sair de um relatório (o seu ou compartilhado com você)
+   * sem recarregar a página inteira.
+   */
+  function voltarParaMeusRelatorios() {
+    setEstrutura(null);
+    setProjetoSelecionado(null);
+    setProjetoBusca('');
+    setObraNome('');
+    setAutorNome(null);
     setHabilitarEdicaoObra(false);
     setDataInicioObra('');
     setDataTerminoObra('');
@@ -1990,13 +2026,19 @@ function RelatorioFotograficoContent() {
                   className="flex items-stretch gap-1.5 rounded-lg border border-card-border bg-background hover:border-brand-ocre/50 transition-colors overflow-hidden"
                 >
                   <button type="button" onClick={() => abrirMeuRelatorio(r)} className="flex-1 min-w-0 text-left px-3 py-2.5">
-                    <div className="text-xs font-bold text-main truncate">
+                    <div className="text-xs font-bold text-main truncate flex items-center gap-1.5">
                       {r.is_avulso ? r.obra_nome || 'Sem nome' : r.projetos?.nome || 'Projeto vinculado'}
+                      {r.user_id !== user?.id && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-brand-ocre/10 text-brand-ocre border border-brand-ocre/20">
+                          <Share2 size={9} /> Compartilhado
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-sub">
                       {r.tipo_projeto === 'infraestrutura' ? 'Infraestrutura' : 'Reforma'} ·{' '}
                       {r.is_avulso ? 'Avulso' : `OS ${r.projetos?.os ?? '—'}`} ·{' '}
                       {new Date(r.updated_at).toLocaleDateString('pt-BR')}
+                      {r.user_id !== user?.id && r.autor_nome && <> · por {r.autor_nome}</>}
                     </div>
                   </button>
                   <button
@@ -2016,6 +2058,19 @@ function RelatorioFotograficoContent() {
 
       {modalBuscaAberto && <ModalBuscaProjetos onSelecionar={selecionarProjeto} onFechar={() => setModalBuscaAberto(false)} />}
 
+      {/* Sem isso não tinha como sair de um relatório aberto (o seu ou
+          compartilhado com você via Cowork) de volta pra lista "Meus
+          relatórios" sem recarregar a página inteira. */}
+      {estrutura && (
+        <button
+          type="button"
+          onClick={voltarParaMeusRelatorios}
+          className="flex items-center gap-1.5 text-[11px] font-bold text-sub hover:text-brand-ocre w-fit"
+        >
+          <ChevronLeft size={13} /> Meus relatórios
+        </button>
+      )}
+
       {/* resumo compacto — some com o "abre só o item 4": depois de iniciado o
           relatório, projeto e tipo já estão resolvidos, então recolhem aqui e
           dão lugar pra continuação (dados do relatório + equipamentos/serviços) */}
@@ -2034,6 +2089,9 @@ function RelatorioFotograficoContent() {
               </div>
               <div className="text-[10px] text-sub truncate">
                 {isAvulso ? 'Relatório avulso' : `OS ${projetoSelecionado?.os ?? ''}`}
+                {autorNome && (
+                  <span className="text-brand-ocre font-semibold"> · Compartilhado por {autorNome}</span>
+                )}
               </div>
             </div>
           </div>

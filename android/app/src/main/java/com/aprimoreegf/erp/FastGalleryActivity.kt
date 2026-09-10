@@ -67,18 +67,11 @@ class FastGalleryActivity : AppCompatActivity() {
         trocarAlbumView = findViewById(R.id.textTrocarAlbum)
 
         // App roda edge-to-edge (targetSdk 36 exige) — sem isso o cabeçalho
-        // desenha atrás da status bar/entalhe. As duas tentativas anteriores
-        // (padding no próprio cabeçalho, via listener de WindowInsets e via
-        // status_bar_height) não moveram nada num aparelho real — sinal de
-        // que o problema pode não ser "que altura usar", e sim o padding não
-        // estar de fato re-layoutando o RelativeLayout (que recalcula
-        // centerVertical/alignParent dos filhos, mais frágil). Agora troca
-        // pra um `View` espaçador dedicado ANTES do cabeçalho (mexe só em
-        // `layoutParams.height`, sem depender de recentralizar nada) e usa
-        // `window.decorView.post` (mais garantido que postar na própria view)
-        // além do listener de insets. Toast de diagnóstico temporário — se
-        // ainda vier torto, o valor mostrado aqui diz se o cálculo do inset
-        // está errado ou se é outra causa.
+        // desenha atrás da status bar/entalhe. Um `View` espaçador dedicado
+        // ANTES do cabeçalho (mexe só em `layoutParams.height`) empurra tudo
+        // pra baixo pela maior altura entre status bar clássica, inset de
+        // status bar e inset de entalhe/câmera furo-na-tela — testado e
+        // confirmado num aparelho real (130px de espaço no caso testado).
         val viewEspacoTopo = findViewById<View>(R.id.viewEspacoTopo)
 
         fun alturaSeguraDoTopo(): Int {
@@ -90,19 +83,18 @@ class FastGalleryActivity : AppCompatActivity() {
             return maxOf(alturaStatusBar, alturaEntalhe, alturaStatusBarInsets)
         }
 
-        fun aplicarAlturaEspacoTopo(origem: String) {
+        fun aplicarAlturaEspacoTopo() {
             val altura = alturaSeguraDoTopo()
             val params = viewEspacoTopo.layoutParams
             if (params.height != altura) {
                 params.height = altura
                 viewEspacoTopo.layoutParams = params
             }
-            Toast.makeText(this, "[debug $origem] topo = ${altura}px", Toast.LENGTH_SHORT).show()
         }
 
-        window.decorView.post { aplicarAlturaEspacoTopo("post") }
+        window.decorView.post { aplicarAlturaEspacoTopo() }
         ViewCompat.setOnApplyWindowInsetsListener(viewEspacoTopo) { _, insets ->
-            aplicarAlturaEspacoTopo("insets")
+            aplicarAlturaEspacoTopo()
             insets
         }
         ViewCompat.requestApplyInsets(viewEspacoTopo)

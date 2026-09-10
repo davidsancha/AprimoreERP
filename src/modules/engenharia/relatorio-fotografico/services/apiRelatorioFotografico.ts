@@ -197,6 +197,16 @@ export async function listarRelatoriosDoUsuario(userId: string): Promise<Estrutu
     const { data, error } = await sb.from("engenharia_estrutura_fotografica").select(CAMPOS_ESTRUTURA_COM_PROJETO).in("id", idsFaltantes);
     if (error) throw error;
     compartilhados = (data as unknown as EstruturaFotograficaComProjeto[]) || [];
+
+    // nome de quem é dono, só pros compartilhados — a lista unificada
+    // precisa deixar claro "isso é meu" vs "isso é de fulano" (antes não
+    // dava pra saber de quem era um relatório compartilhado só olhando a lista).
+    const idsAutores = [...new Set(compartilhados.map((r) => r.user_id).filter(Boolean))] as string[];
+    if (idsAutores.length) {
+      const { data: autores } = await sb.from("profiles").select("id, nome").in("id", idsAutores);
+      const nomePorId = new Map((autores || []).map((a) => [a.id, a.nome]));
+      compartilhados = compartilhados.map((r) => ({ ...r, autor_nome: r.user_id ? nomePorId.get(r.user_id) ?? null : null }));
+    }
   }
 
   return [...((proprios.data as unknown as EstruturaFotograficaComProjeto[]) || []), ...compartilhados].sort(
@@ -221,6 +231,14 @@ export async function buscarEstruturaPorId(id: string): Promise<EstruturaFotogra
   const { data, error } = await sb.from("engenharia_estrutura_fotografica").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return data;
+}
+
+/** Nome de quem é dono do relatório — pra mostrar "Compartilhado por X" pra quem não é o dono. */
+export async function buscarNomeAutor(userId: string): Promise<string | null> {
+  const sb = exigirSupabase();
+  const { data, error } = await sb.from("profiles").select("nome").eq("id", userId).maybeSingle();
+  if (error) throw error;
+  return data?.nome ?? null;
 }
 
 export async function listarColaboradores(relatorioId: string): Promise<ColaboradorRelatorio[]> {

@@ -79,6 +79,9 @@ export interface EstruturaFotografica {
  */
 export interface EstruturaFotograficaComProjeto extends EstruturaFotografica {
   projetos: { nome: string; os: string } | null;
+  // Nome de quem criou o relatório — só preenchido pelos itens compartilhados
+  // com o usuário logado (não os próprios), pra distinguir na listagem.
+  autor_nome?: string | null;
 }
 
 /**
