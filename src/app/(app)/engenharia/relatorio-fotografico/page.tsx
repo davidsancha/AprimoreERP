@@ -920,8 +920,7 @@ function RelatorioFotograficoContent() {
   // fotos/progresso (slides antes/depois) — passo 5
   const [progresso, setProgresso] = useState<ProgressoSlide[]>([]);
   const [fotoOcupada, setFotoOcupada] = useState<string | null>(null);
-  const rascunhosFotoRef = useRef<Record<string, { antes?: string; depois?: string }>>({});
-  const [, forcarAtualizacao] = useState(0);
+  const criacoesPontoRef = useRef<Record<string, Promise<ProgressoSlide>>>({});
   const [novoSlideServico, setNovoSlideServico] = useState<string | null>(null);
   const [novoSlideEtapa, setNovoSlideEtapa] = useState<'ANTES' | 'DURANTE'>('ANTES');
   const [novoSlideAmbiente, setNovoSlideAmbiente] = useState('');
@@ -999,7 +998,7 @@ function RelatorioFotograficoContent() {
   useEffect(() => {
     if (!estrutura) {
       setProgresso([]);
-      rascunhosFotoRef.current = {};
+      criacoesPontoRef.current = {};
       return;
     }
     listarProgresso(estrutura.id).then(setProgresso).catch(console.error);
@@ -1621,34 +1620,42 @@ function RelatorioFotograficoContent() {
     reordenarEquipamento(i, i + passo);
   }
 
-  /** Infraestrutura: cada ponto vira 1 slide (antes+depois). Sem os dois, fica em rascunho local até completar o par. */
+  /**
+   * Infraestrutura: cada ponto vira 1 slide (antes+depois). O slide nasce já
+   * na primeira foto (a outra fica pendente, migration 00013) — antes ficava
+   * num rascunho local até completar o par, e por isso um ponto com só uma
+   * foto sumia do PowerPoint sem nenhum aviso.
+   */
   async function definirFotoPonto(equipNome: string, numero: string, local: string, lado: 'antes' | 'depois', file: File) {
     if (!estrutura) return;
     const chave = `${equipNome}|${numero}`;
     setFotoOcupada(chave + lado);
     try {
       const caminho = await uploadFotoRelatorio(estrutura.id, [equipNome, numero], file);
-      const existente = progresso.find((p) => p.equipamento === equipNome && p.numero_ponto === numero);
+      // se as duas fotos do ponto forem enviadas quase juntas, a segunda
+      // espera a criação da primeira em vez de criar um slide duplicado
+      const emCriacao = criacoesPontoRef.current[chave];
+      let existente = progresso.find((p) => p.equipamento === equipNome && p.numero_ponto === numero);
+      if (!existente && emCriacao) existente = await emCriacao;
       if (existente) {
         const atualizado = await atualizarProgresso(existente.id, lado === 'antes' ? { foto_antes_path: caminho } : { foto_depois_path: caminho });
         setProgresso((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
         return;
       }
-      const rascunho = { ...rascunhosFotoRef.current[chave], [lado]: caminho };
-      rascunhosFotoRef.current[chave] = rascunho;
-      if (rascunho.antes && rascunho.depois) {
-        const novo = await criarProgresso(estrutura.id, {
-          equipamento: equipNome,
-          numeroPonto: numero,
-          local,
-          etapa1: 'ANTES',
-          fotoAntesPath: rascunho.antes,
-          fotoDepoisPath: rascunho.depois,
-        });
-        delete rascunhosFotoRef.current[chave];
+      const criacao = criarProgresso(estrutura.id, {
+        equipamento: equipNome,
+        numeroPonto: numero,
+        local,
+        etapa1: 'ANTES',
+        fotoAntesPath: lado === 'antes' ? caminho : null,
+        fotoDepoisPath: lado === 'depois' ? caminho : null,
+      });
+      criacoesPontoRef.current[chave] = criacao;
+      try {
+        const novo = await criacao;
         setProgresso((prev) => [...prev, novo]);
-      } else {
-        forcarAtualizacao((n) => n + 1);
+      } finally {
+        delete criacoesPontoRef.current[chave];
       }
     } catch (e) {
       setErro((e as Error).message);
@@ -3388,7 +3395,6 @@ function RelatorioFotograficoContent() {
                   {eq.pontos.map((p, iP) => {
                     const chave = `${eq.nome}|${p.numero}`;
                     const slide = progresso.find((pr) => pr.equipamento === eq.nome && pr.numero_ponto === p.numero);
-                    const rascunho = rascunhosFotoRef.current[chave];
                     return (
                       // No celular em pé, a linha inteira (número + local +
                       // "↑ acima" + 2 fotos) não cabia lado a lado — o campo
@@ -3434,13 +3440,13 @@ function RelatorioFotograficoContent() {
                         <div className="flex items-center gap-2 ml-11 sm:ml-0 sm:shrink-0">
                           <SlotFoto
                             rotulo="Antes"
-                            caminho={slide?.foto_antes_path ?? rascunho?.antes}
+                            caminho={slide?.foto_antes_path}
                             ocupado={fotoOcupada === chave + 'antes'}
                             onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'antes', file)}
                           />
                           <SlotFoto
                             rotulo="Depois"
-                            caminho={slide?.foto_depois_path ?? rascunho?.depois}
+                            caminho={slide?.foto_depois_path}
                             ocupado={fotoOcupada === chave + 'depois'}
                             onSelecionar={(file) => definirFotoPonto(eq.nome, p.numero, p.local, 'depois', file)}
                           />
