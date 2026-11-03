@@ -695,6 +695,15 @@ function slideCompleto(s: ProgressoSlide): boolean {
   return !!s.foto_antes_path && !!s.foto_depois_path;
 }
 
+/** Nomes das fotos que ainda faltam no slide (ex.: ["Antes", "Depois"]) — usado no aviso antes de montar o PowerPoint. */
+function fotosFaltando(s: ProgressoSlide): string[] {
+  const faltam: string[] = [];
+  if (!s.foto_antes_path) faltam.push(s.etapa1 === 'DURANTE' ? 'Durante' : 'Antes');
+  if (ehLinhaSantander(s) && !s.foto_durante_path) faltam.push('Durante');
+  if (!s.foto_depois_path) faltam.push('Depois');
+  return faltam;
+}
+
 /**
  * Os 2 primeiros slides do modelo são sempre a capa/dados do projeto — o
  * primeiro slide de foto de verdade nasce no 3 (ver `slideModelo` em
@@ -932,6 +941,7 @@ function RelatorioFotograficoContent() {
   // sempre que uma sequência nova de fotos começa (ver iniciarOuLimparFotosSlide*).
   const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
+  const [avisoFotosPendentes, setAvisoFotosPendentes] = useState(false);
   const [sucessoPptx, setSucessoPptx] = useState<string | null>(null);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
@@ -1324,8 +1334,16 @@ function RelatorioFotograficoContent() {
     return campos.filter((c) => !c.valor || !c.valor.trim()).map((c) => c.label);
   }, [banco, modeloRelatorio, agencia, programa, upe, sap, gestor, fiscEmpresa, fiscal, construtora, responsavel, dataInicioObra, dataTerminoObra, ehSantander, uniorg]);
 
-  // slides com serviço/ambiente definidos mas sem alguma das duas fotos (migration 00013) — bloqueia só o "Montar PowerPoint"
-  const pendenciasFotos = useMemo(() => progresso.filter((s) => !slideCompleto(s)).length, [progresso]);
+  // slides com serviço/ambiente definidos mas sem alguma foto (migration 00013) — não bloqueia o "Montar PowerPoint":
+  // a tela avisa e, se o usuário continuar, o slide sai com a imagem padrão "IMAGEM PENDENTE"
+  const slidesPendentes = useMemo(
+    () =>
+      progresso
+        .map((s, i) => ({ numero: i + 1, legenda: legendaSlide(s), faltam: fotosFaltando(s), completo: slideCompleto(s) }))
+        .filter((s) => !s.completo),
+    [progresso],
+  );
+  const pendenciasFotos = slidesPendentes.length;
 
   /**
    * Dados de obra (agência/UPE/SAP/gestor/fiscalização/construtora/
@@ -1807,11 +1825,7 @@ function RelatorioFotograficoContent() {
   /** Geração roda no servidor (precisa de `sharp`) — o client só manda os dados já carregados e recebe o .pptx pronto. */
   async function montarPowerPoint() {
     if (!estrutura) return;
-    if (progresso.some((s) => !slideCompleto(s))) {
-      // defesa extra além do botão desabilitado — nunca retorna em silêncio
-      setErro('Há slide(s) sem foto — complete antes de montar.');
-      return;
-    }
+    setAvisoFotosPendentes(false);
     const modeloEscolhido = modelosDoBanco.find((m) => m.nome === modeloRelatorio);
     if (!modeloEscolhido?.config_id || !modeloEscolhido.storage_template_path) {
       setErro('Este modelo ainda não tem um template configurado no Storage — avise o Antigravity.');
@@ -1903,6 +1917,12 @@ function RelatorioFotograficoContent() {
     }
   }
 
+  /** Botão "Montar PowerPoint": com foto pendente, pede confirmação antes (ver `avisoFotosPendentes`). */
+  function pedirMontagem() {
+    if (slidesPendentes.length > 0) setAvisoFotosPendentes(true);
+    else void montarPowerPoint();
+  }
+
   const secao = 'bg-card border border-card-border rounded-xl p-4 space-y-4 shadow-sm';
   const tituloSecao =
     'text-xs font-bold text-brand-ocre flex items-center gap-2 border-b border-card-border pb-2 uppercase tracking-wider font-vomzom';
@@ -1939,16 +1959,14 @@ function RelatorioFotograficoContent() {
       ? 'Resolva as pendências nos dados do relatório primeiro.'
       : progresso.length === 0
         ? 'Crie pelo menos 1 slide primeiro.'
-        : pendenciasFotos > 0
-          ? `${pendenciasFotos} slide(s) sem foto — complete antes de montar.`
-          : null;
+        : null;
 
   const botaoMontarPptx = estrutura && (
     <div className="space-y-1.5">
       <button
         type="button"
         disabled={!!motivoBloqueioPptx || montandoPptx}
-        onClick={montarPowerPoint}
+        onClick={pedirMontagem}
         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-ocre text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
       >
         {montandoPptx ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
@@ -1965,6 +1983,55 @@ function RelatorioFotograficoContent() {
 
   return (
     <div className="space-y-6 pb-16">
+      {avisoFotosPendentes && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-aviso-fotos-pendentes"
+        >
+          <div className="bg-card border border-card-border rounded-xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col">
+            <div className="p-4 border-b border-card-border flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 id="titulo-aviso-fotos-pendentes" className="text-sm font-bold text-main">
+                  {slidesPendentes.length} slide(s) com foto pendente
+                </h3>
+                <p className="text-[11px] text-sub mt-0.5">
+                  Se continuar, esses slides saem no PowerPoint com a imagem &quot;IMAGEM PENDENTE&quot; no lugar da
+                  foto que falta.
+                </p>
+              </div>
+            </div>
+            <ul className="p-4 space-y-2 overflow-y-auto text-xs">
+              {slidesPendentes.map((s) => (
+                <li key={s.numero} className="border border-card-border rounded-lg bg-background px-3 py-2">
+                  <div className="font-bold text-main">
+                    Slide {s.numero} — {s.legenda}
+                  </div>
+                  <div className="text-amber-600 font-semibold mt-0.5">Falta: {s.faltam.join(', ')}</div>
+                </li>
+              ))}
+            </ul>
+            <div className="p-4 border-t border-card-border flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setAvisoFotosPendentes(false)}
+                className="px-4 py-2.5 rounded-lg border border-card-border text-xs font-bold text-main"
+              >
+                Fechar e editar
+              </button>
+              <button
+                type="button"
+                onClick={() => void montarPowerPoint()}
+                className="px-4 py-2.5 rounded-lg bg-brand-ocre text-white text-xs font-bold"
+              >
+                Continuar e montar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="border-b border-card-border pb-5">
         <h2 className="text-2xl font-extrabold tracking-tight text-main capitalize font-vomzom">
           Relatório fotográfico
@@ -2691,8 +2758,9 @@ function RelatorioFotograficoContent() {
               </div>
             )}
             <span className="block mt-1 text-[11px] opacity-90 font-medium">
-              Pode continuar preenchendo abaixo — mas o PowerPoint só poderá ser montado depois que tudo isso
-              estiver completo.
+              {pendencias.length > 0
+                ? 'Pode continuar preenchendo abaixo — mas o PowerPoint só poderá ser montado depois de resolver as pendências nos dados do relatório.'
+                : 'Você pode montar o PowerPoint assim mesmo: os slides sem foto saem com a imagem "IMAGEM PENDENTE".'}
             </span>
           </div>
         </div>

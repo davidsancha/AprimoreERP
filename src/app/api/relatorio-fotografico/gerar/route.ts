@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { montarRelatorio, MODELOS_CFG, nomeArquivoRelatorio } from '@/modules/engenharia/relatorio-fotografico/lib/pptx';
 import { normalizarFoto } from '@/modules/engenharia/relatorio-fotografico/lib/imagem';
+import { IMAGEM_PENDENTE_BASE64 } from '@/modules/engenharia/relatorio-fotografico/lib/imagemPendente';
 import type { CamposRelatorio } from '@/modules/engenharia/relatorio-fotografico/types';
 
 /**
@@ -18,10 +19,12 @@ interface SlideEntrada {
   ambiente?: string;
   comentario?: string;
   etapa1: 'ANTES' | 'DURANTE';
-  fotoAntesPath: string;
-  fotoDepoisPath: string;
+  // foto ausente (null/vazia) vira a imagem padrão "IMAGEM PENDENTE" — o
+  // usuário confirma isso na tela antes de chamar esta rota
+  fotoAntesPath?: string | null;
+  fotoDepoisPath?: string | null;
   // só o modelo Santander usa (3 fotos por slide — ver ModeloCfg.formaDurante)
-  fotoDurantePath?: string;
+  fotoDurantePath?: string | null;
 }
 
 interface CorpoRequisicao {
@@ -54,6 +57,10 @@ async function baixar(caminho: string): Promise<Buffer> {
   return Buffer.from(await resp.arrayBuffer());
 }
 
+function imagemPendente(): Promise<Buffer> {
+  return Promise.resolve(Buffer.from(IMAGEM_PENDENTE_BASE64, 'base64'));
+}
+
 export async function POST(req: Request) {
   try {
     const corpo = (await req.json()) as CorpoRequisicao;
@@ -67,20 +74,14 @@ export async function POST(req: Request) {
     if (!corpo.slides.length) {
       return NextResponse.json({ erro: 'Nenhum slide para montar.' }, { status: 400 });
     }
-    // defesa em profundidade — o client já bloqueia isso, mas a rota não confia cegamente no corpo
-    if (corpo.slides.some((s) => !s.fotoAntesPath || !s.fotoDepoisPath || (cfg.formaDurante && !s.fotoDurantePath))) {
-      const faltaTexto = cfg.formaDurante ? 'as três fotos' : 'as duas fotos';
-      return NextResponse.json({ erro: `Há slide(s) sem ${faltaTexto} — complete antes de montar.` }, { status: 400 });
-    }
-
     const bufferModelo = await baixar(corpo.templatePath);
 
     const slides = await Promise.all(
       corpo.slides.map(async (s) => {
         const [antesBruto, depoisBruto, duranteBruto] = await Promise.all([
-          baixar(s.fotoAntesPath),
-          baixar(s.fotoDepoisPath),
-          s.fotoDurantePath ? baixar(s.fotoDurantePath) : Promise.resolve(null),
+          s.fotoAntesPath ? baixar(s.fotoAntesPath) : imagemPendente(),
+          s.fotoDepoisPath ? baixar(s.fotoDepoisPath) : imagemPendente(),
+          s.fotoDurantePath ? baixar(s.fotoDurantePath) : cfg.formaDurante ? imagemPendente() : Promise.resolve(null),
         ]);
         const [antes, depois, durante] = await Promise.all([
           normalizarFoto(antesBruto),
