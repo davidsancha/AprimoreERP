@@ -1653,7 +1653,23 @@ function RelatorioFotograficoContent() {
       criacoesPontoRef.current[chave] = criacao;
       try {
         const novo = await criacao;
-        setProgresso((prev) => [...prev, novo]);
+        const posicaoDe = (s: ProgressoSlide): number => {
+          const iEq = equipamentos.findIndex((e) => e.nome === s.equipamento);
+          const iPt = iEq < 0 ? -1 : equipamentos[iEq]!.pontos.findIndex((pt) => pt.numero === s.numero_ponto);
+          return iEq < 0 || iPt < 0 ? Number.MAX_SAFE_INTEGER : iEq * 100000 + iPt;
+        };
+        // o slide entra no lugar dele (ordem dos equipamentos/pontos), logo
+        // depois do último slide que vem antes — sem desfazer reordenações
+        // manuais dos demais, e não no fim da lista
+        const lista = [...progresso.filter((s) => s.id !== novo.id)];
+        const alvo = posicaoDe(novo);
+        let indice = 0;
+        lista.forEach((s, i) => {
+          if (posicaoDe(s) < alvo) indice = i + 1;
+        });
+        lista.splice(indice, 0, novo);
+        if (indice === lista.length - 1) setProgresso(lista);
+        else void persistirOrdem(lista);
       } finally {
         delete criacoesPontoRef.current[chave];
       }
