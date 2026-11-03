@@ -1814,7 +1814,9 @@ function RelatorioFotograficoContent() {
     }
     const modeloEscolhido = modelosDoBanco.find((m) => m.nome === modeloRelatorio);
     if (!modeloEscolhido?.config_id || !modeloEscolhido.storage_template_path) {
-      setErro('Este modelo ainda não tem um template configurado no Storage — avise o Antigravity.');
+      setErro(
+        `O modelo "${modeloRelatorio || 'selecionado'}" ainda não tem template de PowerPoint configurado. Seu relatório está salvo e nada foi perdido — assim que o template for configurado, é só voltar e clicar em Montar PowerPoint de novo.`,
+      );
       return;
     }
     setMontandoPptx(true);
