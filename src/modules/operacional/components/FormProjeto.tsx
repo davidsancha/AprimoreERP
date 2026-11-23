@@ -42,6 +42,31 @@ interface FormProjetoProps {
   projetoId?: string;
 }
 
+/** Traduz o erro do Supabase/Postgres numa mensagem que diz o que corrigir, em vez de um aviso genérico. */
+function mensagemErroSalvarProjeto(err: unknown, os: string): string {
+  const e = (err ?? {}) as { code?: string; message?: string; details?: string };
+  const texto = `${e.message ?? ''} ${e.details ?? ''}`;
+  if (e.code === '23505' && /\bos\b|projetos_os/i.test(texto)) {
+    return `Já existe um projeto com a OS "${os}". Informe uma OS diferente.`;
+  }
+  if (e.code === '23514' && /datas_previstas/.test(texto)) {
+    return 'A previsão de término não pode ser anterior à previsão de início.';
+  }
+  if (e.code === '23514' && /datas_efetivas/.test(texto)) {
+    return 'O término efetivo não pode ser anterior ao início efetivo.';
+  }
+  if (e.code === 'PGRST202' || e.code === '42883') {
+    return 'A função de salvar projeto não existe no banco (migration 00028 ainda não aplicada). Avise o Antigravity.';
+  }
+  if (e.code === '42501' || /Sem permiss/i.test(texto)) {
+    return 'Seu usuário não tem permissão para cadastrar projetos.';
+  }
+  const detalhe = e.message?.trim();
+  return detalhe
+    ? `Não foi possível salvar o projeto: ${detalhe}`
+    : 'Houve um erro ao processar o cadastro do projeto.';
+}
+
 export default function FormProjeto({ projetoId }: FormProjetoProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -596,7 +621,7 @@ export default function FormProjeto({ projetoId }: FormProjetoProps) {
       }, 1500);
     } catch (err) {
       console.error('Erro ao salvar projeto:', err);
-      showToast('Houve um erro ao processar o cadastro do projeto.', 'error');
+      showToast(mensagemErroSalvarProjeto(err, os), 'error');
     } finally {
       setLoading(false);
     }
