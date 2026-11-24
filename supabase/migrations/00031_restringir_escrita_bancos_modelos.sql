@@ -1,5 +1,5 @@
 -- ==============================================================================
--- MIGRATION: 00030_restringir_escrita_bancos_modelos.sql
+-- MIGRATION: 00031_restringir_escrita_bancos_modelos.sql
 -- `engenharia_bancos_catalogo` e `engenharia_modelos_relatorio` (00011) têm
 -- policy "Escrita ... FOR ALL TO authenticated USING (true)": qualquer
 -- usuário autenticado -- inclusive um Parceiro EGF (`convidado`) -- podia
