@@ -306,7 +306,24 @@ function ModalEscolhaOrigemFoto({
   useEffect(() => {
     if (desktop) {
       galRef.current?.click();
-      return;
+      // No PC não há tela de escolha: se o usuário cancelar o seletor de
+      // arquivos, nada avisava o pai e o botão ficava preso em "escolhendo"
+      // (um segundo clique não reabria o seletor). O evento `cancel` do input
+      // cobre os navegadores novos; o retorno do foco à janela (sem arquivo
+      // escolhido logo depois) cobre os demais.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const aoVoltarFoco = () => {
+        timer = setTimeout(() => onFechar(), 1200);
+      };
+      window.addEventListener('focus', aoVoltarFoco, { once: true });
+      const input = galRef.current;
+      const aoCancelar = () => onFechar();
+      input?.addEventListener('cancel', aoCancelar);
+      return () => {
+        input?.removeEventListener('cancel', aoCancelar);
+        window.removeEventListener('focus', aoVoltarFoco);
+        if (timer) clearTimeout(timer);
+      };
     }
     // continuação automática da mesma sequência (ex.: escolheu galeria pro
     // "antes", já reabre a galeria pro "depois" sem mostrar a tela de
@@ -1343,6 +1360,85 @@ function RelatorioFotograficoContent() {
     [progresso],
   );
   const pendenciasFotos = slidesPendentes.length;
+
+  // --- salvamento automático dos dados do cabeçalho --------------------------
+  // Fotos e slides já gravam na hora (cada upload/criação vai direto pro
+  // banco); só os campos de texto do cabeçalho dependiam de clicar no botão.
+  // A "assinatura" é uma foto desses campos: se difere da última salva, há
+  // alteração pendente.
+  const assinaturaCabecalho = useMemo(
+    () =>
+      JSON.stringify([
+        tipoProjeto, banco, modeloRelatorio, programa, agencia, upe, sap, gestor, fiscEmpresa, fiscal, construtora,
+        responsavel, dataInicioObra, dataTerminoObra, uniorg, mantenedor, chamado, relatorioTitulo, dataRelatorio,
+        descricaoProblema, causaOrigem, danosSantander, paliativoRetiradaRisco, escopoProposta, cronogramaSantander,
+      ]),
+    [
+      tipoProjeto, banco, modeloRelatorio, programa, agencia, upe, sap, gestor, fiscEmpresa, fiscal, construtora,
+      responsavel, dataInicioObra, dataTerminoObra, uniorg, mantenedor, chamado, relatorioTitulo, dataRelatorio,
+      descricaoProblema, causaOrigem, danosSantander, paliativoRetiradaRisco, escopoProposta, cronogramaSantander,
+    ],
+  );
+  const [assinaturaSalva, setAssinaturaSalva] = useState<string | null>(null);
+  const [salvoEm, setSalvoEm] = useState<Date | null>(null);
+  const baseEstruturaIdRef = useRef<string | null>(null);
+
+  // base de comparação = os valores logo depois de carregar/criar o relatório
+  useEffect(() => {
+    if (!estrutura) {
+      baseEstruturaIdRef.current = null;
+      setAssinaturaSalva(null);
+      return;
+    }
+    if (baseEstruturaIdRef.current !== estrutura.id) {
+      baseEstruturaIdRef.current = estrutura.id;
+      setAssinaturaSalva(assinaturaCabecalho);
+      setSalvoEm(null);
+    }
+  }, [estrutura, assinaturaCabecalho]);
+
+  const temAlteracoesNaoSalvas = !!estrutura && assinaturaSalva !== null && assinaturaCabecalho !== assinaturaSalva;
+
+  /** Salva o cabeçalho (botão "Salvar alterações", timer de 1 min e saída da aba). */
+  async function salvarAlteracoes() {
+    if (!estrutura) return;
+    const assinaturaNoEnvio = assinaturaCabecalho;
+    const salvo = await criarOuAtualizarCabecalho();
+    if (salvo) {
+      setAssinaturaSalva(assinaturaNoEnvio);
+      setSalvoEm(new Date());
+    }
+  }
+
+  // timer e eventos de saída enxergam sempre a versão mais recente (evita closure velha)
+  const autosaveRef = useRef({ salvar: salvarAlteracoes, sujo: false, ocupado: false });
+  autosaveRef.current = { salvar: salvarAlteracoes, sujo: temAlteracoesNaoSalvas, ocupado: salvando };
+
+  useEffect(() => {
+    const tentarSalvar = () => {
+      const a = autosaveRef.current;
+      if (a.sujo && !a.ocupado) void a.salvar();
+    };
+    const timer = setInterval(tentarSalvar, 60_000);
+    // ao trocar de aba/minimizar/sair, tenta salvar na hora
+    const aoMudarVisibilidade = () => {
+      if (document.visibilityState === 'hidden') tentarSalvar();
+    };
+    // se ainda houver algo sem salvar ao fechar a página, o navegador avisa
+    const aoSair = (e: BeforeUnloadEvent) => {
+      if (autosaveRef.current.sujo) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    document.addEventListener('visibilitychange', aoMudarVisibilidade);
+    window.addEventListener('beforeunload', aoSair);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', aoMudarVisibilidade);
+      window.removeEventListener('beforeunload', aoSair);
+    };
+  }, []);
 
   /**
    * Dados de obra (agência/UPE/SAP/gestor/fiscalização/construtora/
@@ -2729,16 +2825,29 @@ function RelatorioFotograficoContent() {
               Iniciar relatório
             </button>
           )}
-          {estrutura && (isAvulso || habilitarEdicaoObra) && dadosExpandido && (
-            <button
-              type="button"
-              disabled={salvando}
-              onClick={criarOuAtualizarCabecalho}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-card-border text-main text-xs font-bold disabled:opacity-40"
-            >
-              {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
-              Salvar dados
-            </button>
+          {estrutura && (
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => void salvarAlteracoes()}
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-xs font-bold disabled:opacity-40 ${
+                  temAlteracoesNaoSalvas
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                    : 'border-card-border text-main'
+                }`}
+              >
+                {salvando ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
+                Salvar alterações
+              </button>
+              <span className="text-[10px] text-sub text-center">
+                {temAlteracoesNaoSalvas
+                  ? 'Há alterações não salvas — salvamento automático a cada 1 minuto'
+                  : salvoEm
+                    ? `Salvo às ${salvoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                    : 'Tudo salvo — fotos e slides salvam na hora'}
+              </span>
+            </div>
           )}
           {estrutura && (
             <button
