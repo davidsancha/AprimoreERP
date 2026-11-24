@@ -484,6 +484,24 @@ export async function uploadFotoRelatorio(relatorioId: string, segmento: string[
   return caminho;
 }
 
+/**
+ * Lista as fotos que já estão no Storage para um segmento (ex.: [equipamento,
+ * número do ponto]), da mais antiga pra mais nova. Serve pra recuperar fotos
+ * enviadas que nunca foram ligadas a um slide (ficaram só num rascunho em
+ * memória da tela e se perderam ao recarregar).
+ */
+export async function listarFotosNoStorage(relatorioId: string, segmento: string[]): Promise<string[]> {
+  const sb = exigirSupabase();
+  const pasta = caminhoStorage(relatorioId, segmento, "").replace(/\/$/, "");
+  const { data, error } = await sb.storage
+    .from(BUCKET_FOTOS)
+    .list(pasta, { limit: 100, sortBy: { column: "created_at", order: "asc" } });
+  if (error) throw error;
+  return (data || [])
+    .filter((f) => f.id !== null && !!f.name && /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name))
+    .map((f) => `${pasta}/${f.name}`);
+}
+
 /** Bucket é público (migration 00008) — resolve o caminho salvo pra uma URL exibível. */
 export function urlPublicaFoto(caminho: string): string {
   const sb = exigirSupabase();

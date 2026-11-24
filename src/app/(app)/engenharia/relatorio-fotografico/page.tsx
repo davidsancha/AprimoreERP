@@ -57,6 +57,7 @@ import {
   uploadFotoRelatorio,
   urlPublicaFoto,
 } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotograficoOffline';
+import { listarFotosNoStorage } from '@/modules/engenharia/relatorio-fotografico/services/apiRelatorioFotografico';
 import { descricaoDe, descricaoReforma, limpaNome, pad } from '@/modules/engenharia/relatorio-fotografico/calc';
 import { escolherFotosDaGaleriaNativa, temGaleriaNativa } from '@/shared/lib/fastGallery';
 import { salvarArquivoNoAparelho } from '@/shared/lib/salvarArquivo';
@@ -958,6 +959,8 @@ function RelatorioFotograficoContent() {
   const [origemFotoEscolhida, setOrigemFotoEscolhida] = useState<'camera' | 'galeria' | null>(null);
   const [montandoPptx, setMontandoPptx] = useState(false);
   const [avisoFotosPendentes, setAvisoFotosPendentes] = useState(false);
+  const [recuperando, setRecuperando] = useState(false);
+  const [resultadoRecuperacao, setResultadoRecuperacao] = useState<string | null>(null);
   const [sucessoPptx, setSucessoPptx] = useState<string | null>(null);
   const [slideEditando, setSlideEditando] = useState<string | null>(null);
 
@@ -1717,6 +1720,90 @@ function RelatorioFotograficoContent() {
   }
 
   /**
+   * Devolve a lista com o slide novo na posição dele (ordem dos equipamentos/
+   * pontos), logo depois do último slide que vem antes — sem desfazer
+   * reordenações manuais dos demais.
+   */
+  function inserirSlideInfraNaOrdem(atuais: ProgressoSlide[], novo: ProgressoSlide): ProgressoSlide[] {
+    const posicaoDe = (s: ProgressoSlide): number => {
+      const iEq = equipamentos.findIndex((e) => e.nome === s.equipamento);
+      const iPt = iEq < 0 ? -1 : equipamentos[iEq]!.pontos.findIndex((pt) => pt.numero === s.numero_ponto);
+      return iEq < 0 || iPt < 0 ? Number.MAX_SAFE_INTEGER : iEq * 100000 + iPt;
+    };
+    const lista = atuais.filter((s) => s.id !== novo.id);
+    const alvo = posicaoDe(novo);
+    let indice = 0;
+    lista.forEach((s, i) => {
+      if (posicaoDe(s) < alvo) indice = i + 1;
+    });
+    lista.splice(indice, 0, novo);
+    return lista;
+  }
+
+  /**
+   * Recuperação: fotos que foram enviadas ao Storage mas nunca viraram slide
+   * (versões antigas guardavam a foto solta de um ponto só em memória até
+   * completar o par, e ela se perdia ao recarregar a página). Procura, ponto a
+   * ponto, as fotos que já estão na pasta do relatório e liga ao slide — as duas
+   * mais recentes viram "antes" e "depois" (as anteriores costumam ser trocas
+   * descartadas); com uma só, ela vira "antes". Não apaga nem sobrescreve
+   * nenhuma foto já ligada.
+   */
+  async function recuperarFotosEnviadas() {
+    if (!estrutura) return;
+    setRecuperando(true);
+    setErro(null);
+    setResultadoRecuperacao(null);
+    try {
+      let lista = [...progresso];
+      let criados = 0;
+      let completados = 0;
+      for (const eq of equipamentos) {
+        if (!eq.nome.trim()) continue;
+        for (const p of eq.pontos) {
+          const arquivos = await listarFotosNoStorage(estrutura.id, [eq.nome, p.numero]);
+          if (!arquivos.length) continue;
+          const existente = lista.find((s) => s.equipamento === eq.nome && s.numero_ponto === p.numero);
+          if (!existente) {
+            const novo = await criarProgresso(estrutura.id, {
+              equipamento: eq.nome,
+              numeroPonto: p.numero,
+              local: p.local,
+              etapa1: 'ANTES',
+              fotoAntesPath: arquivos.length >= 2 ? arquivos[arquivos.length - 2]! : arquivos[0]!,
+              fotoDepoisPath: arquivos.length >= 2 ? arquivos[arquivos.length - 1]! : null,
+            });
+            lista = inserirSlideInfraNaOrdem(lista, novo);
+            criados++;
+            continue;
+          }
+          const usados = new Set([existente.foto_antes_path, existente.foto_depois_path]);
+          const livres = arquivos.filter((a) => !usados.has(a));
+          const patch: { foto_antes_path?: string; foto_depois_path?: string } = {};
+          if (!existente.foto_depois_path && livres.length) patch.foto_depois_path = livres.pop();
+          if (!existente.foto_antes_path && livres.length) patch.foto_antes_path = livres.pop();
+          if (patch.foto_antes_path || patch.foto_depois_path) {
+            const atualizado = await atualizarProgresso(existente.id, patch);
+            lista = lista.map((s) => (s.id === atualizado.id ? atualizado : s));
+            completados++;
+          }
+        }
+      }
+      if (criados > 0) await persistirOrdem(lista);
+      else setProgresso(lista);
+      setResultadoRecuperacao(
+        criados + completados === 0
+          ? 'Nenhuma foto solta encontrada: tudo que está no Storage já está ligado a um slide.'
+          : `Recuperado: ${criados} slide(s) criado(s) e ${completados} slide(s) completado(s) com fotos que já estavam no Storage. Confira o lado Antes/Depois de cada um.`,
+      );
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setRecuperando(false);
+    }
+  }
+
+  /**
    * Infraestrutura: cada ponto vira 1 slide (antes+depois). O slide nasce já
    * na primeira foto (a outra fica pendente, migration 00013) — antes ficava
    * num rascunho local até completar o par, e por isso um ponto com só uma
@@ -1749,22 +1836,8 @@ function RelatorioFotograficoContent() {
       criacoesPontoRef.current[chave] = criacao;
       try {
         const novo = await criacao;
-        const posicaoDe = (s: ProgressoSlide): number => {
-          const iEq = equipamentos.findIndex((e) => e.nome === s.equipamento);
-          const iPt = iEq < 0 ? -1 : equipamentos[iEq]!.pontos.findIndex((pt) => pt.numero === s.numero_ponto);
-          return iEq < 0 || iPt < 0 ? Number.MAX_SAFE_INTEGER : iEq * 100000 + iPt;
-        };
-        // o slide entra no lugar dele (ordem dos equipamentos/pontos), logo
-        // depois do último slide que vem antes — sem desfazer reordenações
-        // manuais dos demais, e não no fim da lista
-        const lista = [...progresso.filter((s) => s.id !== novo.id)];
-        const alvo = posicaoDe(novo);
-        let indice = 0;
-        lista.forEach((s, i) => {
-          if (posicaoDe(s) < alvo) indice = i + 1;
-        });
-        lista.splice(indice, 0, novo);
-        if (indice === lista.length - 1) setProgresso(lista);
+        const lista = inserirSlideInfraNaOrdem(progresso, novo);
+        if (lista[lista.length - 1] === novo) setProgresso(lista);
         else void persistirOrdem(lista);
       } finally {
         delete criacoesPontoRef.current[chave];
@@ -3582,6 +3655,21 @@ function RelatorioFotograficoContent() {
                 </div>
               </div>
             ))}
+          <div className="pt-2 space-y-1">
+            <button
+              type="button"
+              disabled={recuperando}
+              onClick={() => void recuperarFotosEnviadas()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-card-border text-xs font-bold text-main disabled:opacity-40"
+            >
+              {recuperando ? <Loader2 className="animate-spin" size={14} /> : <Camera size={14} />}
+              Recuperar fotos já enviadas
+            </button>
+            <p className="text-[10px] text-sub">
+              Liga aos slides as fotos que já estão salvas no servidor mas não aparecem aqui. Não apaga nada.
+            </p>
+            {resultadoRecuperacao && <p className="text-[10px] font-semibold text-emerald-600">{resultadoRecuperacao}</p>}
+          </div>
         </div>
       )}
 
